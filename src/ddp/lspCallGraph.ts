@@ -4,7 +4,7 @@ import { collectCallEdgesViaAdapter, type CallHierarchyAdapter } from "./lspCall
 import { flattenFunctionSymbols } from "./documentSymbols";
 import { symbolIdFromUriRange } from "./symbolId";
 import { parseSymbolIdParts, supportedSchemes } from "../core/lspCallGraphParsing";
-import { SOURCE_FILE_GLOB, buildExcludeGlob } from "./configuration";
+import { SOURCE_FILE_GLOB, EXCLUDE_GLOB, isTestFileUri } from "./configuration";
 
 /** Call hierarchy exists at runtime from 1.52+; @types/vscode can omit it on older stubs. */
 type LanguagesWithCallHierarchy = {
@@ -33,17 +33,22 @@ export type CallGraphCollectOptions = {
 };
 
 function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, rootUri?: string, excludeTests: boolean = true): CallHierarchyAdapter {
-  const excludeGlob = buildExcludeGlob(excludeTests);
   return {
     async findFunctionSymbols() {
       const pattern: string | vscode.RelativePattern = rootUri
         ? new vscode.RelativePattern(vscode.Uri.parse(rootUri), SOURCE_FILE_GLOB)
         : SOURCE_FILE_GLOB;
-      const files = await vscode.workspace.findFiles(
+      // Request extra files to compensate for test files that will be filtered out.
+      const limit = excludeTests ? maxFiles * 2 : maxFiles;
+      const allFiles = await vscode.workspace.findFiles(
         pattern,
-        excludeGlob,
-        maxFiles
+        EXCLUDE_GLOB,
+        limit
       );
+      // Programmatic filter — reliable across all platforms and pattern types.
+      const files = excludeTests
+        ? allFiles.filter((u) => !isTestFileUri(u.toString())).slice(0, maxFiles)
+        : allFiles;
       const result: { id: string; uriStr: string }[] = [];
       for (const uri of files) {
         if (!supportedSchemes.has(uri.scheme)) {

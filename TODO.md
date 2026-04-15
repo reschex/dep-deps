@@ -1,5 +1,4 @@
-- fix the fact that test files are still being analysed
-- add eslint to the pipeline
+- refresh analysis should refresh folder not entire workspace
 - there must be a neat way of visualising the dependencies
 - test against python code 
 - test against Java code

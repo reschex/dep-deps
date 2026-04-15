@@ -26,7 +26,7 @@ import { eslintCcForFile } from "./cc/eslintComplexity";
 import { radonCcForFile } from "./cc/radonCc";
 import { pmdCcForFile } from "./cc/pmdComplexity";
 
-import { SOURCE_FILE_GLOB, buildExcludeGlob } from "./configuration";
+import { SOURCE_FILE_GLOB, EXCLUDE_GLOB, isTestFileUri } from "./configuration";
 
 /**
  * Build a vscode.RelativePattern scoped to a given folder URI,
@@ -42,16 +42,22 @@ function scopedPattern(glob: string, rootUri?: string): string | vscode.Relative
 // ─── DocumentProvider ────────────────────────────────────────────────────────
 
 export class VsCodeDocumentProvider implements DocumentProvider {
-  private readonly excludeGlob: string;
+  private readonly excludeTests: boolean;
 
   constructor(excludeTests: boolean = true) {
-    this.excludeGlob = buildExcludeGlob(excludeTests);
+    this.excludeTests = excludeTests;
   }
 
   async findSourceFiles(maxFiles: number, rootUri?: string): Promise<string[]> {
     const pattern = scopedPattern(SOURCE_FILE_GLOB, rootUri);
-    const uris = await vscode.workspace.findFiles(pattern, this.excludeGlob, maxFiles);
-    return uris.filter((u) => u.scheme === "file").map((u) => u.toString());
+    // Request extra files to compensate for test files that will be filtered out.
+    const limit = this.excludeTests ? maxFiles * 2 : maxFiles;
+    const uris = await vscode.workspace.findFiles(pattern, EXCLUDE_GLOB, limit);
+    let result = uris.filter((u) => u.scheme === "file").map((u) => u.toString());
+    if (this.excludeTests) {
+      result = result.filter((u) => !isTestFileUri(u));
+    }
+    return result.slice(0, maxFiles);
   }
 
   async openDocument(uri: string): Promise<DocumentInfo | undefined> {

@@ -1532,7 +1532,7 @@ describe("bugmagnet session 2026-04-15", () => {
 describe("test-file exclusion", () => {
   /**
    * A fakeDocProvider that filters out test-file URIs when `excludeTests` is
-   * true, mirroring what VsCodeDocumentProvider does via buildExcludeGlob.
+   * true, mirroring what VsCodeDocumentProvider does via isTestFileUri.
    */
   function filteringDocProvider(
     docs: Map<string, DocumentInfo>,
@@ -1604,7 +1604,7 @@ describe("test-file exclusion", () => {
   });
 
   it("orchestrator safety-net excludes test files even when provider does not filter", async () => {
-    // Simulates the bug where buildExcludeGlob's nested braces fail in VS Code:
+    // Simulates the case where the adapter omits test-file filtering:
     // the document provider returns test files, but the orchestrator still filters them.
     const docs = buildDocs();
     const orchestrator = new AnalysisOrchestrator({

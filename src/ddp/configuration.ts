@@ -97,36 +97,6 @@ export const EXCLUDE_GLOB = "**/node_modules/**";
 /** Extensions covered by source-file analysis. */
 const SOURCE_EXTENSIONS = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "java"];
 
-/**
- * Pre-expanded test-file globs (no nested braces — VS Code's findFiles
- * glob parser doesn't handle `{a,b{c,d}}` correctly).
- */
-export const TEST_FILE_EXCLUDE_GLOBS: readonly string[] = SOURCE_EXTENSIONS.flatMap((ext) => [
-  `**/*.test.${ext}`,
-  `**/*.spec.${ext}`,
-]);
-
-/** Additional globs for test directories. */
-export const TEST_DIR_EXCLUDE_GLOBS = [
-  "**/__tests__/**",
-  "**/test/**",
-  "**/tests/**",
-  "**/test_*/**",
-];
-
-/**
- * Build the combined exclude glob for `vscode.workspace.findFiles`.
- * When `excludeTests` is true, appends test-file and test-directory patterns.
- * All patterns are flat (no nested `{…}`) so VS Code's glob parser handles them.
- */
-export function buildExcludeGlob(excludeTests: boolean): string {
-  if (!excludeTests) {
-    return EXCLUDE_GLOB;
-  }
-  const patterns = [EXCLUDE_GLOB, ...TEST_FILE_EXCLUDE_GLOBS, ...TEST_DIR_EXCLUDE_GLOBS];
-  return `{${patterns.join(",")}}`;
-}
-
 /** Test-file name pattern: matches .test. or .spec. before the final extension. */
 const TEST_FILE_RE = /[./](?:test|spec)\.[^/\\]+$/i;
 
