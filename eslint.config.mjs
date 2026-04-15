@@ -21,6 +21,10 @@ export default tseslint.config(
   {
     files: ["src/**/*.test.ts"],
     ...tseslint.configs.disableTypeChecked,
+    rules: {
+      ...tseslint.configs.disableTypeChecked.rules,
+      "@typescript-eslint/no-explicit-any": "off",
+    },
   },
   {
     ignores: ["out/", "coverage/", "*.config.*"],
