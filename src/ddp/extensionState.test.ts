@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { SymbolMetrics } from "../core/analyze";
 import type { AnalysisResult } from "./analysisOrchestrator";
+import type { AnalysisScope } from "./configuration";
 import { ExtensionState } from "./extensionState";
 
 // ── helpers ────────────────────────────────────────────────────────────
@@ -473,6 +474,35 @@ describe("ExtensionState", () => {
         expect(state.symbolById.has("a")).toBe(true);
         expect(state.symbolById.has("b")).toBe(false);
       });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Scope tracking for refresh
+  // ═══════════════════════════════════════════════════════════════════
+  describe("lastScope tracking", () => {
+    it("returns undefined for lastScope before any analysis", () => {
+      const state = new ExtensionState();
+      expect(state.lastScope).toBeUndefined();
+    });
+
+    it("stores the scope passed to setAnalysis", () => {
+      const state = new ExtensionState();
+      const scope: AnalysisScope = { rootUri: "file:///c%3A/code/src" };
+
+      state.setAnalysis(analysis([sym({ id: "a" })]), scope);
+
+      expect(state.lastScope).toEqual(scope);
+    });
+
+    it("sets lastScope to undefined for workspace-wide analysis", () => {
+      const state = new ExtensionState();
+      const scope: AnalysisScope = { rootUri: "file:///c%3A/code/src" };
+      state.setAnalysis(analysis([sym({ id: "a" })]), scope);
+
+      state.setAnalysis(analysis([sym({ id: "b" })]));
+
+      expect(state.lastScope).toBeUndefined();
     });
   });
 });

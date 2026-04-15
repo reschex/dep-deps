@@ -66,8 +66,8 @@ export function registerDdp(context: vscode.ExtensionContext): void {
       const scope: AnalysisScope = { rootUri: folders[0].toString() };
       return analyzeCmd.execute(scope);
     }),
-    vscode.commands.registerCommand("ddp.refresh", () => analyzeCmd.execute()),
-    vscode.commands.registerCommand("ddp.riskView.refresh", () => analyzeCmd.execute()),
+    vscode.commands.registerCommand("ddp.refresh", () => analyzeCmd.execute(state.lastScope)),
+    vscode.commands.registerCommand("ddp.riskView.refresh", () => analyzeCmd.execute(state.lastScope)),
     vscode.commands.registerCommand("ddp.revealSymbol", (id: string) => revealSymbolById(id)),
     vscode.languages.registerCodeLensProvider(selector, codeLens),
     vscode.languages.registerHoverProvider(selector, hover),

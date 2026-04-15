@@ -94,9 +94,6 @@ export function buildConfiguration(
 export const SOURCE_FILE_GLOB = "**/*.{ts,tsx,js,jsx,mjs,cjs,py,java}";
 export const EXCLUDE_GLOB = "**/node_modules/**";
 
-/** Extensions covered by source-file analysis. */
-const SOURCE_EXTENSIONS = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "java"];
-
 /** Test-file name pattern: matches .test. or .spec. before the final extension. */
 const TEST_FILE_RE = /[./](?:test|spec)\.[^/\\]+$/i;
 

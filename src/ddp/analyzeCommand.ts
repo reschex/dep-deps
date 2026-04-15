@@ -43,7 +43,7 @@ export class AnalyzeCommand {
         async (_progress, token) => {
           const result = await this.runAnalysis(token, scope);
           if (result) {
-            this.state.setAnalysis(result);
+            this.state.setAnalysis(result, scope);
           }
           this.ui.refreshTree();
           this.ui.invalidateCodeLens();
