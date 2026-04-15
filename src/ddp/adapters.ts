@@ -26,7 +26,7 @@ import { eslintCcForFile } from "./cc/eslintComplexity";
 import { radonCcForFile } from "./cc/radonCc";
 import { pmdCcForFile } from "./cc/pmdComplexity";
 
-import { SOURCE_FILE_GLOB, EXCLUDE_GLOB, buildExcludeGlob } from "./configuration";
+import { SOURCE_FILE_GLOB, buildExcludeGlob } from "./configuration";
 
 /**
  * Build a vscode.RelativePattern scoped to a given folder URI,

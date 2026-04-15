@@ -75,12 +75,6 @@ function sym(overrides: Partial<SymbolMetrics> & { id: string }): SymbolMetrics 
   };
 }
 
-function makeState(analysis?: AnalysisResult): ExtensionState {
-  const state = new ExtensionState();
-  if (analysis) state.setAnalysis(analysis);
-  return state;
-}
-
 function analysis(symbols: SymbolMetrics[]): AnalysisResult {
   return { symbols, fileRollup: new Map(), edgesCount: 0 };
 }

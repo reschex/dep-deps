@@ -15,7 +15,7 @@ export type LanguageCcProvider = {
 
 /** Fallback provider that works offline for all languages via regex-based estimation. */
 export class FallbackCcProvider implements CyclomaticComplexityProvider {
-  async computeComplexity(doc: DocumentInfo): Promise<CcResult> {
+  async computeComplexity(_doc: DocumentInfo): Promise<CcResult> {
     // The fallback only provides per-symbol estimation, not per-document.
     // It returns empty maps; the orchestrator uses estimateCyclomaticComplexity per symbol body.
     return { byLine: new Map(), byName: new Map() };

@@ -66,7 +66,7 @@ describe("collectCallEdgesViaAdapter", () => {
           { id: "B", uriStr: "file:///a.ts" },
         ];
       },
-      async getOutgoingCalleeIds(_id: string) {
+      async getOutgoingCalleeIds(_id) {
         callCount++;
         return ["M"];
       },

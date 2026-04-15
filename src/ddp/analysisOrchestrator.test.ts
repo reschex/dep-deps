@@ -12,7 +12,6 @@ import type {
   CoverageProvider,
   CyclomaticComplexityProvider,
   CcResult,
-  Logger,
 } from "../core/ports";
 import type { StatementCover } from "../core/coverageMap";
 import type { CallEdge } from "../core/rank";
@@ -29,7 +28,7 @@ function fakeDoc(uri: string, languageId: string, text = "if (a) { b(); }"): Doc
 
 function fakeDocProvider(docs: Map<string, DocumentInfo>): DocumentProvider {
   return {
-    async findSourceFiles(_maxFiles, rootUri?) {
+    async findSourceFiles(_maxFiles: number, rootUri?: string) {
       const all = [...docs.keys()];
       if (!rootUri) {
         return all;

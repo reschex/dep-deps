@@ -136,20 +136,24 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./ && tsc -p src/test/tsconfig.json",
     "watch": "tsc -watch -p ./",
+    "lint": "eslint src/",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:integration": "npm run compile && node out/test/runTest.js"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.10.0",
     "@types/vscode": "^1.85.0",
     "@vitest/coverage-v8": "^4.1.4",
     "@vscode/test-electron": "^2.5.2",
+    "eslint": "^10.2.0",
     "glob": "^13.0.6",
     "mocha": "^11.7.5",
     "typescript": "^5.3.3",
+    "typescript-eslint": "^8.58.2",
     "vitest": "^4.1.4"
   },
   "overrides": {

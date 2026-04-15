@@ -132,7 +132,7 @@ function resolveCc(
   fn: FunctionSymbolInfo,
   doc: DocumentInfo,
   ccResult: { byLine: Map<number, number>; byName: Map<string, number> },
-  config: DdpConfiguration
+  _config: DdpConfiguration
 ): number {
   const line1 = fn.selectionStartLine + 1;
 

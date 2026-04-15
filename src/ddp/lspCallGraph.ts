@@ -4,7 +4,7 @@ import { collectCallEdgesViaAdapter, type CallHierarchyAdapter } from "./lspCall
 import { flattenFunctionSymbols } from "./documentSymbols";
 import { symbolIdFromUriRange } from "./symbolId";
 import { parseSymbolIdParts, supportedSchemes } from "../core/lspCallGraphParsing";
-import { SOURCE_FILE_GLOB, EXCLUDE_GLOB, buildExcludeGlob } from "./configuration";
+import { SOURCE_FILE_GLOB, buildExcludeGlob } from "./configuration";
 
 /** Call hierarchy exists at runtime from 1.52+; @types/vscode can omit it on older stubs. */
 type LanguagesWithCallHierarchy = {
