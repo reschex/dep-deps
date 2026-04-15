@@ -1,0 +1,86 @@
+import * as vscode from "vscode";
+import { AnalysisService } from "./analysisService";
+import { ExtensionState } from "./extensionState";
+import { RiskTreeProvider } from "./riskTreeProvider";
+import { DecorationManager } from "./decorationManager";
+import { DdpCodeLensProvider } from "./codeLensProvider";
+import { DdpHoverProvider } from "./hoverProvider";
+import { revealSymbolById } from "./revealSymbol";
+import { AnalyzeCommand } from "./analyzeCommand";
+import { buildConfiguration, type AnalysisScope } from "./configuration";
+
+const selector: vscode.DocumentSelector = [
+  { scheme: "file", language: "typescript" },
+  { scheme: "file", language: "javascript" },
+  { scheme: "file", language: "typescriptreact" },
+  { scheme: "file", language: "javascriptreact" },
+  { scheme: "file", language: "python" },
+  { scheme: "file", language: "java" },
+];
+
+export function registerDdp(context: vscode.ExtensionContext): void {
+  const state = new ExtensionState();
+  const analysisService = new AnalysisService();
+  const tree = new RiskTreeProvider(state);
+  const getConfig = () => {
+    const raw = vscode.workspace.getConfiguration("ddp");
+    return buildConfiguration(<T>(key: string, def: T) => raw.get<T>(key, def));
+  };
+  const deco = new DecorationManager(state, () => getConfig().decoration);
+  const codeLens = new DdpCodeLensProvider(state, getConfig);
+  const hover = new DdpHoverProvider(state);
+
+  const treeView = vscode.window.createTreeView("ddp.riskView", {
+    treeDataProvider: tree,
+    showCollapseAll: true,
+  });
+  context.subscriptions.push(treeView);
+
+  const analyzeCmd = new AnalyzeCommand(
+    (token, scope) => analysisService.analyze(token, scope),
+    state,
+    {
+      refreshTree: () => tree.refresh(),
+      invalidateCodeLens: () => codeLens.invalidate(),
+      applyDecorations: () => {
+        for (const ed of vscode.window.visibleTextEditors) {
+          deco.applyActiveEditor(ed);
+        }
+      },
+    }
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ddp.analyzeWorkspace", () => analyzeCmd.execute()),
+    vscode.commands.registerCommand("ddp.analyzeFolder", async () => {
+      const folders = await vscode.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectFiles: false,
+        canSelectMany: false,
+        openLabel: "Analyze Folder",
+        defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
+      });
+      if (!folders?.length) {
+        return;
+      }
+      const scope: AnalysisScope = { rootUri: folders[0].toString() };
+      return analyzeCmd.execute(scope);
+    }),
+    vscode.commands.registerCommand("ddp.refresh", () => analyzeCmd.execute()),
+    vscode.commands.registerCommand("ddp.riskView.refresh", () => analyzeCmd.execute()),
+    vscode.commands.registerCommand("ddp.revealSymbol", (id: string) => revealSymbolById(id)),
+    vscode.languages.registerCodeLensProvider(selector, codeLens),
+    vscode.languages.registerHoverProvider(selector, hover),
+    deco,
+    vscode.window.onDidChangeActiveTextEditor((ed) => {
+      deco.applyActiveEditor(ed);
+    }),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("ddp")) {
+        deco.applyActiveEditor(vscode.window.activeTextEditor);
+      }
+    })
+  );
+
+  deco.applyActiveEditor(vscode.window.activeTextEditor);
+}

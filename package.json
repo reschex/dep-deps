@@ -1,0 +1,159 @@
+{
+  "name": "dependable-dependencies",
+  "displayName": "Dependable Dependencies Risk",
+  "description": "Surfaces high-risk code using Rank × CRAP (Dependable Dependencies principle).",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ddp.analyzeWorkspace",
+        "title": "DDP: Analyze workspace"
+      },
+      {
+        "command": "ddp.analyzeFolder",
+        "title": "DDP: Analyze folder…"
+      },
+      {
+        "command": "ddp.refresh",
+        "title": "DDP: Refresh analysis"
+      },
+      {
+        "command": "ddp.riskView.refresh",
+        "title": "DDP: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "ddp.revealSymbol",
+        "title": "DDP: Reveal symbol"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "ddp.riskView.refresh",
+          "when": "view == ddp.riskView",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Dependable Dependencies",
+      "properties": {
+        "ddp.coverage.fallbackT": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Test coverage T (0–1) when no coverage data exists for a symbol."
+        },
+        "ddp.decoration.warnThreshold": {
+          "type": "number",
+          "default": 50,
+          "description": "File max(F) at or above this value uses warning decoration tier."
+        },
+        "ddp.decoration.errorThreshold": {
+          "type": "number",
+          "default": 150,
+          "description": "File max(F) at or above this value uses error decoration tier."
+        },
+        "ddp.rank.maxIterations": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum iterations for rank (R) propagation."
+        },
+        "ddp.rank.epsilon": {
+          "type": "number",
+          "default": 0.000001,
+          "description": "Stop rank iteration when max change is below this value."
+        },
+        "ddp.fileRollup": {
+          "type": "string",
+          "enum": [
+            "max",
+            "sum"
+          ],
+          "default": "max",
+          "description": "Aggregate symbol risk F to file-level score."
+        },
+        "ddp.codelens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show CodeLens with R, CRAP, F on functions."
+        },
+        "ddp.coverage.lcovGlob": {
+          "type": "string",
+          "default": "**/coverage/lcov.info",
+          "description": "Glob (per workspace folder) for LCOV files used to compute T. Aligns with common Jest/Vitest/pytest-cov outputs."
+        },
+        "ddp.cc.eslintPath": {
+          "type": "string",
+          "default": "eslint",
+          "description": "ESLint executable for TS/JS complexity (rule complexity or @typescript-eslint/complexity)."
+        },
+        "ddp.cc.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Python executable used to run radon for Python CC (python -m radon cc -j)."
+        },
+        "ddp.cc.pmdPath": {
+          "type": "string",
+          "default": "pmd",
+          "description": "PMD executable for Java cyclomatic complexity (pmd check -f xml). PMD 7+ recommended."
+        },
+        "ddp.cc.useEslintForTsJs": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, merge ESLint complexity diagnostics into CC for JavaScript/TypeScript."
+        },
+        "ddp.excludeTests": {
+          "type": "boolean",
+          "default": true,
+          "description": "Exclude test files (*.test.*, *.spec.*, __tests__/, test/, tests/) from analysis. Keeps risk metrics focused on production code."
+        }
+      }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "ddp.riskView",
+          "name": "DDP Risk"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./ && tsc -p src/test/tsconfig.json",
+    "watch": "tsc -watch -p ./",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:integration": "npm run compile && node out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@vitest/coverage-v8": "^4.1.4",
+    "@vscode/test-electron": "^2.5.2",
+    "glob": "^13.0.6",
+    "mocha": "^11.7.5",
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.0.5",
+    "diff": "^8.0.3"
+  }
+}
