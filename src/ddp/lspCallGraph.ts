@@ -32,7 +32,7 @@ export type CallGraphCollectOptions = {
   readonly excludeTests?: boolean;
 };
 
-async function discoverFiles(maxFiles: number, rootUri?: string, excludeTests: boolean = true): Promise<vscode.Uri[]> {
+async function discoverFiles(maxFiles: number, rootUri: string | undefined, excludeTests: boolean): Promise<vscode.Uri[]> {
   const pattern: string | vscode.RelativePattern = rootUri
     ? new vscode.RelativePattern(vscode.Uri.parse(rootUri), SOURCE_FILE_GLOB)
     : SOURCE_FILE_GLOB;
@@ -113,7 +113,7 @@ async function resolveOutgoingCalls(
   });
 }
 
-function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, rootUri?: string, excludeTests: boolean = true): CallHierarchyAdapter {
+function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, rootUri: string | undefined, excludeTests: boolean): CallHierarchyAdapter {
   return {
     async findFunctionSymbols() {
       const files = await discoverFiles(maxFiles, rootUri, excludeTests);
@@ -127,9 +127,6 @@ function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, r
         }
         const symbols = await collectSymbolsForFile(uri);
         result.push(...symbols);
-        if (token.isCancellationRequested) {
-          break;
-        }
       }
       return result;
     },

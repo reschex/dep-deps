@@ -293,12 +293,16 @@ function fnSymbol(name: string, line: number, ch = 0) {
 }
 
 describe("collectCallEdgesFromWorkspace", () => {
+  let debugSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.mocked(vscode.workspace.findFiles).mockReset().mockResolvedValue([]);
     vi.mocked(vscode.workspace.openTextDocument).mockReset().mockResolvedValue({} as any);
     vi.mocked(vscode.commands.executeCommand).mockReset().mockResolvedValue(undefined as any);
     (vscode.languages as any).prepareCallHierarchy.mockReset().mockResolvedValue(undefined);
     (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockReset().mockResolvedValue(undefined);
+    debugSpy?.mockRestore();
+    debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
   });
 
   // ─── File discovery glob pattern ───────────────────────────────────
@@ -432,6 +436,10 @@ describe("collectCallEdgesFromWorkspace", () => {
 
       // symbol provider was still called for good.ts
       expect(vi.mocked(vscode.commands.executeCommand).mock.calls.length).toBeGreaterThanOrEqual(1);
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[DDP]"),
+        expect.any(Error),
+      );
     });
 
     it("continues processing when symbol provider throws for one file", async () => {
@@ -448,6 +456,23 @@ describe("collectCallEdgesFromWorkspace", () => {
 
       // good.ts still got processed — 2 calls total (one failed, one succeeded)
       expect(vi.mocked(vscode.commands.executeCommand)).toHaveBeenCalledTimes(2);
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[DDP]"),
+        expect.any(Error),
+      );
+    });
+
+    it("uses vscode.executeDocumentSymbolProvider command for symbol discovery", async () => {
+      const uri = fakeUri("file:///src/a.ts");
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
+
+      await collectCallEdgesFromWorkspace();
+
+      expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+        "vscode.executeDocumentSymbolProvider",
+        expect.anything(),
+      );
     });
 
     it("skips files with no symbols", async () => {
@@ -490,6 +515,16 @@ describe("collectCallEdgesFromWorkspace", () => {
 
       // Symbol provider called for first file only — second file skipped
       expect(vi.mocked(vscode.commands.executeCommand)).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not process files when token is already cancelled", async () => {
+      const token = { isCancellationRequested: true } as any;
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([fakeUri("file:///src/a.ts")] as any);
+
+      await collectCallEdgesFromWorkspace({ token });
+
+      expect(vscode.workspace.openTextDocument).not.toHaveBeenCalled();
+      expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
     });
   });
 
@@ -547,6 +582,10 @@ describe("collectCallEdgesFromWorkspace", () => {
       const edges = await collectCallEdgesFromWorkspace();
 
       expect(edges).toEqual([]);
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[DDP]"),
+        expect.any(Error),
+      );
     });
 
     it("returns empty edges when prepareCallHierarchy throws", async () => {
@@ -560,6 +599,25 @@ describe("collectCallEdgesFromWorkspace", () => {
       const edges = await collectCallEdgesFromWorkspace();
 
       expect(edges).toEqual([]);
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[DDP]"),
+        expect.any(Error),
+      );
+    });
+
+    it("does not log prepareCallHierarchy error when it returns null", async () => {
+      const uri = fakeUri("file:///src/a.ts");
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
+      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(null);
+
+      const edges = await collectCallEdgesFromWorkspace();
+
+      expect(edges).toEqual([]);
+      expect(debugSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("prepareCallHierarchy failed"),
+        expect.anything(),
+      );
     });
 
     it("returns empty edges when prepareCallHierarchy returns empty array", async () => {
@@ -571,6 +629,17 @@ describe("collectCallEdgesFromWorkspace", () => {
       const edges = await collectCallEdgesFromWorkspace();
 
       expect(edges).toEqual([]);
+    });
+
+    it("does not call provideOutgoingCalls when prepareCallHierarchy returns undefined", async () => {
+      const uri = fakeUri("file:///src/a.ts");
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
+      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(undefined);
+
+      await collectCallEdgesFromWorkspace();
+
+      expect((vscode.languages as any).provideCallHierarchyOutgoingCalls).not.toHaveBeenCalled();
     });
 
     it("returns empty edges when provideCallHierarchyOutgoingCalls returns null", async () => {
@@ -699,6 +768,10 @@ describe("collectCallEdgesFromWorkspace", () => {
       const edges = await collectCallEdgesFromWorkspace();
 
       expect(edges).toEqual([]);
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[DDP]"),
+        expect.any(Error),
+      );
     });
 
     it("handles test filtering + maxFiles interaction correctly", async () => {
@@ -738,6 +811,20 @@ describe("collectCallEdgesFromWorkspace", () => {
       const [, , limit] = vi.mocked(vscode.workspace.findFiles).mock.calls[0];
       // excludeTests defaults to true → limit = 0 * 2 = 0
       expect(limit).toBe(0);
+    });
+
+    it("handles URI with hash in path producing unparseable symbolId", async () => {
+      // URI with raw # produces "file:///a#b.ts#0:0" — parseSymbolIdParts
+      // finds the first # and fails to parse the rest as line:ch
+      const uri = fakeUri("file:///a#b.ts");
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
+
+      const edges = await collectCallEdgesFromWorkspace();
+
+      expect(edges).toEqual([]);
+      // provideCallHierarchyOutgoingCalls not reached for unparseable id
+      expect((vscode.languages as any).provideCallHierarchyOutgoingCalls).not.toHaveBeenCalled();
     });
 
     it("only extracts Function, Method, and Constructor symbols", async () => {
