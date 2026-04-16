@@ -696,4 +696,86 @@ describe("RiskTreeProvider", () => {
       });
     });
   });
+
+  // ─── Sorting ─────────────────────────────────────────────────────
+
+  describe("sorting", () => {
+    it("sorts symbols by CC descending when sort field is cc", async () => {
+      state.setAnalysis(
+        analysis([
+          sym({ id: "a", uri: "file:///f.ts", cc: 3, f: 100 }),
+          sym({ id: "b", uri: "file:///f.ts", cc: 15, f: 1 }),
+          sym({ id: "c", uri: "file:///f.ts", cc: 8, f: 50 }),
+        ])
+      );
+      provider.setSortField("cc");
+      const children = await provider.getChildren({ type: "file", uri: "file:///f.ts", label: "f.ts" });
+      expect(children.map((c) => (c as { type: "symbol"; symbol: SymbolMetrics }).symbol.id)).toEqual([
+        "b",
+        "c",
+        "a",
+      ]);
+    });
+
+    it("sorts symbols by CRAP descending when sort field is crap", async () => {
+      state.setAnalysis(
+        analysis([
+          sym({ id: "a", uri: "file:///f.ts", crap: 2, f: 100 }),
+          sym({ id: "b", uri: "file:///f.ts", crap: 30, f: 1 }),
+          sym({ id: "c", uri: "file:///f.ts", crap: 10, f: 50 }),
+        ])
+      );
+      provider.setSortField("crap");
+      const children = await provider.getChildren({ type: "file", uri: "file:///f.ts", label: "f.ts" });
+      expect(children.map((c) => (c as { type: "symbol"; symbol: SymbolMetrics }).symbol.id)).toEqual([
+        "b",
+        "c",
+        "a",
+      ]);
+    });
+
+    it("defaults to sorting by F descending", async () => {
+      state.setAnalysis(
+        analysis([
+          sym({ id: "a", uri: "file:///f.ts", f: 3 }),
+          sym({ id: "b", uri: "file:///f.ts", f: 12 }),
+          sym({ id: "c", uri: "file:///f.ts", f: 7 }),
+        ])
+      );
+      const children = await provider.getChildren({ type: "file", uri: "file:///f.ts", label: "f.ts" });
+      expect(children.map((c) => (c as { type: "symbol"; symbol: SymbolMetrics }).symbol.id)).toEqual([
+        "b",
+        "c",
+        "a",
+      ]);
+    });
+
+    it("fires onDidChangeTreeData when sort field changes", () => {
+      const listener = vi.fn();
+      provider.onDidChangeTreeData(listener);
+      provider.setSortField("cc");
+      expect(listener).toHaveBeenCalledOnce();
+    });
+
+    it("exposes the current sort field via getter", () => {
+      expect(provider.sortField).toBe("f");
+      provider.setSortField("crap");
+      expect(provider.sortField).toBe("crap");
+    });
+
+    it("sorts file nodes by max of current sort field", async () => {
+      state.setAnalysis(
+        analysis([
+          sym({ id: "a", uri: "file:///a.ts", cc: 1, f: 100 }),
+          sym({ id: "b", uri: "file:///b.ts", cc: 20, f: 1 }),
+        ])
+      );
+      provider.setSortField("cc");
+      const roots = await provider.getChildren();
+      expect(roots.map((r) => (r as { uri: string }).uri)).toEqual([
+        "file:///b.ts",
+        "file:///a.ts",
+      ]);
+    });
+  });
 });

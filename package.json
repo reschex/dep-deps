@@ -36,6 +36,21 @@
       {
         "command": "ddp.revealSymbol",
         "title": "DDP: Reveal symbol"
+      },
+      {
+        "command": "ddp.riskView.sortByF",
+        "title": "DDP: Sort by F",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "ddp.riskView.sortByCC",
+        "title": "DDP: Sort by CC",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "ddp.riskView.sortByCRAP",
+        "title": "DDP: Sort by CRAP",
+        "icon": "$(arrow-swap)"
       }
     ],
     "menus": {
@@ -44,6 +59,21 @@
           "command": "ddp.riskView.refresh",
           "when": "view == ddp.riskView",
           "group": "navigation"
+        },
+        {
+          "command": "ddp.riskView.sortByF",
+          "when": "view == ddp.riskView",
+          "group": "sort"
+        },
+        {
+          "command": "ddp.riskView.sortByCC",
+          "when": "view == ddp.riskView",
+          "group": "sort"
+        },
+        {
+          "command": "ddp.riskView.sortByCRAP",
+          "when": "view == ddp.riskView",
+          "group": "sort"
         }
       ]
     },

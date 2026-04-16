@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  sortSymbols,
   sortSymbolsByFDescending,
   symbolsForFile,
   formatHoverBreakdown,
@@ -20,6 +21,45 @@ function sym(overrides: Partial<SymbolMetrics> & { id: string }): SymbolMetrics 
     ...overrides,
   };
 }
+
+describe("sortSymbols", () => {
+  it("sorts by CC descending", () => {
+    const list = [
+      sym({ id: "a", cc: 3 }),
+      sym({ id: "b", cc: 10 }),
+      sym({ id: "c", cc: 7 }),
+    ];
+    const sorted = sortSymbols(list, "cc");
+    expect(sorted.map((s) => s.id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("sorts by CRAP descending", () => {
+    const list = [
+      sym({ id: "a", crap: 2 }),
+      sym({ id: "b", crap: 20 }),
+      sym({ id: "c", crap: 8 }),
+    ];
+    const sorted = sortSymbols(list, "crap");
+    expect(sorted.map((s) => s.id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("sorts by F descending", () => {
+    const list = [
+      sym({ id: "a", f: 3 }),
+      sym({ id: "b", f: 10 }),
+      sym({ id: "c", f: 7 }),
+    ];
+    const sorted = sortSymbols(list, "f");
+    expect(sorted.map((s) => s.id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("does not mutate the original list", () => {
+    const list = [sym({ id: "a", cc: 5 }), sym({ id: "b", cc: 1 })];
+    const sorted = sortSymbols(list, "cc");
+    expect(sorted).not.toBe(list);
+    expect(list[0].id).toBe("a");
+  });
+});
 
 describe("sortSymbolsByFDescending", () => {
   it("sorts highest F first", () => {

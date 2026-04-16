@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import type { SymbolMetrics } from "../core/analyze";
-import { sortSymbolsByFDescending, symbolsForFile } from "../core/viewModel";
+import { sortSymbols, type SortField, symbolsForFile } from "../core/viewModel";
 import type { ExtensionState } from "./extensionState";
 
 type RiskNode =
@@ -11,8 +11,18 @@ type RiskNode =
 export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
   private _onDidChange = new vscode.EventEmitter<RiskNode | undefined | null | void>();
   readonly onDidChangeTreeData = this._onDidChange.event;
+  private _sortField: SortField = "f";
 
   constructor(private readonly state: ExtensionState) {}
+
+  setSortField(field: SortField): void {
+    this._sortField = field;
+    this._onDidChange.fire();
+  }
+
+  get sortField(): SortField {
+    return this._sortField;
+  }
 
   refresh(): void {
     this._onDidChange.fire();
@@ -25,12 +35,14 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
       return item;
     }
     if (element.type === "file") {
-      const maxF = Math.max(
+      const field = this._sortField;
+      const label = field.toUpperCase();
+      const maxVal = Math.max(
         0,
-        ...symbolsForFile(element.uri, this.state.lastAnalysis?.symbols ?? []).map((s) => s.f)
+        ...symbolsForFile(element.uri, this.state.lastAnalysis?.symbols ?? []).map((s) => s[field])
       );
       const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.Expanded);
-      item.description = `max F≈${maxF.toFixed(0)}`;
+      item.description = `max ${label}≈${maxVal.toFixed(0)}`;
       item.iconPath = new vscode.ThemeIcon("file-code");
       item.contextValue = "ddpFile";
       return item;
@@ -64,9 +76,10 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
         }
         list.push(s);
       }
+      const field = this._sortField;
       const files = [...byFile.entries()].sort((a, b) => {
-        const maxA = Math.max(...a[1].map((x) => x.f));
-        const maxB = Math.max(...b[1].map((x) => x.f));
+        const maxA = Math.max(...a[1].map((x) => x[field]));
+        const maxB = Math.max(...b[1].map((x) => x[field]));
         return maxB - maxA;
       });
       return files.map(([uri]) => ({
@@ -76,7 +89,7 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
       }));
     }
     if (element.type === "file") {
-      const list = sortSymbolsByFDescending(symbolsForFile(element.uri, analysis.symbols));
+      const list = sortSymbols(symbolsForFile(element.uri, analysis.symbols), this._sortField);
       return list.map((symbol) => ({ type: "symbol" as const, symbol }));
     }
     return [];

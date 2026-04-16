@@ -1,5 +1,13 @@
 import type { SymbolMetrics } from "./analyze";
 
+/** Supported sort fields for symbol lists. */
+export type SortField = "f" | "cc" | "crap";
+
+/** Sort symbols by the given field, descending (highest first). */
+export function sortSymbols(symbols: readonly SymbolMetrics[], field: SortField): SymbolMetrics[] {
+  return [...symbols].sort((a, b) => b[field] - a[field]);
+}
+
 /** Sort symbols by failure risk F descending (highest risk first). */
 export function sortSymbolsByFDescending(symbols: readonly SymbolMetrics[]): SymbolMetrics[] {
   return [...symbols].sort((a, b) => b.f - a.f);
