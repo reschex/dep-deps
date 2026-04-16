@@ -10,11 +10,6 @@ export type RankOptions = {
   readonly epsilon: number;
 };
 
-const defaultOptions: RankOptions = {
-  maxIterations: 100,
-  epsilon: 1e-6,
-};
-
 /** Build outgoing adjacency: caller -> set of callees (unique). */
 export function calleesByCaller(edges: readonly CallEdge[]): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>();
@@ -89,12 +84,24 @@ export function outDegreesFromCallees(callees: ReadonlyMap<string, Set<string>>)
   return deg;
 }
 
-export function computeRanks(edges: readonly CallEdge[], options: Partial<RankOptions> = {}): Map<string, number> {
-  const opts = { ...defaultOptions, ...options };
-  const nodeIds = allNodeIds(edges);
-  if (nodeIds.size === 0) {
-    return new Map();
+export function hasConverged(
+  rOld: ReadonlyMap<string, number>,
+  rNew: ReadonlyMap<string, number>,
+  epsilon: number
+): boolean {
+  let maxDelta = 0;
+  for (const [id, a] of rOld) {
+    const b = rNew.get(id)!;
+    maxDelta = Math.max(maxDelta, Math.abs(a - b));
   }
+  return maxDelta < epsilon;
+}
+
+export function computeRanks(
+  edges: readonly CallEdge[],
+  { maxIterations = 100, epsilon = 1e-6 }: Partial<RankOptions> = {}
+): Map<string, number> {
+  const nodeIds = allNodeIds(edges);
   const callees = calleesByCaller(edges);
   const outDeg = outDegreesFromCallees(callees);
   const incoming = buildIncomingMap(edges);
@@ -104,16 +111,11 @@ export function computeRanks(edges: readonly CallEdge[], options: Partial<RankOp
     r.set(id, 1);
   }
 
-  for (let i = 0; i < opts.maxIterations; i++) {
+  for (let i = 0; i < maxIterations; i++) {
     const rNext = rankOneStep(nodeIds, outDeg, incoming, r);
-    let maxDelta = 0;
-    for (const id of nodeIds) {
-      const a = r.get(id) ?? 1;
-      const b = rNext.get(id) ?? 1;
-      maxDelta = Math.max(maxDelta, Math.abs(a - b));
-    }
+    const converged = hasConverged(r, rNext, epsilon);
     r = rNext;
-    if (maxDelta < opts.epsilon) {
+    if (converged) {
       break;
     }
   }

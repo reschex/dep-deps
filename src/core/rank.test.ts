@@ -6,6 +6,7 @@ import {
   calleesByCaller,
   buildIncomingMap,
   outDegreesFromCallees,
+  hasConverged,
 } from "./rank";
 
 describe("Rank computation (Dependable Dependencies)", () => {
@@ -68,7 +69,7 @@ describe("mutation-killing: rank.ts", () => {
     const r = computeRanks(edges);
     // With defaults (maxIterations=100, epsilon=1e-6), should converge
     expect(r.get("A")).toBeCloseTo(1, 5);
-    expect(r.get("B")).toBeCloseTo(2, 5);
+    expect(r.get("B")).toBe(2);
   });
 
   // Kill: ConditionalExpression L58 → true / EqualityOperator L58 → deg >= 0
@@ -92,7 +93,26 @@ describe("mutation-killing: rank.ts", () => {
     expect(rNext.get("B")).toBe(1 + 5);
   });
 
-  // Kill: ArrayDeclaration L75 → ["Stryker was here"] — initial rank values
+  // Kill: ArrayDeclaration L75 → ["Stryker was here"] — initial list in buildIncomingMap
+  it("buildIncomingMap: each callee list has exactly one entry per unique caller", () => {
+    const edges = [
+      { caller: "A", callee: "X" },
+      { caller: "B", callee: "X" },
+      { caller: "A", callee: "X" }, // duplicate — should be deduplicated by calleesByCaller
+    ];
+    const incoming = buildIncomingMap(edges);
+    const xList = incoming.get("X")!;
+    expect(xList).toHaveLength(2);
+    expect(xList.map(e => e.caller).sort()).toEqual(["A", "B"]);
+  });
+
+  it("buildIncomingMap: single edge produces single-element list", () => {
+    const edges = [{ caller: "A", callee: "B" }];
+    const incoming = buildIncomingMap(edges);
+    expect(incoming.get("B")).toEqual([{ caller: "A" }]);
+    expect(incoming.has("A")).toBe(false);
+  });
+
   it("computeRanks: all nodes start with rank 1", () => {
     // Single edge, one iteration: A→B. After 1 step, B = 1 + 1/1 = 2, A = 1
     const edges = [{ caller: "A", callee: "B" }];
@@ -110,32 +130,6 @@ describe("mutation-killing: rank.ts", () => {
     expect(r.get("B")).toBe(1);
   });
 
-  // Kill: LogicalOperator L111 → r.get(id) && 1 (changes ?? to &&)
-  // When r.get(id) is 0, ?? 1 gives 0, but && 1 gives 0 (falsy && short-circuits)
-  // Actually 0 && 1 = 0, and 0 ?? 1 = 0 (nullish coalescing doesn't trigger on 0)
-  // So for non-null values this is equivalent. Need undefined to differ.
-  // But ranks are always set in the map, so this may be equivalent.
-
-  // Kill: ArithmeticOperator L113 → a + b (changes Math.abs(a - b) to Math.abs(a + b))
-  it("computeRanks: convergence check uses subtraction not addition", () => {
-    // If |a+b| were used instead of |a-b|, convergence would never be detected
-    // because a+b is always > epsilon when ranks are > 0
-    const edges = [{ caller: "A", callee: "B" }];
-    const r = computeRanks(edges, { maxIterations: 1000, epsilon: 1e-6 });
-    // Should converge quickly (simple chain)
-    expect(r.get("B")).toBeCloseTo(2, 5);
-  });
-
-  // Kill: ConditionalExpression L116 → false / EqualityOperator L116 → maxDelta <= opts.epsilon
-  it("computeRanks: stops early when converged (maxDelta < epsilon)", () => {
-    // Simple edge: converges in ~2 iterations
-    const edges = [{ caller: "A", callee: "B" }];
-    const r = computeRanks(edges, { maxIterations: 1000, epsilon: 0.5 });
-    // With large epsilon, should still converge to correct value
-    expect(r.get("B")).toBeGreaterThan(1);
-  });
-
-  // Kill: BlockStatement L95 → {} and L103 → {} and ConditionalExpression L95 → false
   it("computeRanks: iteration loop actually updates ranks", () => {
     const edges = [
       { caller: "A", callee: "B" },
@@ -143,13 +137,50 @@ describe("mutation-killing: rank.ts", () => {
     ];
     const r = computeRanks(edges, { maxIterations: 100, epsilon: 1e-9 });
     // B gets contribution from A, C gets contribution from B
+    expect(r.get("C")!).toBeGreaterThan(r.get("B")!);
     expect(r.get("C")!).toBeGreaterThan(r.get("A")!);
-    expect(r.get("C")!).toBeGreaterThan(1);
-    expect(r.get("B")!).toBeGreaterThan(1);
+    expect(r.get("C")!).toBe(3);
+    expect(r.get("B")!).toBe(2);
   });
 
   it("computeRanks: empty edges returns empty map", () => {
     const r = computeRanks([]);
     expect(r.size).toBe(0);
+  });
+
+  // Kill: LogicalOperator (?? → &&) on options.maxIterations
+  it("computeRanks: respects explicit maxIterations (chain needs >1 iteration)", () => {
+    const edges = [
+      { caller: "A", callee: "B" },
+      { caller: "B", callee: "C" },
+    ];
+    // With maxIterations=1 and epsilon=0, only one propagation step occurs
+    const r = computeRanks(edges, { maxIterations: 1, epsilon: 0 });
+    // After 1 step: C = 1 + rOld(B)/1 = 1 + 1 = 2 (B hasn't accumulated A's rank yet)
+    expect(r.get("C")).toBe(2);
+  });
+
+  // Kill: ArithmeticOperator (a - b → a + b) inside hasConverged
+  it("hasConverged: identical maps are converged for any positive epsilon", () => {
+    const r = new Map([["A", 3], ["B", 5]]);
+    expect(hasConverged(r, r, 1e-9)).toBe(true);
+  });
+
+  it("hasConverged: different maps are not converged when delta > epsilon", () => {
+    const rOld = new Map([["A", 1], ["B", 2]]);
+    const rNew = new Map([["A", 1], ["B", 3]]);
+    expect(hasConverged(rOld, rNew, 0.5)).toBe(false);
+  });
+
+  // Kill: EqualityOperator (< → <=) on maxDelta < epsilon
+  it("hasConverged: maxDelta exactly equal to epsilon is NOT converged (strict <)", () => {
+    const rOld = new Map([["A", 1]]);
+    const rNew = new Map([["A", 2]]);
+    // delta = 1, epsilon = 1 → 1 < 1 is false
+    expect(hasConverged(rOld, rNew, 1)).toBe(false);
+  });
+
+  it("hasConverged: empty maps are always converged", () => {
+    expect(hasConverged(new Map(), new Map(), 1e-9)).toBe(true);
   });
 });
