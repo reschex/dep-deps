@@ -5,6 +5,9 @@ export function normalizeLcovPathToUri(
   lcovPath: string
 ): vscode.Uri | undefined {
   const t = lcovPath.trim();
+  if (!t) {
+    return undefined;
+  }
   try {
     if (t.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(t)) {
       return vscode.Uri.file(t);
