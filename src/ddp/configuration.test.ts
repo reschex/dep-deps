@@ -252,26 +252,7 @@ describe("isTestFileUri", () => {
     expect(isTestFileUri(uri)).toBe(true);
   });
 
-  it.skip("returns false for file literally named test.ts (not a .test. pattern) - BUG", () => {
-    /*
-     * BUG: Files named test.ts (or test.js, etc.) match the file regex
-     *
-     * ROOT CAUSE: TEST_FILE_RE uses [./] to match the character before "test"
-     *   which includes "/" (path separator). This means /test.ts matches because
-     *   the "/" before "test" satisfies the [./] class.
-     *
-     * CODE LOCATION: src/ddp/configuration.ts:98
-     *
-     * CURRENT CODE:
-     *   const TEST_FILE_RE = /[./](?:test|spec)\.[^/\\]+$/i;
-     *
-     * PROPOSED FIX:
-     *   const TEST_FILE_RE = /\.(?:test|spec)\.[^/\\]+$/i;
-     *   (Only match a literal dot before test/spec, not a path separator)
-     *
-     * EXPECTED: false (test.ts is not a .test. pattern)
-     * ACTUAL:   true (matches via / before test)
-     */
+  it("returns false for file literally named test.ts (not a .test. pattern)", () => {
     expect(isTestFileUri("file:///project/src/test.ts")).toBe(false);
     expect(isTestFileUri("file:///project/src/test.js")).toBe(false);
     expect(isTestFileUri("file:///project/src/spec.ts")).toBe(false);
@@ -286,28 +267,7 @@ describe("isTestFileUri", () => {
     expect(isTestFileUri(uri)).toBe(true);
   });
 
-  it.skip("recognises Java-style FooTest.java as a test file - BUG", () => {
-    /*
-     * BUG: Java test naming convention (FooTest.java, BarTest.java) is not detected
-     *
-     * ROOT CAUSE: TEST_FILE_RE requires a dot or slash before "test", so "FooTest.java"
-     *   doesn't match because "o" precedes "Test". The regex only handles the
-     *   .test. and .spec. patterns, not the Java convention of suffixing class names
-     *   with "Test".
-     *
-     * CODE LOCATION: src/ddp/configuration.ts:98
-     *
-     * CURRENT CODE:
-     *   const TEST_FILE_RE = /[./](?:test|spec)\.[^/\\]+$/i;
-     *
-     * PROPOSED FIX: Add an additional regex or extend TEST_FILE_RE:
-     *   const JAVA_TEST_RE = /(?:Test|Tests|IT)\.[^/\\]+$/;
-     *   (Match Java convention: FooTest.java, FooTests.java, FooIT.java)
-     *   Then: return TEST_FILE_RE.test(uri) || TEST_DIR_RE.test(uri) || JAVA_TEST_RE.test(uri);
-     *
-     * EXPECTED: true
-     * ACTUAL:   false
-     */
+  it("recognises Java-style FooTest.java as a test file", () => {
     expect(isTestFileUri("file:///project/src/FooTest.java")).toBe(true);
     expect(isTestFileUri("file:///project/src/BarTests.java")).toBe(true);
     expect(isTestFileUri("file:///project/src/ServiceIT.java")).toBe(true);
