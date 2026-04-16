@@ -50,7 +50,7 @@ export class AnalysisOrchestrator {
   constructor(private readonly deps: OrchestratorDeps) {}
 
   async analyze(config: DdpConfiguration, ctx: AnalysisContext, scope?: AnalysisScope): Promise<AnalysisResult | undefined> {
-    const { documentProvider, symbolProvider, callGraphProvider, coverageProvider, ccRegistry, logger } = this.deps;
+    const { callGraphProvider, coverageProvider, logger } = this.deps;
     const rootUri = scope?.rootUri;
 
     // 1. Load coverage data
@@ -65,57 +65,72 @@ export class AnalysisOrchestrator {
       return undefined;
     }
 
-    // 3. Discover source files (scope-aware), with safety-net filter
-    const rawUris = await documentProvider.findSourceFiles(MAX_FILES, rootUri);
-    const fileUris = config.excludeTests ? rawUris.filter((u) => !isTestFileUri(u)) : rawUris;
+    // 3. Discover source files and extract symbols
+    const fileUris = await this.discoverSourceFiles(config, rootUri);
+    const symbolInputs = await this.collectAllSymbolInputs(fileUris, config, ctx);
 
-    // 4. Extract symbols and compute CC per document
+    // 4. Compute metrics
     const rankOpts: Partial<RankOptions> = {
       maxIterations: config.rank.maxIterations,
       epsilon: config.rank.epsilon,
     };
-    const symbolInputs: SymbolInput[] = [];
-
-    for (const uri of fileUris) {
-      if (ctx.isCancelled()) {
-        break;
-      }
-
-      const doc = await documentProvider.openDocument(uri);
-      if (!doc) {
-        logger.warn(`Skipped: could not open ${uri}`);
-        continue;
-      }
-
-      const functions = await symbolProvider.getFunctionSymbols(uri);
-      if (!functions.length) {
-        continue;
-      }
-
-      // Get language-specific CC
-      const ccProvider = ccRegistry.getForLanguage(doc.languageId);
-      const ccResult = await ccProvider.computeComplexity(doc);
-
-      // Get coverage for this file
-      const statements = coverageProvider.getStatements(uri) ?? [];
-
-      for (const fn of functions) {
-        const symbolId = makeSymbolId(uri, fn);
-        const body = { startLine: fn.bodyStartLine, endLine: fn.bodyEndLine };
-        const t = coverageFractionForSymbol(body, statements, config.coverage.fallbackT);
-        const cc = resolveCc(fn, doc, ccResult, config);
-
-        symbolInputs.push({ id: symbolId, uri, name: fn.name, cc, t });
-      }
-    }
-
-    // 5. Compute metrics
     const symbols = computeSymbolMetrics(edges, symbolInputs, rankOpts);
     const rows: SymbolRiskRow[] = symbols.map((s) => ({ symbolId: s.id, uri: s.uri, f: s.f }));
     const fileRollup = rollupFileRisk(rows, config.fileRollup);
 
     logger.info(`Analysis complete: ${symbols.length} symbols, ${edges.length} edges`);
     return { symbols, fileRollup, edgesCount: edges.length };
+  }
+
+  private async discoverSourceFiles(config: DdpConfiguration, rootUri?: string): Promise<string[]> {
+    const rawUris = await this.deps.documentProvider.findSourceFiles(MAX_FILES, rootUri);
+    return config.excludeTests ? rawUris.filter((u) => !isTestFileUri(u)) : rawUris;
+  }
+
+  private async collectAllSymbolInputs(
+    fileUris: string[],
+    config: DdpConfiguration,
+    ctx: AnalysisContext
+  ): Promise<SymbolInput[]> {
+    const result: SymbolInput[] = [];
+    for (const uri of fileUris) {
+      if (ctx.isCancelled()) {
+        break;
+      }
+      const inputs = await this.collectFileSymbolInputs(uri, config);
+      result.push(...inputs);
+    }
+    return result;
+  }
+
+  private async collectFileSymbolInputs(uri: string, config: DdpConfiguration): Promise<SymbolInput[]> {
+    const { documentProvider, symbolProvider, coverageProvider, ccRegistry, logger } = this.deps;
+
+    const doc = await documentProvider.openDocument(uri);
+    if (!doc) {
+      logger.warn(`Skipped: could not open ${uri}`);
+      return [];
+    }
+
+    const functions = await symbolProvider.getFunctionSymbols(uri);
+    if (!functions.length) {
+      return [];
+    }
+
+    const ccProvider = ccRegistry.getForLanguage(doc.languageId);
+    const ccResult = await ccProvider.computeComplexity(doc);
+    const statements = coverageProvider.getStatements(uri) ?? [];
+
+    return functions.map((fn) => {
+      const body = { startLine: fn.bodyStartLine, endLine: fn.bodyEndLine };
+      return {
+        id: makeSymbolId(uri, fn),
+        uri,
+        name: fn.name,
+        cc: resolveCc(fn, doc, ccResult, config),
+        t: coverageFractionForSymbol(body, statements, config.coverage.fallbackT),
+      };
+    });
   }
 }
 
