@@ -1,0 +1,22 @@
+# Test files
+**/*.test.ts
+**/*.spec.ts
+src/test/**
+
+# Configuration and build files
+node_modules/**
+out/**
+coverage/**
+reports/**
+dist/**
+
+# Type definitions
+**/*.d.ts
+
+# Generated files
+eslint.config.mjs
+vitest.config.ts
+stryker.conf.mjs
+
+# Integration test runner
+src/test/runTest.ts

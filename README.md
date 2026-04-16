@@ -222,6 +222,17 @@ To debug and test the extension locally:
 
 ```bash
 npm test          # Run unit tests
-npm run coverage  # Generate coverage report
+npm run test:coverage  # Generate coverage report
 npm run lint      # Run ESLint
 ```
+
+### Mutation Testing
+
+For comprehensive test quality assessment, use **Stryker** mutation testing:
+
+```bash
+npm run mutation              # Full mutation test run
+npm run mutation:incremental  # Faster incremental testing
+```
+
+This analyzes how well tests detect bugs by introducing mutations to source code. See [MUTATION_TESTING.md](MUTATION_TESTING.md) for detailed guidance on interpreting results and improving test effectiveness.
