@@ -24,7 +24,7 @@ export class DdpHoverProvider implements vscode.HoverProvider {
       const id = symbolIdFromUriRange(document.uri, fn.selectionRange);
       const m = byId.get(id);
       if (!m) {
-        return undefined;
+        continue;
       }
       const md = new vscode.MarkdownString(formatHoverBreakdown(m));
       md.isTrusted = true;
