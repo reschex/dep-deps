@@ -4,14 +4,23 @@ vi.mock("./eslintSpawn", () => ({
   runEslintComplexity: vi.fn(async () => new Map()),
 }));
 
-import { eslintCcForFile } from "./eslintComplexity";
-import { runEslintComplexity } from "./eslintSpawn";
+const { eslintCcForFile, isJsLanguage } = await import("./eslintComplexity");
+const { runEslintComplexity } = await import("./eslintSpawn");
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe("eslintCcForFile", () => {
+  it("isJsLanguage accepts all four JS/TS language IDs and rejects others", () => {
+    expect(isJsLanguage("javascript")).toBe(true);
+    expect(isJsLanguage("typescript")).toBe(true);
+    expect(isJsLanguage("javascriptreact")).toBe(true);
+    expect(isJsLanguage("typescriptreact")).toBe(true);
+    expect(isJsLanguage("python")).toBe(false);
+    expect(isJsLanguage("")).toBe(false);
+  });
+
   it("returns empty map without calling ESLint when languageId is not a JS language", async () => {
     const result = await eslintCcForFile("python", "/src/foo.py", "/project", "/usr/bin/eslint");
 
@@ -54,6 +63,23 @@ describe("eslintCcForFile", () => {
 
     expect(result.get(3)).toBe(8);
     expect(runEslintComplexity).toHaveBeenCalledOnce();
+  });
+
+  it("delegates for all four JS language IDs and rejects others", async () => {
+    vi.mocked(runEslintComplexity).mockResolvedValue(new Map([[1, 1]]));
+    const langs = ["javascript", "typescript", "javascriptreact", "typescriptreact"];
+
+    for (const lang of langs) {
+      vi.mocked(runEslintComplexity).mockClear();
+      const result = await eslintCcForFile(lang, "/src/f.ts", "/p", "/e");
+      expect(runEslintComplexity).toHaveBeenCalledOnce();
+      expect(result.size).toBeGreaterThan(0);
+    }
+
+    vi.mocked(runEslintComplexity).mockClear();
+    const bad = await eslintCcForFile("", "/src/f.ts", "/p", "/e");
+    expect(runEslintComplexity).not.toHaveBeenCalled();
+    expect(bad.size).toBe(0);
   });
 
   it("passes eslintPath, fsPath, cwd, and 20000ms timeout to spawn", async () => {

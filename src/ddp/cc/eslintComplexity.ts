@@ -1,6 +1,13 @@
 import { runEslintComplexity } from "./eslintSpawn";
 
-const jsLangs = new Set(["javascript", "typescript", "javascriptreact", "typescriptreact"]);
+export function isJsLanguage(languageId: string): boolean {
+  return (
+    languageId === "javascript" ||
+    languageId === "typescript" ||
+    languageId === "javascriptreact" ||
+    languageId === "typescriptreact"
+  );
+}
 
 export async function eslintCcForFile(
   languageId: string,
@@ -8,7 +15,7 @@ export async function eslintCcForFile(
   cwd: string,
   eslintPath: string
 ): Promise<Map<number, number>> {
-  if (!jsLangs.has(languageId)) {
+  if (!isJsLanguage(languageId)) {
     return new Map();
   }
   return runEslintComplexity(eslintPath, fsPath, cwd, 20000);
