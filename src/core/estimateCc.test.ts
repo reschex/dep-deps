@@ -12,7 +12,6 @@ describe("estimateCyclomaticComplexity", () => {
 });
 
 describe("mutation-killing: estimateCc.ts", () => {
-  // Kill: BlockStatement L19 → {} / ConditionalExpression L19 → false / MethodExpression L19 → source
   it("returns 1 for empty string", () => {
     expect(estimateCyclomaticComplexity("")).toBe(1);
   });
@@ -47,12 +46,10 @@ describe("mutation-killing: estimateCc.ts", () => {
   });
 
   it("counts && as a decision", () => {
-    // \b around && requires word boundary; 'a&&b' has word chars adjacent
     expect(estimateCyclomaticComplexity("if (a&&b) {}")).toBe(3);
   });
 
   it("counts || as a decision", () => {
-    // \b around || requires word boundary; 'a||b' has word chars adjacent
     expect(estimateCyclomaticComplexity("if (a||b) {}")).toBe(3);
   });
 
@@ -65,13 +62,21 @@ describe("mutation-killing: estimateCc.ts", () => {
     expect(estimateCyclomaticComplexity("if (a) {} else  if (b) {}")).toBe(3);
   });
 
-  // Kill: Regex ternary - \?\s*[^;?:]+: mutations
+  // Kill: ternary regex mutations (\?\s* and [^;?:]+)
   it("counts ternary as a decision", () => {
     expect(estimateCyclomaticComplexity("const x = a ? b : c;")).toBe(2);
   });
 
-  it("counts ternary with spaces after ? as a decision", () => {
+  it("counts ternary with no space after ?", () => {
+    expect(estimateCyclomaticComplexity("const x = a ?b : c;")).toBe(2);
+  });
+
+  it("counts ternary with multiple spaces after ?", () => {
     expect(estimateCyclomaticComplexity("const x = a ?  b : c;")).toBe(2);
+  });
+
+  it("counts ternary with longer expression between ? and :", () => {
+    expect(estimateCyclomaticComplexity("const x = a ? foo(b) : c;")).toBe(2);
   });
 
   it("counts foreach as a decision", () => {
