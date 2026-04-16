@@ -1,4 +1,4 @@
-- sort by F or CC
+
 - there must be a neat way of visualising the dependencies
 - test against python code 
 - test against Java code

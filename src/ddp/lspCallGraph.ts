@@ -32,54 +32,59 @@ export type CallGraphCollectOptions = {
   readonly excludeTests?: boolean;
 };
 
+async function discoverFiles(maxFiles: number, rootUri?: string, excludeTests: boolean = true): Promise<vscode.Uri[]> {
+  const pattern: string | vscode.RelativePattern = rootUri
+    ? new vscode.RelativePattern(vscode.Uri.parse(rootUri), SOURCE_FILE_GLOB)
+    : SOURCE_FILE_GLOB;
+  // Request extra files to compensate for test files that will be filtered out.
+  const limit = excludeTests ? maxFiles * 2 : maxFiles;
+  const allFiles = await vscode.workspace.findFiles(pattern, EXCLUDE_GLOB, limit);
+  // Programmatic filter — reliable across all platforms and pattern types.
+  return excludeTests
+    ? allFiles.filter((u) => !isTestFileUri(u.toString())).slice(0, maxFiles)
+    : allFiles;
+}
+
+async function collectSymbolsForFile(uri: vscode.Uri): Promise<{ id: string; uriStr: string }[]> {
+  try {
+    await vscode.workspace.openTextDocument(uri);
+  } catch (e) {
+    console.debug(`[DDP] Cannot open ${uri.toString()} for call graph:`, e);
+  }
+  let syms: vscode.DocumentSymbol[] | undefined;
+  try {
+    syms = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+      "vscode.executeDocumentSymbolProvider",
+      uri
+    );
+  } catch (e) {
+    console.debug(`[DDP] Symbol provider failed for ${uri.toString()}:`, e);
+  }
+  if (!syms?.length) {
+    return [];
+  }
+  return flattenFunctionSymbols(syms).map((fn) => ({
+    id: symbolIdFromUriRange(uri, fn.selectionRange),
+    uriStr: uri.toString(),
+  }));
+}
+
 function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, rootUri?: string, excludeTests: boolean = true): CallHierarchyAdapter {
   return {
     async findFunctionSymbols() {
-      const pattern: string | vscode.RelativePattern = rootUri
-        ? new vscode.RelativePattern(vscode.Uri.parse(rootUri), SOURCE_FILE_GLOB)
-        : SOURCE_FILE_GLOB;
-      // Request extra files to compensate for test files that will be filtered out.
-      const limit = excludeTests ? maxFiles * 2 : maxFiles;
-      const allFiles = await vscode.workspace.findFiles(
-        pattern,
-        EXCLUDE_GLOB,
-        limit
-      );
-      // Programmatic filter — reliable across all platforms and pattern types.
-      const files = excludeTests
-        ? allFiles.filter((u) => !isTestFileUri(u.toString())).slice(0, maxFiles)
-        : allFiles;
+      const files = await discoverFiles(maxFiles, rootUri, excludeTests);
       const result: { id: string; uriStr: string }[] = [];
       for (const uri of files) {
         if (!supportedSchemes.has(uri.scheme)) {
           continue;
         }
-        try {
-          // Must open document before symbol provider runs
-          await vscode.workspace.openTextDocument(uri);
-        } catch (e) {
-          console.debug(`[DDP] Cannot open ${uri.toString()} for call graph:`, e);
-        }
         if (token.isCancellationRequested) {
           break;
         }
-        let syms: vscode.DocumentSymbol[] | undefined;
-        try {
-          syms = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
-            "vscode.executeDocumentSymbolProvider",
-            uri
-          );
-        } catch (e) {
-          console.debug(`[DDP] Symbol provider failed for ${uri.toString()}:`, e);
-        }
-        if (!syms?.length) {
-          continue;
-        }
-        for (const fn of flattenFunctionSymbols(syms)) {
-          result.push({
-            id: symbolIdFromUriRange(uri, fn.selectionRange),
-            uriStr: uri.toString(),
-          });
+        const symbols = await collectSymbolsForFile(uri);
+        result.push(...symbols);
+        if (token.isCancellationRequested) {
+          break;
         }
       }
       return result;
