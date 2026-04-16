@@ -123,3 +123,72 @@ describe("parsePmdCyclomaticXml", () => {
     expect(m.get(15)).toBe(6);
   });
 });
+
+describe("mutation-killing: pmdParse.ts", () => {
+  // Kill: BlockStatement L29 → {} / ConditionalExpression L29 → false
+  // This is the ruleRe.test(attrs) check — if skipped, non-cyclomatic rules would pass through
+  it("skips violation with non-cyclomatic rule even if message contains complexity", () => {
+    const xml = `<pmd>
+  <file name="Foo.java">
+    <violation beginline="10" rule="TooManyMethods" priority="3">
+      has a complexity of 99.
+    </violation>
+  </file>
+</pmd>`;
+    const m = parsePmdCyclomaticXml(xml);
+    expect(m.size).toBe(0);
+  });
+
+  // Kill: ConditionalExpression L33 → false — skip lineMatch check
+  it("skips violation without beginline attribute", () => {
+    const xml = `<pmd>
+  <file name="Foo.java">
+    <violation rule="CyclomaticComplexity" priority="3">
+      The method has a cyclomatic complexity of 5.
+    </violation>
+  </file>
+</pmd>`;
+    const m = parsePmdCyclomaticXml(xml);
+    expect(m.size).toBe(0);
+  });
+
+  // Kill: ConditionalExpression L38 → true, LogicalOperator L38
+  // This is the !Number.isNaN(line) && cc !== undefined check
+  it("skips violation with NaN line number", () => {
+    const xml = `<pmd>
+  <file name="Foo.java">
+    <violation beginline="abc" rule="CyclomaticComplexity" priority="3">
+      The method has a cyclomatic complexity of 5.
+    </violation>
+  </file>
+</pmd>`;
+    const m = parsePmdCyclomaticXml(xml);
+    expect(m.size).toBe(0);
+  });
+
+  it("skips violation where complexity cannot be extracted from message", () => {
+    const xml = `<pmd>
+  <file name="Foo.java">
+    <violation beginline="10" rule="CyclomaticComplexity" priority="3">
+      The method has no complexity info.
+    </violation>
+  </file>
+</pmd>`;
+    const m = parsePmdCyclomaticXml(xml);
+    expect(m.size).toBe(0);
+  });
+
+  // Ensure valid violations actually store values (kill BlockStatement mutations)
+  it("stores complexity in map for valid violation", () => {
+    const xml = `<pmd>
+  <file name="Foo.java">
+    <violation beginline="7" rule="CyclomaticComplexity" priority="3">
+      The method 'foo' has a cyclomatic complexity of 11.
+    </violation>
+  </file>
+</pmd>`;
+    const m = parsePmdCyclomaticXml(xml);
+    expect(m.size).toBe(1);
+    expect(m.get(7)).toBe(11);
+  });
+});

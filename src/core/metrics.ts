@@ -31,11 +31,8 @@ export function failureRiskFromCrap(rank: number, crapValue: number): number {
 
 /** Clamp a number to [0, 1], treating NaN as 0. */
 export function clamp01(t: number): number {
-  if (Number.isNaN(t) || t < 0) {
+  if (Number.isNaN(t)) {
     return 0;
   }
-  if (t > 1) {
-    return 1;
-  }
-  return t;
+  return Math.min(1, Math.max(0, t));
 }

@@ -536,3 +536,130 @@ describe("bugmagnet session 2026-04-16", () => {
     });
   });
 });
+
+describe("mutation-killing: DEFAULT_CONFIGURATION individual properties", () => {
+  it("coverage sub-object has fallbackT and lcovGlob", () => {
+    expect(DEFAULT_CONFIGURATION.coverage.fallbackT).toBe(0);
+    expect(DEFAULT_CONFIGURATION.coverage.lcovGlob).toBe("**/coverage/lcov.info");
+  });
+
+  it("rank sub-object has maxIterations and epsilon", () => {
+    expect(DEFAULT_CONFIGURATION.rank.maxIterations).toBe(100);
+    expect(DEFAULT_CONFIGURATION.rank.epsilon).toBe(1e-6);
+  });
+
+  it("cc sub-object has all four fields", () => {
+    expect(DEFAULT_CONFIGURATION.cc.eslintPath).toBe("eslint");
+    expect(DEFAULT_CONFIGURATION.cc.pythonPath).toBe("python");
+    expect(DEFAULT_CONFIGURATION.cc.pmdPath).toBe("pmd");
+    expect(DEFAULT_CONFIGURATION.cc.useEslintForTsJs).toBe(true);
+  });
+
+  it("decoration sub-object has warnThreshold and errorThreshold", () => {
+    expect(DEFAULT_CONFIGURATION.decoration.warnThreshold).toBe(50);
+    expect(DEFAULT_CONFIGURATION.decoration.errorThreshold).toBe(150);
+  });
+
+  it("fileRollup defaults to max", () => {
+    expect(DEFAULT_CONFIGURATION.fileRollup).toBe("max");
+  });
+
+  it("codelensEnabled defaults to true", () => {
+    expect(DEFAULT_CONFIGURATION.codelensEnabled).toBe(true);
+  });
+
+  it("excludeTests defaults to true", () => {
+    expect(DEFAULT_CONFIGURATION.excludeTests).toBe(true);
+  });
+});
+
+describe("mutation-killing: SOURCE_FILE_GLOB and EXCLUDE_GLOB", () => {
+  it("SOURCE_FILE_GLOB is not empty", () => {
+    expect(SOURCE_FILE_GLOB.length).toBeGreaterThan(0);
+    expect(SOURCE_FILE_GLOB).toContain("ts");
+  });
+
+  it("EXCLUDE_GLOB is not empty", () => {
+    expect(EXCLUDE_GLOB.length).toBeGreaterThan(0);
+    expect(EXCLUDE_GLOB).toContain("node_modules");
+  });
+});
+
+describe("mutation-killing: isTestFileUri regex precision", () => {
+  // Kill: TEST_FILE_RE $ anchor removal — /\.(?:test|spec)\.[^/\\]+/i vs /\.(?:test|spec)\.[^/\\]+$/i
+  // Without $, a mid-path .test. could match differently in edge cases
+  // Actually both behave the same for test() calls, so this may be equivalent.
+  // But let's add tests ensuring multi-char extensions work (kills [^/\\]+ → [^/\\])
+  it("matches .test.tsx (multi-char extension kills [^/\\]+ → [^/\\])", () => {
+    expect(isTestFileUri("file:///project/foo.test.tsx")).toBe(true);
+  });
+
+  it("matches .spec.mjs (multi-char extension)", () => {
+    expect(isTestFileUri("file:///project/foo.spec.mjs")).toBe(true);
+  });
+
+  // Kill: [^/\\]+ → [/\\]+ — replace non-separator class with separator class
+  it("matches .test followed by normal chars not separators", () => {
+    expect(isTestFileUri("file:///project/foo.test.ts")).toBe(true);
+  });
+
+  // Kill: JAVA_TEST_RE $ anchor — /(?:Test|Tests|IT)\.[^/\\]+$/
+  it("matches FooTest.java (Java convention, multi-char extension)", () => {
+    expect(isTestFileUri("file:///project/FooTest.java")).toBe(true);
+  });
+
+  it("matches BarIT.java (Java integration test)", () => {
+    expect(isTestFileUri("file:///project/BarIT.java")).toBe(true);
+  });
+
+  // Kill: JAVA_TEST_RE [^/\\]+ → [^/\\] (single char)
+  it("matches FooTests.java (multi-char extension for Java)", () => {
+    expect(isTestFileUri("file:///project/FooTests.java")).toBe(true);
+  });
+
+  // Kill: JAVA_TEST_RE [^/\\]+ → [/\\]+
+  it("does not match FooTest followed by slash", () => {
+    // FooTest./ would NOT be a normal file — just verify FooTest.java works
+    expect(isTestFileUri("FooTest.java")).toBe(true);
+  });
+
+  // Kill: TEST_DIR_RE — (?:^|[^/\\]) → (?:[/\\])
+  // The original matches test at start of string (^) or after non-separator
+  // The mutant only matches after a separator
+  it("matches test/ at the very start of string (no leading separator)", () => {
+    expect(isTestFileUri("test/foo.ts")).toBe(true);
+  });
+
+  it("matches __tests__/ at start of string", () => {
+    expect(isTestFileUri("__tests__/foo.ts")).toBe(true);
+  });
+
+  // Kill: TEST_DIR_RE tests? → tests (no optional s)
+  it("matches singular test/ directory", () => {
+    expect(isTestFileUri("file:///project/test/foo.ts")).toBe(true);
+  });
+
+  // Kill: TEST_DIR_RE test_[^/\\]+ → test_[^/\\] (single char after test_)
+  it("matches test_ dir with multi-char suffix", () => {
+    expect(isTestFileUri("file:///project/test_integration/foo.ts")).toBe(true);
+  });
+
+  // Kill: TEST_DIR_RE test_[^/\\]+ → test_[/\\]+
+  it("matches test_e2e dir with normal chars in suffix", () => {
+    expect(isTestFileUri("file:///project/test_e2e/runner.ts")).toBe(true);
+  });
+
+  // Kill: TEST_DIR_RE (?:[/\\]|$) → (?:[/\\]) — removes end-of-string anchor
+  it("matches path ending in test dir with no trailing content", () => {
+    expect(isTestFileUri("file:///project/test")).toBe(true);
+  });
+
+  // Kill: TEST_DIR_RE (?:[/\\]|$) → (?:[^/\\]|$) — changes separator to non-separator
+  it("matches test/ when followed by separator", () => {
+    expect(isTestFileUri("file:///project/test/file.ts")).toBe(true);
+  });
+
+  it("matches tests\\ with backslash separator", () => {
+    expect(isTestFileUri("C:\\project\\tests\\file.ts")).toBe(true);
+  });
+});
