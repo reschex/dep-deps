@@ -69,6 +69,50 @@ async function collectSymbolsForFile(uri: vscode.Uri): Promise<{ id: string; uri
   }));
 }
 
+async function prepareCallHierarchyItem(
+  symbolId: string,
+  token: vscode.CancellationToken
+): Promise<vscode.CallHierarchyItem | undefined> {
+  const parsed = parseSymbolIdParts(symbolId);
+  if (!parsed) {
+    return undefined;
+  }
+  const { uriStr, line, ch } = parsed;
+  let doc: vscode.TextDocument;
+  try {
+    doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(uriStr));
+  } catch (e) {
+    console.debug(`[DDP] Cannot open ${uriStr} for outgoing calls:`, e);
+    return undefined;
+  }
+  const pos = new vscode.Position(line, ch);
+  try {
+    const items = await languagesCallHierarchy().prepareCallHierarchy(doc, pos, token);
+    return items?.[0];
+  } catch (e) {
+    console.debug(`[DDP] prepareCallHierarchy failed for ${symbolId}:`, e);
+    return undefined;
+  }
+}
+
+async function resolveOutgoingCalls(
+  item: vscode.CallHierarchyItem,
+  token: vscode.CancellationToken
+): Promise<string[]> {
+  let outgoing: vscode.CallHierarchyOutgoingCall[];
+  try {
+    const raw = await languagesCallHierarchy().provideCallHierarchyOutgoingCalls(item, token);
+    outgoing = raw ?? [];
+  } catch (e) {
+    console.debug(`[DDP] provideCallHierarchyOutgoingCalls failed:`, e);
+    return [];
+  }
+  return outgoing.map((o) => {
+    const r = o.to.selectionRange ?? o.to.range;
+    return symbolIdFromUriRange(o.to.uri, r);
+  });
+}
+
 function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, rootUri?: string, excludeTests: boolean = true): CallHierarchyAdapter {
   return {
     async findFunctionSymbols() {
@@ -90,42 +134,11 @@ function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, r
       return result;
     },
     async getOutgoingCalleeIds(symbolId: string) {
-      const parsed = parseSymbolIdParts(symbolId);
-      if (!parsed) {
-        return [];
-      }
-      const { uriStr, line, ch } = parsed;
-      let doc: vscode.TextDocument;
-      try {
-        doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(uriStr));
-      } catch (e) {
-        console.debug(`[DDP] Cannot open ${uriStr} for outgoing calls:`, e);
-        return [];
-      }
-      const pos = new vscode.Position(line, ch);
-      let items: vscode.CallHierarchyItem[] | null | undefined;
-      try {
-        items = await languagesCallHierarchy().prepareCallHierarchy(doc, pos, token);
-      } catch (e) {
-        console.debug(`[DDP] prepareCallHierarchy failed for ${symbolId}:`, e);
-        return [];
-      }
-      const item = items?.[0];
+      const item = await prepareCallHierarchyItem(symbolId, token);
       if (!item) {
         return [];
       }
-      let outgoing: vscode.CallHierarchyOutgoingCall[];
-      try {
-        const raw = await languagesCallHierarchy().provideCallHierarchyOutgoingCalls(item, token);
-        outgoing = raw ?? [];
-      } catch (e) {
-        console.debug(`[DDP] provideCallHierarchyOutgoingCalls failed:`, e);
-        return [];
-      }
-      return outgoing.map((o) => {
-        const r = o.to.selectionRange ?? o.to.range;
-        return symbolIdFromUriRange(o.to.uri, r);
-      });
+      return resolveOutgoingCalls(item, token);
     },
     isCancelled() {
       return token.isCancellationRequested;
