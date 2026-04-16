@@ -9,6 +9,8 @@ From [Dependable Dependencies (Gorman, 2011)](https://codemanship.co.uk/Dependab
 
 The **Dependable Dependencies** extension analyzes your codebase to identify high-risk functions and methods based on cyclomatic complexity, test coverage, and their importance in the codebase's call graph. It computes a **failure risk (F)** score for each function to guide testing and refactoring efforts.
 
+![alt example_risk_view](resources/example_ddp_risk_view.png)
+
 ### Commands
 
 Use **Shift+Ctrl+P** (or **Cmd+Shift+P** on macOS) to run these commands:
