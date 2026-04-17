@@ -5,7 +5,7 @@ vi.mock("vscode", () => {
   class Uri {
     scheme: string;
     fsPath: string;
-    private _str: string;
+    private readonly _str: string;
 
     private constructor(scheme: string, fsPath: string, str: string) {
       this.scheme = scheme;
@@ -22,14 +22,14 @@ vi.mock("vscode", () => {
       const scheme = colonIdx > 0 ? str.slice(0, colonIdx) : "";
       let fsPath = "";
       if (scheme === "file") {
-        const path = str.replace("file:///", "").replace(/%3A/gi, ":");
-        fsPath = path.replace(/\//g, "\\");
+        const path = str.replace("file:///", "").replaceAll(/%3A/gi, ":");
+        fsPath = path.replaceAll('/', "\\");
       }
       return new Uri(scheme, fsPath, str);
     }
 
     static file(path: string): Uri {
-      const normalized = path.replace(/\\/g, "/");
+      const normalized = path.replaceAll('\\', "/");
       return new Uri("file", path, `file:///${normalized}`);
     }
 
@@ -68,7 +68,7 @@ describe("normalizeLcovPathToUri", () => {
   });
 
   it("returns Uri.file for Windows absolute path with backslash", () => {
-    const result = normalizeLcovPathToUri(ws, "C:\\src\\file.ts");
+    const result = normalizeLcovPathToUri(ws, String.raw`C:\src\file.ts`);
 
     expect(result).toBeDefined();
     expect(result!.toString()).toBe("file:///C:/src/file.ts");
@@ -101,7 +101,7 @@ describe("normalizeLcovPathToUri", () => {
   // ── Medium Priority ────────────────────────────────────────────────
 
   it("normalizes backslashes to forward slashes for relative paths", () => {
-    const result = normalizeLcovPathToUri(ws, "src\\dir\\file.ts");
+    const result = normalizeLcovPathToUri(ws, String.raw`src\dir\file.ts`);
 
     expect(result).toBeDefined();
     expect(result!.toString()).toBe("file:///workspace/src/dir/file.ts");
@@ -115,7 +115,7 @@ describe("normalizeLcovPathToUri", () => {
   });
 
   it("returns Uri.file for lowercase drive letter", () => {
-    const result = normalizeLcovPathToUri(ws, "c:\\src\\file.ts");
+    const result = normalizeLcovPathToUri(ws, String.raw`c:\src\file.ts`);
 
     expect(result).toBeDefined();
     expect(result!.toString()).toBe("file:///c:/src/file.ts");
@@ -136,7 +136,7 @@ describe("normalizeLcovPathToUri", () => {
   // ── Low Priority ───────────────────────────────────────────────────
 
   it("normalizes mixed separators in relative paths", () => {
-    const result = normalizeLcovPathToUri(ws, "src\\dir/file.ts");
+    const result = normalizeLcovPathToUri(ws, String.raw`src\dir/file.ts`);
 
     expect(result).toBeDefined();
     expect(result!.toString()).toBe("file:///workspace/src/dir/file.ts");
@@ -212,7 +212,7 @@ describe("normalizeLcovPathToUri", () => {
     // ── File path edge cases ───────────────────────────────────────────
 
     it("returns joined Uri for path starting with dot-dot backslash", () => {
-      const result = normalizeLcovPathToUri(ws, "..\\parent\\file.ts");
+      const result = normalizeLcovPathToUri(ws, String.raw`..\parent\file.ts`);
 
       expect(result).toBeDefined();
       expect(result!.toString()).toBe("file:///workspace/../parent/file.ts");
@@ -251,7 +251,7 @@ describe("normalizeLcovPathToUri", () => {
 
     it("treats string starting with digit and colon as relative", () => {
       // "1:\\file" — digit is not [a-zA-Z]
-      const result = normalizeLcovPathToUri(ws, "1:\\file");
+      const result = normalizeLcovPathToUri(ws, String.raw`1:\file`);
 
       expect(result).toBeDefined();
       expect(result!.toString()).toBe("file:///workspace/1:/file");
@@ -263,7 +263,7 @@ describe("normalizeLcovPathToUri", () => {
       const origFile = vscode.Uri.file;
       vscode.Uri.file = () => { throw new Error("bad"); };
 
-      const result = normalizeLcovPathToUri(ws, "C:\\bad\\path");
+      const result = normalizeLcovPathToUri(ws, String.raw`C:\bad\path`);
 
       vscode.Uri.file = origFile;
       expect(result).toBeUndefined();

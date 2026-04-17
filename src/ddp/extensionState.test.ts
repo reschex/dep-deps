@@ -361,7 +361,7 @@ describe("ExtensionState", () => {
 
       it("stores result whose symbols have NaN metric values", () => {
         const state = new ExtensionState();
-        const s = sym({ id: "nan-metrics", cc: NaN, crap: NaN, f: NaN });
+        const s = sym({ id: "nan-metrics", cc: Number.NaN, crap: Number.NaN, f: Number.NaN });
 
         state.setAnalysis(analysis([s]));
 
