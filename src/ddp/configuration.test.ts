@@ -169,7 +169,7 @@ describe("DEFAULT_CONFIGURATION", () => {
 
   it("is frozen at module level (prevents accidental mutation)", () => {
     // Verify the structure keys exist — if someone renames a key, this catches it
-    const keys = Object.keys(DEFAULT_CONFIGURATION).sort();
+    const keys = Object.keys(DEFAULT_CONFIGURATION).sort((a, b) => a.localeCompare(b));
     expect(keys).toEqual([
       "cc",
       "codelensEnabled",
@@ -243,11 +243,11 @@ describe("isTestFileUri", () => {
   });
 
   it.each([
-    "C:\\project\\test\\foo.ts",
-    "C:\\project\\__tests__\\bar.ts",
-    "C:\\project\\src\\foo.test.ts",
-    "C:\\project\\src\\bar.spec.js",
-    "C:\\project\\test_utils\\helper.py",
+    String.raw`C:\project\test\foo.ts`,
+    String.raw`C:\project\__tests__\bar.ts`,
+    String.raw`C:\project\src\foo.test.ts`,
+    String.raw`C:\project\src\bar.spec.js`,
+    String.raw`C:\project\test_utils\helper.py`,
   ])("recognises Windows-style path %s as a test file", (uri) => {
     expect(isTestFileUri(uri)).toBe(true);
   });
@@ -448,9 +448,9 @@ describe("bugmagnet session 2026-04-16", () => {
 
     it("preserves Windows-style paths from getter", () => {
       const config = buildConfiguration(<T>(key: string, defaultValue: T) =>
-        (key === "cc.pmdPath" ? "C:\\Program Files\\pmd\\bin\\pmd.bat" : defaultValue) as T
+        (key === "cc.pmdPath" ? String.raw`C:\Program Files\pmd\bin\pmd.bat` : defaultValue) as T
       );
-      expect(config.cc.pmdPath).toBe("C:\\Program Files\\pmd\\bin\\pmd.bat");
+      expect(config.cc.pmdPath).toBe(String.raw`C:\Program Files\pmd\bin\pmd.bat`);
     });
   });
 
@@ -462,7 +462,7 @@ describe("bugmagnet session 2026-04-16", () => {
         return defaultValue;
       });
       // Each config key should be read exactly once
-      expect(calls.sort()).toEqual([
+      expect(calls.toSorted((a, b) => a.localeCompare(b))).toEqual([
         "cc.eslintPath",
         "cc.pmdPath",
         "cc.pythonPath",
@@ -516,7 +516,7 @@ describe("bugmagnet session 2026-04-16", () => {
   describe("buildConfiguration — violated domain constraints", () => {
     it("preserves NaN from getter without validation", () => {
       const config = buildConfiguration(<T>(key: string, defaultValue: T) =>
-        (key === "rank.epsilon" ? NaN : defaultValue) as T
+        (key === "rank.epsilon" ? Number.NaN : defaultValue) as T
       );
       expect(config.rank.epsilon).toBeNaN();
     });
@@ -590,7 +590,7 @@ describe("mutation-killing: isTestFileUri regex precision", () => {
   // Without $, a mid-path .test. could match differently in edge cases
   // Actually both behave the same for test() calls, so this may be equivalent.
   // But let's add tests ensuring multi-char extensions work (kills [^/\\]+ → [^/\\])
-  it("matches .test.tsx (multi-char extension kills [^/\\]+ → [^/\\])", () => {
+  it(String.raw`matches .test.tsx (multi-char extension kills [^/\]+ → [^/\])`, () => {
     expect(isTestFileUri("file:///project/foo.test.tsx")).toBe(true);
   });
 
@@ -659,7 +659,7 @@ describe("mutation-killing: isTestFileUri regex precision", () => {
     expect(isTestFileUri("file:///project/test/file.ts")).toBe(true);
   });
 
-  it("matches tests\\ with backslash separator", () => {
-    expect(isTestFileUri("C:\\project\\tests\\file.ts")).toBe(true);
+  it(String.raw`matches tests\ with backslash separator`, () => {
+    expect(isTestFileUri(String.raw`C:\project\tests\file.ts`)).toBe(true);
   });
 });

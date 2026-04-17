@@ -12,7 +12,7 @@ vi.mock("vscode", () => {
   class Uri {
     scheme: string;
     fsPath: string;
-    private _str: string;
+    private readonly _str: string;
 
     private constructor(scheme: string, fsPath: string, str: string) {
       this.scheme = scheme;
@@ -29,14 +29,14 @@ vi.mock("vscode", () => {
       const scheme = colonIdx > 0 ? str.slice(0, colonIdx) : "";
       let fsPath = "";
       if (scheme === "file") {
-        const path = str.replace("file:///", "").replace(/%3A/gi, ":");
-        fsPath = path.replace(/\//g, "\\");
+        const path = str.replace("file:///", "").replaceAll(/%3A/gi, ":");
+        fsPath = path.replaceAll('/', "\\");
       }
       return new Uri(scheme, fsPath, str);
     }
 
     static file(path: string): Uri {
-      const normalized = path.replace(/\\/g, "/");
+      const normalized = path.replaceAll('\\', "/");
       return new Uri("file", path, `file:///${normalized}`);
     }
 
@@ -245,11 +245,11 @@ describe("loadLcovIntoStore", () => {
 
   // ─── Medium Priority: resolveLcovSfToUri path resolution ───────────
 
-  it("resolves Windows absolute path (C:\\src\\a.ts) to Uri.file", async () => {
+  it(String.raw`resolves Windows absolute path (C:\src\a.ts) to Uri.file`, async () => {
     const folder = fakeFolder("file:///workspace");
     mockWorkspaceFolders.push(folder);
     mockFindFiles.mockResolvedValue([vscode.Uri.parse("file:///workspace/lcov.info")]);
-    const lcovText = lcov([{ sf: "C:\\src\\a.ts", lines: [[1, 1]] }]);
+    const lcovText = lcov([{ sf: String.raw`C:\src\a.ts`, lines: [[1, 1]] }]);
     mockReadFile.mockResolvedValue(encodeLcov(lcovText));
 
     const store = new CoverageStore();
@@ -340,7 +340,7 @@ describe("loadLcovIntoStore", () => {
     const folder = fakeFolder("file:///workspace");
     mockWorkspaceFolders.push(folder);
     mockFindFiles.mockResolvedValue([vscode.Uri.parse("file:///workspace/lcov.info")]);
-    const lcovText = lcov([{ sf: "C:\\Code\\app.ts", lines: [[1, 1]] }]);
+    const lcovText = lcov([{ sf: String.raw`C:\Code\app.ts`, lines: [[1, 1]] }]);
     mockReadFile.mockResolvedValue(encodeLcov(lcovText));
 
     const store = new CoverageStore();
@@ -540,11 +540,11 @@ describe("loadLcovIntoStore", () => {
         expect(normalizeLcovPathToUri).toHaveBeenCalled();
       });
 
-      it("resolves lowercase drive letter path (c:\\src\\a.ts)", async () => {
+      it(String.raw`resolves lowercase drive letter path (c:\src\a.ts)`, async () => {
         const folder = fakeFolder("file:///workspace");
         mockWorkspaceFolders.push(folder);
         mockFindFiles.mockResolvedValue([vscode.Uri.parse("file:///ws/lcov.info")]);
-        const lcovText = lcov([{ sf: "c:\\src\\a.ts", lines: [[2, 3]] }]);
+        const lcovText = lcov([{ sf: String.raw`c:\src\a.ts`, lines: [[2, 3]] }]);
         mockReadFile.mockResolvedValue(encodeLcov(lcovText));
 
         const store = new CoverageStore();
@@ -733,7 +733,7 @@ describe("loadLcovIntoStore", () => {
         mockWorkspaceFolders.push(folder);
         mockFindFiles.mockResolvedValue([vscode.Uri.parse("file:///ws/lcov.info")]);
         // Mixed: backslash then forward slashes
-        const lcovText = lcov([{ sf: "C:\\src/subdir/a.ts", lines: [[1, 1]] }]);
+        const lcovText = lcov([{ sf: String.raw`C:\src/subdir/a.ts`, lines: [[1, 1]] }]);
         mockReadFile.mockResolvedValue(encodeLcov(lcovText));
 
         const store = new CoverageStore();

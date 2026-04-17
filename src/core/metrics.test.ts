@@ -30,7 +30,7 @@ describe("mutation-killing: clamp01", () => {
   // Kill: ConditionalExpression L34 → false / LogicalOperator L34 → NaN && t < 0
   it("clamp01 returns 0 for NaN", () => {
     // cc=1, t=NaN → clampedT=0, clampedCc=1 → 1*1*1 + 1 = 2
-    expect(crap(1, NaN)).toBe(2);
+    expect(crap(1, Number.NaN)).toBe(2);
   });
 
   // Kill: EqualityOperator L34 → t <= 0 (changes t < 0 to t <= 0)

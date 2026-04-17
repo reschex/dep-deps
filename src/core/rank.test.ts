@@ -103,7 +103,7 @@ describe("mutation-killing: rank.ts", () => {
     const incoming = buildIncomingMap(edges);
     const xList = incoming.get("X")!;
     expect(xList).toHaveLength(2);
-    expect(xList.map(e => e.caller).sort()).toEqual(["A", "B"]);
+    expect(xList.map(e => e.caller).sort((a, b) => a.localeCompare(b))).toEqual(["A", "B"]);
   });
 
   it("buildIncomingMap: single edge produces single-element list", () => {

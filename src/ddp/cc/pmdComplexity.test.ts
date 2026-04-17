@@ -152,10 +152,10 @@ describe("bugmagnet session 2026-04-16", () => {
     it("forwards path with spaces and unicode to spawn", async () => {
       vi.mocked(runPmdCyclomaticComplexity).mockResolvedValue(new Map());
 
-      await pmdCcForFile("java", "/src/日本語/Foo.java", "/my project", "C:\\Program Files\\pmd\\pmd.bat");
+      await pmdCcForFile("java", "/src/日本語/Foo.java", "/my project", String.raw`C:\Program Files\pmd\pmd.bat`);
 
       expect(runPmdCyclomaticComplexity).toHaveBeenCalledWith(
-        "C:\\Program Files\\pmd\\pmd.bat",
+        String.raw`C:\Program Files\pmd\pmd.bat`,
         "/src/日本語/Foo.java",
         "/my project",
         30000

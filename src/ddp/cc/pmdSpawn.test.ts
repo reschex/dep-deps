@@ -185,9 +185,9 @@ describe("runPmdCyclomaticComplexity", () => {
     const proc = fakeProc();
     vi.mocked(cp.spawn).mockReturnValue(proc);
 
-    runPmdCyclomaticComplexity("C:\\Program Files\\pmd\\bin\\pmd.bat", "/src/Foo.java", "/project", 5000);
+    runPmdCyclomaticComplexity(String.raw`C:\Program Files\pmd\bin\pmd.bat`, "/src/Foo.java", "/project", 5000);
 
-    expect(vi.mocked(cp.spawn).mock.calls[0][0]).toBe("C:\\Program Files\\pmd\\bin\\pmd.bat");
+    expect(vi.mocked(cp.spawn).mock.calls[0][0]).toBe(String.raw`C:\Program Files\pmd\bin\pmd.bat`);
 
     proc.emit("close", 0);
   });

@@ -30,7 +30,7 @@ vi.mock("vscode", () => {
     }
   }
   class EventEmitter<T> {
-    private listeners: Array<(e: T) => void> = [];
+    private readonly listeners: Array<(e: T) => void> = [];
     event = (listener: (e: T) => void) => {
       this.listeners.push(listener);
       return { dispose: () => {} };
@@ -405,7 +405,7 @@ describe("RiskTreeProvider", () => {
       const roots = await provider.getChildren();
       expect(roots).toHaveLength(2);
       // Both present, order doesn't matter for equal F
-      const uris = roots.map((r) => (r as { uri: string }).uri).sort();
+      const uris = roots.map((r) => (r as { uri: string }).uri).sort((a, b) => a.localeCompare(b));
       expect(uris).toEqual(["file:///a.ts", "file:///b.ts"]);
     });
 
@@ -516,7 +516,7 @@ describe("RiskTreeProvider", () => {
 
     describe("numeric edge cases (advanced)", () => {
       it("handles NaN F value in symbol description", () => {
-        const s = sym({ id: "nan", f: NaN, r: NaN, cc: 0, t: 0, crap: NaN });
+        const s = sym({ id: "nan", f: Number.NaN, r: Number.NaN, cc: 0, t: 0, crap: Number.NaN });
         const item = provider.getTreeItem({ type: "symbol", symbol: s });
         expect(item.description).toBe("F=NaN  R=NaN  CC=0  T=0%");
       });
