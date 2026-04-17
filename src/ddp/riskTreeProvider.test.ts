@@ -61,6 +61,8 @@ vi.mock("vscode", () => {
 import { RiskTreeProvider } from "./riskTreeProvider";
 import { ExtensionState } from "./extensionState";
 
+type RiskNode = Awaited<ReturnType<RiskTreeProvider["getChildren"]>>[number];
+
 // ── helpers ────────────────────────────────────────────────────────────
 function sym(overrides: Partial<SymbolMetrics> & { id: string }): SymbolMetrics {
   return {
@@ -77,6 +79,11 @@ function sym(overrides: Partial<SymbolMetrics> & { id: string }): SymbolMetrics 
 
 function analysis(symbols: SymbolMetrics[]): AnalysisResult {
   return { symbols, fileRollup: new Map(), edgesCount: 0 };
+}
+
+/** Filter root children to only file nodes (skip scope node). */
+function fileRoots(nodes: RiskNode[]): RiskNode[] {
+  return nodes.filter((n) => n.type === "file");
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -122,7 +129,7 @@ describe("RiskTreeProvider", () => {
           sym({ id: "c1", uri: "file:///c.ts", f: 10 }),
         ])
       );
-      const children = await provider.getChildren();
+      const children = fileRoots(await provider.getChildren());
       expect(children.map((c) => (c as { uri: string }).uri)).toEqual([
         "file:///b.ts",
         "file:///c.ts",
@@ -137,7 +144,7 @@ describe("RiskTreeProvider", () => {
           sym({ id: "a2", uri: "file:///a.ts", f: 15 }),
         ])
       );
-      const roots = await provider.getChildren();
+      const roots = fileRoots(await provider.getChildren());
       expect(roots).toHaveLength(1);
       expect(roots[0].type).toBe("file");
 
@@ -178,7 +185,7 @@ describe("RiskTreeProvider", () => {
 
     it("extracts filename from URI as label for file nodes", async () => {
       state.setAnalysis(analysis([sym({ id: "a", uri: "file:///path/to/deep/module.ts", f: 1 })]));
-      const roots = await provider.getChildren();
+      const roots = fileRoots(await provider.getChildren());
       expect(roots[0].type).toBe("file");
       if (roots[0].type === "file") {
         expect(roots[0].label).toBe("module.ts");
@@ -193,7 +200,7 @@ describe("RiskTreeProvider", () => {
           sym({ id: "b1", uri: "file:///b.ts", f: 50 }),
         ])
       );
-      const roots = await provider.getChildren();
+      const roots = fileRoots(await provider.getChildren());
       // file a.ts has max F=100, file b.ts has max F=50
       expect((roots[0] as { uri: string }).uri).toBe("file:///a.ts");
       expect((roots[1] as { uri: string }).uri).toBe("file:///b.ts");
@@ -325,13 +332,13 @@ describe("RiskTreeProvider", () => {
       expect(children[0].type).toBe("empty");
 
       state.setAnalysis(analysis([sym({ id: "a", f: 5 })]));
-      children = await provider.getChildren();
+      children = fileRoots(await provider.getChildren());
       expect(children[0].type).toBe("file");
     });
 
     it("switches back to empty when analysis is cleared", async () => {
       state.setAnalysis(analysis([sym({ id: "a", f: 5 })]));
-      let children = await provider.getChildren();
+      let children = fileRoots(await provider.getChildren());
       expect(children[0].type).toBe("file");
 
       state.setAnalysis(undefined);
@@ -341,7 +348,7 @@ describe("RiskTreeProvider", () => {
 
     it("updates tree data when analysis changes", async () => {
       state.setAnalysis(analysis([sym({ id: "a", uri: "file:///a.ts", f: 5 })]));
-      let roots = await provider.getChildren();
+      let roots = fileRoots(await provider.getChildren());
       expect(roots).toHaveLength(1);
 
       state.setAnalysis(
@@ -350,7 +357,7 @@ describe("RiskTreeProvider", () => {
           sym({ id: "b", uri: "file:///b.ts", f: 10 }),
         ])
       );
-      roots = await provider.getChildren();
+      roots = fileRoots(await provider.getChildren());
       expect(roots).toHaveLength(2);
     });
   });
@@ -362,7 +369,7 @@ describe("RiskTreeProvider", () => {
       const s = sym({ id: "only", uri: "file:///solo.ts", name: "soloFn", f: 7.5 });
       state.setAnalysis(analysis([s]));
 
-      const roots = await provider.getChildren();
+      const roots = fileRoots(await provider.getChildren());
       expect(roots).toHaveLength(1);
       expect(roots[0].type).toBe("file");
       if (roots[0].type === "file") {
@@ -384,7 +391,7 @@ describe("RiskTreeProvider", () => {
       );
       state.setAnalysis(analysis(symbols));
 
-      const roots = await provider.getChildren();
+      const roots = fileRoots(await provider.getChildren());
       expect(roots).toHaveLength(100);
       // First file should have highest F
       expect((roots[0] as { uri: string }).uri).toBe("file:///f99.ts");
@@ -402,7 +409,7 @@ describe("RiskTreeProvider", () => {
           sym({ id: "b", uri: "file:///b.ts", f: 10 }),
         ])
       );
-      const roots = await provider.getChildren();
+      const roots = fileRoots(await provider.getChildren());
       expect(roots).toHaveLength(2);
       // Both present, order doesn't matter for equal F
       const uris = roots.map((r) => (r as { uri: string }).uri).sort((a, b) => a.localeCompare(b));
@@ -436,14 +443,14 @@ describe("RiskTreeProvider", () => {
             sym({ id: "d", uri: "file:///d.ts", f: 4 }),
           ])
         );
-        const roots = await provider.getChildren();
+        const roots = fileRoots(await provider.getChildren());
         expect(roots).toHaveLength(2);
         expect((roots[0] as { uri: string }).uri).toBe("file:///d.ts");
       });
 
       it("refresh followed by getChildren returns fresh data", async () => {
         state.setAnalysis(analysis([sym({ id: "a", uri: "file:///a.ts", f: 1 })]));
-        let roots = await provider.getChildren();
+        let roots = fileRoots(await provider.getChildren());
         expect(roots).toHaveLength(1);
 
         state.setAnalysis(
@@ -453,7 +460,7 @@ describe("RiskTreeProvider", () => {
           ])
         );
         provider.refresh();
-        roots = await provider.getChildren();
+        roots = fileRoots(await provider.getChildren());
         expect(roots).toHaveLength(2);
       });
 
@@ -594,7 +601,7 @@ describe("RiskTreeProvider", () => {
         state.setAnalysis(
           analysis([sym({ id: "enc", uri: "file:///path/to/my%20file.ts", f: 1 })])
         );
-        const roots = await provider.getChildren();
+        const roots = fileRoots(await provider.getChildren());
         expect(roots[0].type).toBe("file");
         if (roots[0].type === "file") {
           // The label should be the decoded filename
@@ -611,7 +618,7 @@ describe("RiskTreeProvider", () => {
         provider.refresh();
         provider.refresh();
         provider.refresh();
-        const roots = await provider.getChildren();
+        const roots = fileRoots(await provider.getChildren());
         expect(roots).toHaveLength(1);
         expect(roots[0].type).toBe("file");
       });
@@ -670,7 +677,7 @@ describe("RiskTreeProvider", () => {
             sym({ id: "dup", uri: "file:///a.ts", f: 10, name: "fn2" }),
           ])
         );
-        const roots = await provider.getChildren();
+        const roots = fileRoots(await provider.getChildren());
         expect(roots).toHaveLength(1);
         const children = await provider.getChildren(roots[0]);
         // Both symbols should appear even with duplicate IDs
@@ -679,7 +686,7 @@ describe("RiskTreeProvider", () => {
 
       it("handles symbol with empty URI", async () => {
         state.setAnalysis(analysis([sym({ id: "empty-uri", uri: "", f: 5 })]));
-        const roots = await provider.getChildren();
+        const roots = fileRoots(await provider.getChildren());
         // Should still produce a file node
         expect(roots).toHaveLength(1);
         expect(roots[0].type).toBe("file");
@@ -694,6 +701,54 @@ describe("RiskTreeProvider", () => {
           arguments: [""],
         });
       });
+    });
+  });
+
+  // ─── Scope context ─────────────────────────────────────────────────
+
+  describe("scope context", () => {
+    it("returns 'workspace' as scope label when analysis has no scope", () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })]));
+      expect(provider.scopeLabel).toBe("workspace");
+    });
+
+    it("returns folder path as scope label when analysis has a folder scope", () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })]), {
+        rootUri: "file:///c%3A/code/myProject/src",
+      });
+      expect(provider.scopeLabel).toBe("file:///c%3A/code/myProject/src");
+    });
+
+    it("includes a scope node as first root when analysis exists", async () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })]));
+      const roots = await provider.getChildren();
+      expect(roots[0].type).toBe("scope");
+      if (roots[0].type === "scope") {
+        expect(roots[0].label).toBe("workspace");
+      }
+    });
+
+    it("renders scope node with root-folder icon and non-collapsible state", () => {
+      const item = provider.getTreeItem({ type: "scope", label: "workspace" });
+      expect(item.label).toBe("workspace");
+      expect(item.collapsibleState).toBe(0); // None
+      expect((item.iconPath as FakeThemeIcon).id).toBe("root-folder");
+      expect(item.contextValue).toBe("ddpScope");
+    });
+
+    it("does not include a scope node when no analysis exists", async () => {
+      const roots = await provider.getChildren();
+      expect(roots.every((n) => n.type !== "scope")).toBe(true);
+    });
+
+    it("scope node shows folder path when analysis has a folder scope", async () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })]), {
+        rootUri: "file:///c%3A/code/myProject/src",
+      });
+      const roots = await provider.getChildren();
+      const scopeNode = roots.find((n) => n.type === "scope");
+      expect(scopeNode).toBeDefined();
+      expect((scopeNode as { label: string }).label).toBe("file:///c%3A/code/myProject/src");
     });
   });
 
@@ -771,7 +826,7 @@ describe("RiskTreeProvider", () => {
         ])
       );
       provider.setSortField("cc");
-      const roots = await provider.getChildren();
+      const roots = fileRoots(await provider.getChildren());
       expect(roots.map((r) => (r as { uri: string }).uri)).toEqual([
         "file:///b.ts",
         "file:///a.ts",

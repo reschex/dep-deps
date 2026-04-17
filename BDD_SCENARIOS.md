@@ -89,6 +89,12 @@ Living specification: each scenario maps to one or more automated tests.
 **When** the user opens the DDP sidebar and sorts by **F**
 **Then** the highest-**F** symbols appear first and show file path.
 
+### Scenario: Risk view displays analysis scope context
+
+**Given** a workspace with multiple folders or a folder-scoped analysis running
+**When** the user views the DDP risk list or risk tree
+**Then** the view displays the analysis scope as either 'workspace' (for full workspace analysis) or the folder path being analyzed (for folder-scoped analysis).
+
 ---
 
 ## Feature: Editor decorations

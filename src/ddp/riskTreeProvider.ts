@@ -6,7 +6,8 @@ import type { ExtensionState } from "./extensionState";
 type RiskNode =
   | { type: "file"; uri: string; label: string }
   | { type: "symbol"; symbol: SymbolMetrics }
-  | { type: "empty"; message: string };
+  | { type: "empty"; message: string }
+  | { type: "scope"; label: string };
 
 export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
   private readonly _onDidChange = new vscode.EventEmitter<RiskNode | undefined | null | void>();
@@ -28,10 +29,20 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
     this._onDidChange.fire();
   }
 
+  get scopeLabel(): string {
+    return this.state.lastScope?.rootUri ?? "workspace";
+  }
+
   getTreeItem(element: RiskNode): vscode.TreeItem {
     if (element.type === "empty") {
       const item = new vscode.TreeItem(element.message, vscode.TreeItemCollapsibleState.None);
       item.iconPath = new vscode.ThemeIcon("info");
+      return item;
+    }
+    if (element.type === "scope") {
+      const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.None);
+      item.iconPath = new vscode.ThemeIcon("root-folder");
+      item.contextValue = "ddpScope";
       return item;
     }
     if (element.type === "file") {
@@ -67,6 +78,7 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
       return element ? [] : [{ type: "empty" as const, message: "Run “DDP: Analyze workspace” (or Refresh)" }];
     }
     if (!element) {
+      const scopeNode: RiskNode = { type: "scope", label: this.scopeLabel };
       const byFile = new Map<string, SymbolMetrics[]>();
       for (const s of analysis.symbols) {
         let list = byFile.get(s.uri);
@@ -82,11 +94,14 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
         const maxB = Math.max(...b[1].map((x) => x[field]));
         return maxB - maxA;
       });
-      return files.map(([uri]) => ({
-        type: "file" as const,
-        uri,
-        label: vscode.Uri.parse(uri).fsPath.split(/[/\\]/).pop() ?? uri,
-      }));
+      return [
+        scopeNode,
+        ...files.map(([uri]) => ({
+          type: "file" as const,
+          uri,
+          label: vscode.Uri.parse(uri).fsPath.split(/[/\\]/).pop() ?? uri,
+        })),
+      ];
     }
     if (element.type === "file") {
       const list = sortSymbols(symbolsForFile(element.uri, analysis.symbols), this._sortField);
