@@ -3,6 +3,8 @@ Dependable Dependencies Principle as VSCode Extension
 
 From [Dependable Dependencies (Gorman, 2011)](https://codemanship.co.uk/Dependable%20Dependencies.pdf)
 
+[![CI](https://github.com/reschex/dep-deps/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/reschex/dep-deps/actions/workflows/ci.yml)
+
 ## Usage
 
 ### Overview
