@@ -3,7 +3,7 @@ import type { SymbolMetrics } from "../core/analyze";
 import { sortSymbols, type SortField, symbolsForFile } from "../core/viewModel";
 import type { ExtensionState } from "./extensionState";
 
-type RiskNode =
+export type RiskNode =
   | { type: "file"; uri: string; label: string }
   | { type: "symbol"; symbol: SymbolMetrics }
   | { type: "empty"; message: string }
@@ -27,10 +27,6 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
 
   refresh(): void {
     this._onDidChange.fire();
-  }
-
-  get scopeLabel(): string {
-    return this.state.lastScope?.rootUri ?? "workspace";
   }
 
   getTreeItem(element: RiskNode): vscode.TreeItem {
@@ -78,7 +74,11 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
       return element ? [] : [{ type: "empty" as const, message: "Run “DDP: Analyze workspace” (or Refresh)" }];
     }
     if (!element) {
-      const scopeNode: RiskNode = { type: "scope", label: this.scopeLabel };
+      const rootUri = this.state.lastScope?.rootUri;
+      const scopeLabel = rootUri
+        ? vscode.Uri.parse(rootUri).fsPath
+        : "workspace";
+      const scopeNode: RiskNode = { type: "scope", label: scopeLabel };
       const byFile = new Map<string, SymbolMetrics[]>();
       for (const s of analysis.symbols) {
         let list = byFile.get(s.uri);

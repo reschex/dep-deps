@@ -58,10 +58,8 @@ vi.mock("vscode", () => {
   };
 });
 
-import { RiskTreeProvider } from "./riskTreeProvider";
+import { RiskTreeProvider, type RiskNode } from "./riskTreeProvider";
 import { ExtensionState } from "./extensionState";
-
-type RiskNode = Awaited<ReturnType<RiskTreeProvider["getChildren"]>>[number];
 
 // ── helpers ────────────────────────────────────────────────────────────
 function sym(overrides: Partial<SymbolMetrics> & { id: string }): SymbolMetrics {
@@ -81,9 +79,9 @@ function analysis(symbols: SymbolMetrics[]): AnalysisResult {
   return { symbols, fileRollup: new Map(), edgesCount: 0 };
 }
 
-/** Filter root children to only file nodes (skip scope node). */
+/** Filter root children to only file nodes (skip the single scope node). */
 function fileRoots(nodes: RiskNode[]): RiskNode[] {
-  return nodes.filter((n) => n.type === "file");
+  return nodes.filter((n) => n.type !== "scope");
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -707,18 +705,6 @@ describe("RiskTreeProvider", () => {
   // ─── Scope context ─────────────────────────────────────────────────
 
   describe("scope context", () => {
-    it("returns 'workspace' as scope label when analysis has no scope", () => {
-      state.setAnalysis(analysis([sym({ id: "a", f: 5 })]));
-      expect(provider.scopeLabel).toBe("workspace");
-    });
-
-    it("returns folder path as scope label when analysis has a folder scope", () => {
-      state.setAnalysis(analysis([sym({ id: "a", f: 5 })]), {
-        rootUri: "file:///c%3A/code/myProject/src",
-      });
-      expect(provider.scopeLabel).toBe("file:///c%3A/code/myProject/src");
-    });
-
     it("includes a scope node as first root when analysis exists", async () => {
       state.setAnalysis(analysis([sym({ id: "a", f: 5 })]));
       const roots = await provider.getChildren();
@@ -726,6 +712,7 @@ describe("RiskTreeProvider", () => {
       if (roots[0].type === "scope") {
         expect(roots[0].label).toBe("workspace");
       }
+      expect(fileRoots(roots)).toHaveLength(roots.length - 1);
     });
 
     it("renders scope node with root-folder icon and non-collapsible state", () => {
@@ -741,14 +728,15 @@ describe("RiskTreeProvider", () => {
       expect(roots.every((n) => n.type !== "scope")).toBe(true);
     });
 
-    it("scope node shows folder path when analysis has a folder scope", async () => {
+    it("scope node shows decoded folder path when analysis has a folder scope", async () => {
       state.setAnalysis(analysis([sym({ id: "a", f: 5 })]), {
         rootUri: "file:///c%3A/code/myProject/src",
       });
       const roots = await provider.getChildren();
       const scopeNode = roots.find((n) => n.type === "scope");
       expect(scopeNode).toBeDefined();
-      expect((scopeNode as { label: string }).label).toBe("file:///c%3A/code/myProject/src");
+      // URI is decoded to a human-readable filesystem path
+      expect((scopeNode as { label: string }).label).toBe("/c:/code/myProject/src");
     });
   });
 
