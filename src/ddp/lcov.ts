@@ -16,6 +16,6 @@ export function normalizeLcovPathToUri(
     return undefined;
   }
   // Normalize backslashes to forward slashes for consistent path joining
-  const normalized = t.replace(/\\/g, "/");
+  const normalized = t.replaceAll('\\', "/");
   return vscode.Uri.joinPath(workspace.uri, normalized);
 }

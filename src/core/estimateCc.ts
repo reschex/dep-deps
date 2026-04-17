@@ -3,13 +3,38 @@
  * Prefer language-specific tools when configured; this works offline for all languages.
  */
 
+const KEYWORD_DECISIONS = ["while", "for", "foreach", "case", "catch"];
+
 function countDecisions(source: string): number {
-  const pattern =
-    /\b((?<!\belse\s+)if|else\s+if|while|for|foreach|case|catch|&&|\|\|)\b|\?\s*[^;?:]+:/g;
   let count = 0;
-  while (pattern.exec(source) !== null) {
+
+  // Count keyword-based decisions via word boundaries
+  for (const kw of KEYWORD_DECISIONS) {
+    const pattern = new RegExp(String.raw`\b${kw}\b`, "g");
+    while (pattern.exec(source) !== null) {
+      count += 1;
+    }
+  }
+
+  // Count `if` that is NOT preceded by `else` (standalone if)
+  // and `else if` as a single decision each
+  const ifPattern = /\b(else\s+)?if\b/g;
+  while (ifPattern.exec(source) !== null) {
     count += 1;
   }
+
+  // Count logical operators && and ||
+  const logicalPattern = /&&|\|\|/g;
+  while (logicalPattern.exec(source) !== null) {
+    count += 1;
+  }
+
+  // Count ternary expressions: ? <expr> :
+  const ternaryPattern = /\?\s*[^;?:]+:/g;
+  while (ternaryPattern.exec(source) !== null) {
+    count += 1;
+  }
+
   return count;
 }
 

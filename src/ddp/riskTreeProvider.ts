@@ -9,7 +9,7 @@ type RiskNode =
   | { type: "empty"; message: string };
 
 export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
-  private _onDidChange = new vscode.EventEmitter<RiskNode | undefined | null | void>();
+  private readonly _onDidChange = new vscode.EventEmitter<RiskNode | undefined | null | void>();
   readonly onDidChangeTreeData = this._onDidChange.event;
   private _sortField: SortField = "f";
 
