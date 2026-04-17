@@ -113,22 +113,49 @@ Thresholds and color intensity can be adjusted in VS Code settings (see [Configu
    - Add PMD's `bin/` directory to your `PATH`, or specify the full path in VS Code settings
 
 2. **Test Coverage** (optional, for test coverage metric `T`)
-   - Generate an **LCOV coverage file** using JaCoCo + `jacoco-to-lcov-maven-plugin` or similar
-   - Example Maven:
-     ```xml
-     <plugin>
-       <groupId>org.jacoco</groupId>
-       <artifactId>jacoco-maven-plugin</artifactId>
-       <version>0.8.8</version>
-       <executions>
-         <execution>
-           <goals>
-             <goal>prepare-agent</goal>
-             <goal>report</goal>
-           </goals>
-         </execution>
-       </executions>
-     </plugin>
+   - **JaCoCo** is the recommended coverage provider for Java projects
+   
+   **Maven Setup:**
+   ```xml
+   <plugin>
+     <groupId>org.jacoco</groupId>
+     <artifactId>jacoco-maven-plugin</artifactId>
+     <version>0.8.8</version>
+     <executions>
+       <execution>
+         <goals>
+           <goal>prepare-agent</goal>
+           <goal>report</goal>
+         </goals>
+       </execution>
+     </executions>
+   </plugin>
+   ```
+   Run: `mvn clean test` — JaCoCo generates reports in `target/site/jacoco/`
+
+   **Gradle Setup:**
+   ```gradle
+   plugins {
+     id 'jacoco'
+   }
+   
+   test {
+     finalizedBy jacocoTestReport
+   }
+   
+   jacocoTestReport {
+     reports {
+       xml.enabledByDefault = true
+     }
+   }
+   ```
+   Run: `gradle test jacocoTestReport` — JaCoCo generates reports in `build/jacoco/`
+
+   **Convert JaCoCo to LCOV:**
+   - To use JaCoCo reports with this extension, convert to LCOV format using `jacoco-to-lcov`:
+     ```bash
+     npm install --save-dev jacoco-to-lcov
+     jacoco-to-lcov -i target/site/jacoco/jacoco.xml -o coverage/lcov.info
      ```
 
 ### Configuration
