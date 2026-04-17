@@ -22,6 +22,7 @@ import type { CallEdge } from "../core/rank";
 import { flattenFunctionSymbols } from "./documentSymbols";
 import { collectCallEdgesFromWorkspace } from "./lspCallGraph";
 import { CoverageStore, loadLcovIntoStore } from "./coverageStore";
+import { loadJacocoIntoStore } from "./loadJacocoIntoStore";
 import { eslintCcForFile } from "./cc/eslintComplexity";
 import { radonCcForFile } from "./cc/radonCc";
 import { pmdCcForFile } from "./cc/pmdComplexity";
@@ -124,16 +125,22 @@ export class VsCodeCallGraphProvider implements CallGraphProvider {
 export class VsCodeCoverageProvider implements CoverageProvider {
   private readonly store: CoverageStore;
   private readonly lcovGlob: string;
+  private readonly jacocoGlob: string;
   private readonly token: vscode.CancellationToken;
 
-  constructor(store: CoverageStore, lcovGlob: string, token: vscode.CancellationToken) {
+  constructor(store: CoverageStore, lcovGlob: string, jacocoGlob: string, token: vscode.CancellationToken) {
     this.store = store;
     this.lcovGlob = lcovGlob;
+    this.jacocoGlob = jacocoGlob;
     this.token = token;
   }
 
   async loadCoverage(): Promise<void> {
-    await loadLcovIntoStore(this.store, this.lcovGlob, this.token);
+    this.store.clear();
+    await Promise.all([
+      loadLcovIntoStore(this.store, this.lcovGlob, this.token),
+      loadJacocoIntoStore(this.store, this.jacocoGlob, this.token),
+    ]);
   }
 
   getStatements(uri: string): StatementCover[] | undefined {

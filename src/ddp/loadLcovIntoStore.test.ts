@@ -115,13 +115,13 @@ describe("loadLcovIntoStore", () => {
 
   // ─── High Priority: core functionality & branches ──────────────────
 
-  it("clears store before loading", async () => {
+  it("does not clear store before loading (caller responsibility)", async () => {
     const store = new CoverageStore();
     store.ingestStatementCovers("file:///old.ts", [{ startLine: 0, endLine: 0, executed: true }]);
 
     await loadLcovIntoStore(store, "**/lcov.info", fakeToken());
 
-    expect(store.get("file:///old.ts")).toBeUndefined();
+    expect(store.get("file:///old.ts")).toBeDefined();
   });
 
   it("returns immediately when no workspace folders exist", async () => {
@@ -430,7 +430,7 @@ describe("loadLcovIntoStore", () => {
           .rejects.toThrow("read failed");
       });
 
-      it("still clears store even when findFiles rejects", async () => {
+      it("preserves existing store data when findFiles rejects", async () => {
         const folder = fakeFolder("file:///workspace");
         mockWorkspaceFolders.push(folder);
         mockFindFiles.mockRejectedValue(new Error("boom"));
@@ -441,8 +441,8 @@ describe("loadLcovIntoStore", () => {
         await expect(loadLcovIntoStore(store, "**/lcov.info", fakeToken()))
           .rejects.toThrow("boom");
 
-        // Store was cleared at the top of loadLcovIntoStore before the error
-        expect(store.get("file:///old.ts")).toBeUndefined();
+        // loadLcovIntoStore no longer clears — caller is responsible
+        expect(store.get("file:///old.ts")).toBeDefined();
       });
     });
 
@@ -645,7 +645,7 @@ describe("loadLcovIntoStore", () => {
 
     // ─── stateful operations ─────────────────────────────────────────
     describe("stateful operations", () => {
-      it("replaces store contents on second call (clears old data)", async () => {
+      it("accumulates data across multiple calls (no implicit clear)", async () => {
         const folder = fakeFolder("file:///workspace");
         mockWorkspaceFolders.push(folder);
         mockFindFiles.mockResolvedValue([vscode.Uri.parse("file:///ws/lcov.info")]);
@@ -662,8 +662,8 @@ describe("loadLcovIntoStore", () => {
         mockReadFile.mockResolvedValue(encodeLcov(lc2));
         await loadLcovIntoStore(store, "**/lcov.info", fakeToken());
 
-        // A should be gone (cleared), B should be there
-        expect(store.get("file:////src/a.ts")).toBeUndefined();
+        // Both A and B should be present — loadLcovIntoStore no longer clears
+        expect(store.get("file:////src/a.ts")).toBeDefined();
         expect(store.get("file:////src/b.ts")).toBeDefined();
       });
 

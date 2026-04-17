@@ -126,6 +126,11 @@
           "default": "**/coverage/lcov.info",
           "description": "Glob (per workspace folder) for LCOV files used to compute T. Aligns with common Jest/Vitest/pytest-cov outputs."
         },
+        "ddp.coverage.jacocoGlob": {
+          "type": "string",
+          "default": "**/jacoco.xml",
+          "description": "Glob (per workspace folder) for JaCoCo XML reports used to compute T. Aligns with Maven/Gradle JaCoCo plugin outputs (e.g. target/site/jacoco/jacoco.xml)."
+        },
         "ddp.cc.eslintPath": {
           "type": "string",
           "default": "eslint",

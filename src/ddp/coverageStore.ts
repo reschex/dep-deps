@@ -30,7 +30,6 @@ export async function loadLcovIntoStore(
   pattern: string,
   token: vscode.CancellationToken
 ): Promise<void> {
-  store.clear();
   const folders = vscode.workspace.workspaceFolders;
   if (!folders?.length) {
     return;

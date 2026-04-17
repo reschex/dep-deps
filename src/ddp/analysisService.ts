@@ -56,7 +56,7 @@ export class AnalysisService {
       documentProvider: new VsCodeDocumentProvider(config.excludeTests),
       symbolProvider: new VsCodeSymbolProvider(),
       callGraphProvider: new VsCodeCallGraphProvider(token, config.excludeTests),
-      coverageProvider: new VsCodeCoverageProvider(this.coverageStore, config.coverage.lcovGlob, token),
+      coverageProvider: new VsCodeCoverageProvider(this.coverageStore, config.coverage.lcovGlob, config.coverage.jacocoGlob, token),
       ccRegistry,
       logger: this.logger,
     });

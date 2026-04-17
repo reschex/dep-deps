@@ -48,6 +48,7 @@ describe("buildConfiguration", () => {
     const overrides: Record<string, unknown> = {
       "coverage.fallbackT": 0.75,
       "coverage.lcovGlob": "**/output/lcov.info",
+      "coverage.jacocoGlob": "**/target/jacoco.xml",
       "rank.maxIterations": 500,
       "rank.epsilon": 1e-10,
       "cc.eslintPath": "/usr/bin/eslint",
@@ -64,7 +65,7 @@ describe("buildConfiguration", () => {
       (key in overrides ? overrides[key] : defaultValue) as T
     );
     expect(config).toEqual({
-      coverage: { fallbackT: 0.75, lcovGlob: "**/output/lcov.info" },
+      coverage: { fallbackT: 0.75, lcovGlob: "**/output/lcov.info", jacocoGlob: "**/target/jacoco.xml" },
       rank: { maxIterations: 500, epsilon: 1e-10 },
       cc: {
         eslintPath: "/usr/bin/eslint",
@@ -146,7 +147,7 @@ describe("buildConfiguration", () => {
 describe("DEFAULT_CONFIGURATION", () => {
   it("contains expected default values", () => {
     expect(DEFAULT_CONFIGURATION).toEqual({
-      coverage: { fallbackT: 0, lcovGlob: "**/coverage/lcov.info" },
+      coverage: { fallbackT: 0, lcovGlob: "**/coverage/lcov.info", jacocoGlob: "**/jacoco.xml" },
       rank: { maxIterations: 100, epsilon: 1e-6 },
       cc: {
         eslintPath: "eslint",
@@ -469,6 +470,7 @@ describe("bugmagnet session 2026-04-16", () => {
         "cc.useEslintForTsJs",
         "codelens.enabled",
         "coverage.fallbackT",
+        "coverage.jacocoGlob",
         "coverage.lcovGlob",
         "decoration.errorThreshold",
         "decoration.warnThreshold",
@@ -488,6 +490,7 @@ describe("bugmagnet session 2026-04-16", () => {
       expect(defaults).toEqual({
         "coverage.fallbackT": 0,
         "coverage.lcovGlob": "**/coverage/lcov.info",
+        "coverage.jacocoGlob": "**/jacoco.xml",
         "rank.maxIterations": 100,
         "rank.epsilon": 1e-6,
         "cc.eslintPath": "eslint",

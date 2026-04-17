@@ -62,7 +62,7 @@ import type { DdpConfiguration } from "./configuration";
 // ── Test helpers ─────────────────────────────────────────────────────
 
 const defaultTestConfig: DdpConfiguration = {
-  coverage: { fallbackT: 0, lcovGlob: "**/coverage/lcov.info" },
+  coverage: { fallbackT: 0, lcovGlob: "**/coverage/lcov.info", jacocoGlob: "**/jacoco.xml" },
   rank: { maxIterations: 100, epsilon: 1e-6 },
   cc: {
     eslintPath: "eslint",
@@ -296,11 +296,11 @@ describe("AnalysisService", () => {
       expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, true);
     });
 
-    it("passes coverageStore, lcovGlob, and token to VsCodeCoverageProvider", async () => {
+    it("passes coverageStore, lcovGlob, jacocoGlob, and token to VsCodeCoverageProvider", async () => {
       const token = fakeToken();
       vi.mocked(buildConfiguration).mockReturnValue({
         ...defaultTestConfig,
-        coverage: { ...defaultTestConfig.coverage, lcovGlob: "custom/**/lcov.info" },
+        coverage: { ...defaultTestConfig.coverage, lcovGlob: "custom/**/lcov.info", jacocoGlob: "custom/**/jacoco.xml" },
       });
 
       const service = new AnalysisService();
@@ -309,6 +309,7 @@ describe("AnalysisService", () => {
       expect(VsCodeCoverageProvider).toHaveBeenCalledWith(
         mockCoverageStoreInstance,
         "custom/**/lcov.info",
+        "custom/**/jacoco.xml",
         token,
       );
     });
@@ -659,7 +660,7 @@ describe("AnalysisService", () => {
         await service.analyze(token);
 
         expect(VsCodeCoverageProvider).toHaveBeenCalledWith(
-          mockCoverageStoreInstance, "", token,
+          mockCoverageStoreInstance, "", defaultTestConfig.coverage.jacocoGlob, token,
         );
       });
     });
@@ -695,6 +696,7 @@ describe("AnalysisService", () => {
         expect(VsCodeCoverageProvider).toHaveBeenCalledWith(
           mockCoverageStoreInstance,
           defaultTestConfig.coverage.lcovGlob,
+          defaultTestConfig.coverage.jacocoGlob,
           token,
         );
       });

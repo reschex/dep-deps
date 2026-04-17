@@ -6,6 +6,7 @@
 export type CoverageConfig = {
   readonly fallbackT: number;
   readonly lcovGlob: string;
+  readonly jacocoGlob: string;
 };
 
 export type RankConfig = {
@@ -47,7 +48,7 @@ export type DdpConfiguration = {
 };
 
 export const DEFAULT_CONFIGURATION: DdpConfiguration = {
-  coverage: { fallbackT: 0, lcovGlob: "**/coverage/lcov.info" },
+  coverage: { fallbackT: 0, lcovGlob: "**/coverage/lcov.info", jacocoGlob: "**/jacoco.xml" },
   rank: { maxIterations: 100, epsilon: 1e-6 },
   cc: {
     eslintPath: "eslint",
@@ -69,6 +70,7 @@ export function buildConfiguration(
     coverage: {
       fallbackT: get<number>("coverage.fallbackT", DEFAULT_CONFIGURATION.coverage.fallbackT),
       lcovGlob: get<string>("coverage.lcovGlob", DEFAULT_CONFIGURATION.coverage.lcovGlob),
+      jacocoGlob: get<string>("coverage.jacocoGlob", DEFAULT_CONFIGURATION.coverage.jacocoGlob),
     },
     rank: {
       maxIterations: get<number>("rank.maxIterations", DEFAULT_CONFIGURATION.rank.maxIterations),

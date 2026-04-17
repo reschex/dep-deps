@@ -85,6 +85,10 @@ vi.mock("./coverageStore", () => ({
   loadLcovIntoStore: vi.fn(async () => {}),
 }));
 
+vi.mock("./loadJacocoIntoStore", () => ({
+  loadJacocoIntoStore: vi.fn(async () => {}),
+}));
+
 vi.mock("./cc/eslintComplexity", () => ({
   eslintCcForFile: vi.fn(async () => new Map()),
 }));
@@ -118,6 +122,7 @@ import {
 import { flattenFunctionSymbols } from "./documentSymbols";
 import { collectCallEdgesFromWorkspace } from "./lspCallGraph";
 import { loadLcovIntoStore } from "./coverageStore";
+import { loadJacocoIntoStore } from "./loadJacocoIntoStore";
 import { eslintCcForFile } from "./cc/eslintComplexity";
 import { radonCcForFile } from "./cc/radonCc";
 import { pmdCcForFile } from "./cc/pmdComplexity";
@@ -497,14 +502,25 @@ describe("VsCodeCoverageProvider", () => {
     vi.clearAllMocks();
   });
 
-  it("delegates loadCoverage to loadLcovIntoStore with store, glob, and token", async () => {
+  it("clears the store and delegates loadCoverage to loadLcovIntoStore with store, glob, and token", async () => {
     const store = { get: vi.fn(), clear: vi.fn(), ingestStatementCovers: vi.fn() };
     const token = fakeToken();
 
-    const provider = new VsCodeCoverageProvider(store as any, "**/coverage/lcov.info", token);
+    const provider = new VsCodeCoverageProvider(store as any, "**/coverage/lcov.info", "**/jacoco.xml", token);
     await provider.loadCoverage();
 
+    expect(store.clear).toHaveBeenCalledOnce();
     expect(loadLcovIntoStore).toHaveBeenCalledWith(store, "**/coverage/lcov.info", token);
+  });
+
+  it("delegates loadCoverage to loadJacocoIntoStore with store, glob, and token", async () => {
+    const store = { get: vi.fn(), clear: vi.fn(), ingestStatementCovers: vi.fn() };
+    const token = fakeToken();
+
+    const provider = new VsCodeCoverageProvider(store as any, "**/coverage/lcov.info", "**/jacoco.xml", token);
+    await provider.loadCoverage();
+
+    expect(loadJacocoIntoStore).toHaveBeenCalledWith(store, "**/jacoco.xml", token);
   });
 
   it("delegates getStatements to store.get() with the URI", () => {
@@ -512,7 +528,7 @@ describe("VsCodeCoverageProvider", () => {
     const store = { get: vi.fn().mockReturnValue(stmts), clear: vi.fn(), ingestStatementCovers: vi.fn() };
     const token = fakeToken();
 
-    const provider = new VsCodeCoverageProvider(store as any, "glob", token);
+    const provider = new VsCodeCoverageProvider(store as any, "glob", "jacoco-glob", token);
     const result = provider.getStatements("file:///a.ts");
 
     expect(store.get).toHaveBeenCalledWith("file:///a.ts");
@@ -523,7 +539,7 @@ describe("VsCodeCoverageProvider", () => {
     const store = { get: vi.fn().mockReturnValue(undefined), clear: vi.fn(), ingestStatementCovers: vi.fn() };
     const token = fakeToken();
 
-    const provider = new VsCodeCoverageProvider(store as any, "glob", token);
+    const provider = new VsCodeCoverageProvider(store as any, "glob", "jacoco-glob", token);
     const result = provider.getStatements("file:///unknown.ts");
 
     expect(result).toBeUndefined();
@@ -992,7 +1008,7 @@ describe("bugmagnet session 2026-04-16", () => {
     it("calls loadLcovIntoStore each time loadCoverage is invoked", async () => {
       const store = { get: vi.fn(), clear: vi.fn(), ingestStatementCovers: vi.fn() };
       const token = fakeToken();
-      const provider = new VsCodeCoverageProvider(store as any, "glob", token);
+      const provider = new VsCodeCoverageProvider(store as any, "glob", "jacoco-glob", token);
 
       await provider.loadCoverage();
       await provider.loadCoverage();
@@ -1195,7 +1211,7 @@ describe("bugmagnet session 2026-04-16", () => {
       const store = { get: vi.fn().mockReturnValue(undefined), clear: vi.fn(), ingestStatementCovers: vi.fn() };
       const token = fakeToken();
 
-      const provider = new VsCodeCoverageProvider(store as any, "glob", token);
+      const provider = new VsCodeCoverageProvider(store as any, "glob", "jacoco-glob", token);
       provider.getStatements("file:///C%3A/Code/SRC/a.ts");
 
       expect(store.get).toHaveBeenCalledWith("file:///C%3A/Code/SRC/a.ts");
