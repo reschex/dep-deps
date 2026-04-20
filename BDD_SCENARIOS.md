@@ -95,6 +95,12 @@ Living specification: each scenario maps to one or more automated tests.
 **When** the user views the DDP risk list or risk tree
 **Then** the view displays the analysis scope as either 'workspace' (for full workspace analysis) or the folder path being analyzed (for folder-scoped analysis).
 
+### Scenario: Double-clicking a filename in the risk view opens that file
+
+**Given** an analyzed workspace with risk results visible in the DDP sidebar
+**When** the user double-clicks a filename in the risk view
+**Then** the corresponding file is opened in the editor
+
 ---
 
 ## Feature: Editor decorations

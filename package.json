@@ -38,6 +38,10 @@
         "title": "DDP: Reveal symbol"
       },
       {
+        "command": "ddp.riskView.openFile",
+        "title": "DDP: Open file"
+      },
+      {
         "command": "ddp.riskView.sortByF",
         "title": "DDP: Sort by F",
         "icon": "$(arrow-swap)"

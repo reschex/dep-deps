@@ -6,6 +6,7 @@ import { DecorationManager } from "./decorationManager";
 import { DdpCodeLensProvider } from "./codeLensProvider";
 import { DdpHoverProvider } from "./hoverProvider";
 import { revealSymbolById } from "./revealSymbol";
+import { openDocument } from "./editor";
 import { AnalyzeCommand } from "./analyzeCommand";
 import { buildConfiguration, type AnalysisScope } from "./configuration";
 
@@ -69,6 +70,7 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("ddp.refresh", () => analyzeCmd.execute(state.lastScope)),
     vscode.commands.registerCommand("ddp.riskView.refresh", () => analyzeCmd.execute(state.lastScope)),
     vscode.commands.registerCommand("ddp.revealSymbol", (id: string) => revealSymbolById(id)),
+    vscode.commands.registerCommand("ddp.riskView.openFile", (uri: vscode.Uri) => openDocument(uri)),
     vscode.commands.registerCommand("ddp.riskView.sortByF", () => tree.setSortField("f")),
     vscode.commands.registerCommand("ddp.riskView.sortByCC", () => tree.setSortField("cc")),
     vscode.commands.registerCommand("ddp.riskView.sortByCRAP", () => tree.setSortField("crap")),

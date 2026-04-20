@@ -178,16 +178,6 @@ describe("AnalyzeCommand", () => {
   });
 
   describe("UI refresh", () => {
-    it("calls refreshCodeLens command after analysis", async () => {
-      const cmd = new AnalyzeCommand(async () => fakeResult(), state, ui);
-
-      await cmd.execute();
-
-      expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
-        "editor.action.refreshCodeLens",
-      );
-    });
-
     it("calls all UI refresh methods", async () => {
       const cmd = new AnalyzeCommand(async () => fakeResult(), state, ui);
 

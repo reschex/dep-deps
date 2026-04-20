@@ -52,6 +52,11 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
       item.description = `max ${label}≈${maxVal.toFixed(0)}`;
       item.iconPath = new vscode.ThemeIcon("file-code");
       item.contextValue = "ddpFile";
+      item.command = {
+        command: "ddp.riskView.openFile",
+        title: "Open file",
+        arguments: [vscode.Uri.parse(element.uri)],
+      };
       return item;
     }
     const s = element.symbol;
@@ -60,12 +65,12 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
     item.tooltip = new vscode.MarkdownString(
       `**${s.name}**\n\nR=${s.r.toFixed(3)}  CRAP=${s.crap.toFixed(2)}  F=${s.f.toFixed(2)}`
     );
-      item.command = {
-        command: "ddp.revealSymbol",
-        title: "Reveal symbol",
-        arguments: [s.id],
-      };
-      return item;
+    item.command = {
+      command: "ddp.revealSymbol",
+      title: "Reveal symbol",
+      arguments: [s.id],
+    };
+    return item;
   }
 
   async getChildren(element?: RiskNode): Promise<RiskNode[]> {

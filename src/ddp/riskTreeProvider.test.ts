@@ -248,6 +248,20 @@ describe("RiskTreeProvider", () => {
       expect(tooltip.value).toContain("F=5.68");
     });
 
+    it("sets command to ddp.riskView.openFile with parsed Uri for file node", () => {
+      const item = provider.getTreeItem({ type: "file", uri: "file:///x.ts", label: "x.ts" });
+      expect(item.command).toEqual({
+        command: "ddp.riskView.openFile",
+        title: "Open file",
+        arguments: [{ fsPath: "/x.ts" }],
+      });
+    });
+
+    it("sets command argument to parsed Uri for file node with empty URI", () => {
+      const item = provider.getTreeItem({ type: "file", uri: "", label: "unknown" });
+      expect((item.command as any).arguments?.[0]).toEqual({ fsPath: "" });
+    });
+
     it("sets command to ddp.revealSymbol with symbol id", () => {
       const s = sym({ id: "sym-123", name: "handler" });
       const item = provider.getTreeItem({ type: "symbol", symbol: s });

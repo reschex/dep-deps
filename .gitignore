@@ -141,3 +141,5 @@ vite.config.ts.timestamp-*
 # Stryker mutation testing
 .stryker-tmp/
 reports/
+
+.claude/

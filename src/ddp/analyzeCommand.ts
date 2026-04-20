@@ -48,7 +48,6 @@ export class AnalyzeCommand {
           this.ui.refreshTree();
           this.ui.invalidateCodeLens();
           this.ui.applyDecorations();
-          void vscode.commands.executeCommand("editor.action.refreshCodeLens");
         }
       );
     } finally {

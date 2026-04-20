@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { parseUriFromSymbolId } from "./symbolId";
+import { openDocument } from "./editor";
 
 export async function revealSymbolById(id: string): Promise<void> {
   const hash = id.indexOf("#");
@@ -19,6 +20,5 @@ export async function revealSymbolById(id: string): Promise<void> {
     const p = new vscode.Position(line, ch);
     selection = new vscode.Range(p, p);
   }
-  const doc = await vscode.workspace.openTextDocument(uri);
-  await vscode.window.showTextDocument(doc, selection ? { selection } : {});
+  await openDocument(uri, selection);
 }
