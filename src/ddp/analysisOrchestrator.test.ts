@@ -1713,4 +1713,47 @@ describe("test-file exclusion", () => {
     expect(uris).toContain(prodUri);
     expect(uris).not.toContain(testUri);
   });
+
+  it("forwards config.maxFiles to document and call-graph providers", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    let capturedDocMaxFiles: number | undefined;
+    let capturedCallGraphMaxFiles: number | undefined;
+
+    const capturingDocProvider: DocumentProvider = {
+      async findSourceFiles(maxFiles) {
+        capturedDocMaxFiles = maxFiles;
+        return [...docs.keys()];
+      },
+      async openDocument(u) {
+        return docs.get(u);
+      },
+    };
+
+    const capturingCallGraphProvider: CallGraphProvider = {
+      async collectCallEdges(maxFiles) {
+        capturedCallGraphMaxFiles = maxFiles;
+        return [];
+      },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: capturingDocProvider,
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: capturingCallGraphProvider,
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const config: DdpConfiguration = { ...DEFAULT_CONFIGURATION, maxFiles: 99 };
+    await orchestrator.analyze(config, neverCancelledCtx());
+
+    expect(capturedDocMaxFiles).toBe(99);
+    expect(capturedCallGraphMaxFiles).toBe(99);
+  });
 });

@@ -190,6 +190,12 @@
           "default": 90,
           "minimum": 1,
           "description": "Number of days of git history to count as churn. Default: 90 (three months)."
+        },
+        "ddp.maxFiles": {
+          "type": "number",
+          "default": 400,
+          "minimum": 1,
+          "description": "Maximum number of source files to scan per analysis. Increase for large workspaces; decrease to speed up analysis."
         }
       }
     },

@@ -26,8 +26,6 @@ import type { DdpConfiguration, AnalysisScope } from "./configuration";
 import { isTestFileUri } from "./configuration";
 import { estimateCyclomaticComplexity } from "../core/estimateCc";
 
-/** Maximum files to scan — avoids overwhelming large workspaces. */
-const MAX_FILES = 400;
 
 const nullChurnProvider: ChurnProvider = {
   getChurnCounts: () => Promise.resolve(new Map()),
@@ -68,7 +66,7 @@ export class AnalysisOrchestrator {
     }
 
     // 2. Build call graph (scope-aware: only expands roots under rootUri)
-    const edges = await callGraphProvider.collectCallEdges(MAX_FILES, rootUri);
+    const edges = await callGraphProvider.collectCallEdges(config.maxFiles, rootUri);
     if (ctx.isCancelled()) {
       return undefined;
     }
@@ -114,7 +112,7 @@ export class AnalysisOrchestrator {
   }
 
   private async discoverSourceFiles(config: DdpConfiguration, rootUri?: string): Promise<string[]> {
-    const rawUris = await this.deps.documentProvider.findSourceFiles(MAX_FILES, rootUri);
+    const rawUris = await this.deps.documentProvider.findSourceFiles(config.maxFiles, rootUri);
     return config.excludeTests ? rawUris.filter((u) => !isTestFileUri(u)) : rawUris;
   }
 

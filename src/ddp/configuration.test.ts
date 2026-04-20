@@ -96,6 +96,7 @@ describe("buildConfiguration", () => {
       fileRollup: "sum",
       codelensEnabled: false,
       excludeTests: false,
+      maxFiles: 400,
     });
   });
 
@@ -179,6 +180,7 @@ describe("DEFAULT_CONFIGURATION", () => {
       fileRollup: "max",
       codelensEnabled: true,
       excludeTests: true,
+      maxFiles: 400,
     });
   });
 
@@ -199,6 +201,7 @@ describe("DEFAULT_CONFIGURATION", () => {
       "decoration",
       "excludeTests",
       "fileRollup",
+      "maxFiles",
       "rank",
     ]);
   });
@@ -499,6 +502,7 @@ describe("bugmagnet session 2026-04-16", () => {
         "decoration.warnThreshold",
         "excludeTests",
         "fileRollup",
+        "maxFiles",
         "rank.epsilon",
         "rank.maxIterations",
       ]);
@@ -527,6 +531,7 @@ describe("bugmagnet session 2026-04-16", () => {
         "fileRollup": "max",
         "codelens.enabled": true,
         "excludeTests": true,
+        "maxFiles": 400,
       });
     });
 

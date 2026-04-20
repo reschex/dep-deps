@@ -51,6 +51,7 @@ export type DdpConfiguration = {
   readonly fileRollup: "max" | "sum";
   readonly codelensEnabled: boolean;
   readonly excludeTests: boolean;
+  readonly maxFiles: number;
 };
 
 export const DEFAULT_CONFIGURATION: DdpConfiguration = {
@@ -67,6 +68,7 @@ export const DEFAULT_CONFIGURATION: DdpConfiguration = {
   fileRollup: "max",
   codelensEnabled: true,
   excludeTests: true,
+  maxFiles: 400,
 };
 
 /** Build configuration from a key-value getter (abstracts away vscode.WorkspaceConfiguration). */
@@ -100,6 +102,7 @@ export function buildConfiguration(
     fileRollup: get<"max" | "sum">("fileRollup", DEFAULT_CONFIGURATION.fileRollup),
     codelensEnabled: get<boolean>("codelens.enabled", DEFAULT_CONFIGURATION.codelensEnabled),
     excludeTests: get<boolean>("excludeTests", DEFAULT_CONFIGURATION.excludeTests),
+    maxFiles: get<number>("maxFiles", DEFAULT_CONFIGURATION.maxFiles),
   };
 }
 
