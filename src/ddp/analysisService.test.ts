@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── vscode mock ──────────────────────────────────────────────────────
 vi.mock("vscode", () => ({
@@ -9,6 +9,7 @@ vi.mock("vscode", () => ({
     getConfiguration: vi.fn(() => ({
       get: vi.fn((_key: string, def: unknown) => def),
     })),
+    workspaceFolders: [{ uri: { toString: () => "file:///c%3A/code/proj" } }],
   },
 }));
 
@@ -40,6 +41,10 @@ vi.mock("./adapters", () => ({
   VsCodeLogger: vi.fn(),
 }));
 
+vi.mock("./churn/gitChurnAdapter", () => ({
+  GitChurnAdapter: vi.fn(),
+}));
+
 // ── Imports (after mocks) ────────────────────────────────────────────
 import * as vscode from "vscode";
 import { AnalysisOrchestrator } from "./analysisOrchestrator";
@@ -56,6 +61,7 @@ import {
   PmdCcProvider,
   VsCodeLogger,
 } from "./adapters";
+import { GitChurnAdapter } from "./churn/gitChurnAdapter";
 import { AnalysisService } from "./analysisService";
 import type { DdpConfiguration } from "./configuration";
 
@@ -71,6 +77,7 @@ const defaultTestConfig: DdpConfiguration = {
     useEslintForTsJs: true,
   },
   decoration: { warnThreshold: 50, errorThreshold: 150 },
+  churn: { enabled: false, lookbackDays: 90 },
   fileRollup: "max",
   codelensEnabled: true,
   excludeTests: true,
@@ -700,6 +707,82 @@ describe("AnalysisService", () => {
           token,
         );
       });
+    });
+  });
+
+  // ─── Churn adapter wiring ────────────────────────────────────────
+  describe("churn adapter wiring", () => {
+    let savedWorkspaceFolders: unknown;
+
+    afterEach(async () => {
+      if (savedWorkspaceFolders !== undefined) {
+        const vscodeModule = await import("vscode");
+        (vscodeModule.workspace as any).workspaceFolders = savedWorkspaceFolders;
+        savedWorkspaceFolders = undefined;
+      }
+    });
+
+    it("does not create GitChurnAdapter when churn is disabled", async () => {
+      vi.mocked(buildConfiguration).mockReturnValue({
+        ...defaultTestConfig,
+        churn: { enabled: false, lookbackDays: 90 },
+      });
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      expect(GitChurnAdapter).not.toHaveBeenCalled();
+    });
+
+    it("creates GitChurnAdapter with workspace root URI when churn is enabled", async () => {
+      vi.mocked(buildConfiguration).mockReturnValue({
+        ...defaultTestConfig,
+        churn: { enabled: true, lookbackDays: 90 },
+      });
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      expect(GitChurnAdapter).toHaveBeenCalledWith("file:///c%3A/code/proj");
+    });
+
+    it("passes GitChurnAdapter instance to orchestrator deps when churn is enabled", async () => {
+      const fakeChurnInstance = {};
+      vi.mocked(GitChurnAdapter).mockImplementation(function () { return fakeChurnInstance; } as any);
+      vi.mocked(buildConfiguration).mockReturnValue({
+        ...defaultTestConfig,
+        churn: { enabled: true, lookbackDays: 90 },
+      });
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      const deps = vi.mocked(AnalysisOrchestrator).mock.calls[0][0] as any;
+      expect(deps.churnProvider).toBe(fakeChurnInstance);
+    });
+
+    it("passes undefined churnProvider to orchestrator when churn is disabled", async () => {
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      const deps = vi.mocked(AnalysisOrchestrator).mock.calls[0][0] as any;
+      expect(deps.churnProvider).toBeUndefined();
+    });
+
+    it("passes undefined churnProvider when no workspace folders are open", async () => {
+      const vscodeModule = await import("vscode");
+      savedWorkspaceFolders = (vscodeModule.workspace as any).workspaceFolders;
+      vi.mocked(buildConfiguration).mockReturnValue({
+        ...defaultTestConfig,
+        churn: { enabled: true, lookbackDays: 90 },
+      });
+      (vscodeModule.workspace as any).workspaceFolders = undefined;
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      const deps = vi.mocked(AnalysisOrchestrator).mock.calls[0][0] as any;
+      expect(deps.churnProvider).toBeUndefined();
     });
   });
 });

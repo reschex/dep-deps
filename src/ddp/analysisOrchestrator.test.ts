@@ -1,5 +1,5 @@
 import { describe, it, expect, assert } from "vitest";
-import { AnalysisOrchestrator, type AnalysisContext } from "./analysisOrchestrator";
+import { AnalysisOrchestrator, type AnalysisContext, type OrchestratorDeps } from "./analysisOrchestrator";
 import { CcProviderRegistry } from "../core/ccRegistry";
 import { DEFAULT_CONFIGURATION, type DdpConfiguration, type AnalysisScope } from "./configuration";
 import { isTestFileUri } from "./configuration";
@@ -74,6 +74,27 @@ function neverCancelledCtx(): AnalysisContext {
 
 const nullLogger = { info() {}, warn() {}, error() {} };
 
+// Single-function workspace fixture shared by churn tests.
+const CHURN_FILE_URI = "file:///a.ts";
+const CHURN_CONFIG = { ...DEFAULT_CONFIGURATION, churn: { enabled: true, lookbackDays: 90 } };
+
+function singleFnOrchestrator(overrides: Partial<OrchestratorDeps> = {}): AnalysisOrchestrator {
+  const uri = CHURN_FILE_URI;
+  const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+  const symbols = new Map([
+    [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+  ]);
+  return new AnalysisOrchestrator({
+    documentProvider: fakeDocProvider(docs),
+    symbolProvider: fakeSymbolProvider(symbols),
+    callGraphProvider: fakeCallGraphProvider([]),
+    coverageProvider: fakeCoverageProvider(new Map()),
+    ccRegistry: new CcProviderRegistry(),
+    logger: nullLogger,
+    ...overrides,
+  });
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("AnalysisOrchestrator", () => {
@@ -119,77 +140,35 @@ describe("AnalysisOrchestrator", () => {
   });
 
   it("applies churn multiplier when ChurnProvider is supplied", async () => {
-    const uri = "file:///a.ts";
-    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
-    const symbols = new Map([
-      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
-    ]);
-
     const churnProvider: ChurnProvider = {
       async getChurnCounts(_since) {
-        return new Map([[uri, 10]]);
+        return new Map([[CHURN_FILE_URI, 10]]);
       },
     };
-
-    const orchestrator = new AnalysisOrchestrator({
-      documentProvider: fakeDocProvider(docs),
-      symbolProvider: fakeSymbolProvider(symbols),
-      callGraphProvider: fakeCallGraphProvider([]),
-      coverageProvider: fakeCoverageProvider(new Map()),
-      ccRegistry: new CcProviderRegistry(),
-      logger: nullLogger,
-      churnProvider,
-    });
-
-    const churnConfig = { ...DEFAULT_CONFIGURATION, churn: { enabled: true, lookbackDays: 90 } };
-    const result = await orchestrator.analyze(churnConfig, neverCancelledCtx());
+    const orchestrator = singleFnOrchestrator({ churnProvider });
+    const result = await orchestrator.analyze(CHURN_CONFIG, neverCancelledCtx());
     assert(result !== undefined);
     const sym = result.symbols[0];
-    expect(sym.g).toBeGreaterThan(1);
+    expect(sym.g).toBeCloseTo(1 + Math.log1p(10), 5);
     expect(sym.fPrime).toBeGreaterThan(sym.f);
   });
 
   it("fileRollup uses fPrime (churn-adjusted score) when churn is enabled", async () => {
-    const uri = "file:///a.ts";
-    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
-    const symbols = new Map([
-      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
-    ]);
-
     const churnProvider: ChurnProvider = {
       async getChurnCounts(_since) {
-        return new Map([[uri, 10]]); // G = 1 + log1p(10) ≈ 3.4
+        return new Map([[CHURN_FILE_URI, 10]]); // G = 1 + log1p(10) ≈ 3.4
       },
     };
-
-    const orchestrator = new AnalysisOrchestrator({
-      documentProvider: fakeDocProvider(docs),
-      symbolProvider: fakeSymbolProvider(symbols),
-      callGraphProvider: fakeCallGraphProvider([]),
-      coverageProvider: fakeCoverageProvider(new Map()),
-      ccRegistry: new CcProviderRegistry(),
-      logger: nullLogger,
-      churnProvider,
-    });
-
-    const churnConfig = { ...DEFAULT_CONFIGURATION, churn: { enabled: true, lookbackDays: 90 } };
-    const result = await orchestrator.analyze(churnConfig, neverCancelledCtx());
+    const orchestrator = singleFnOrchestrator({ churnProvider });
+    const result = await orchestrator.analyze(CHURN_CONFIG, neverCancelledCtx());
     assert(result !== undefined);
-
     const sym = result.symbols[0];
     expect(sym.fPrime).toBeGreaterThan(sym.f);
-
-    const rollupValue = result.fileRollup.get(uri);
+    const rollupValue = result.fileRollup.get(CHURN_FILE_URI);
     expect(rollupValue).toBeCloseTo(sym.fPrime, 5);
   });
 
   it("passes a date exactly lookbackDays before the clock date to ChurnProvider", async () => {
-    const uri = "file:///a.ts";
-    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
-    const symbols = new Map([
-      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
-    ]);
-
     const fixedNow = new Date("2026-04-20T12:00:00.000Z");
     let capturedSince: Date | undefined;
     const churnProvider: ChurnProvider = {
@@ -198,21 +177,8 @@ describe("AnalysisOrchestrator", () => {
         return new Map();
       },
     };
-
-    const orchestrator = new AnalysisOrchestrator({
-      documentProvider: fakeDocProvider(docs),
-      symbolProvider: fakeSymbolProvider(symbols),
-      callGraphProvider: fakeCallGraphProvider([]),
-      coverageProvider: fakeCoverageProvider(new Map()),
-      ccRegistry: new CcProviderRegistry(),
-      logger: nullLogger,
-      churnProvider,
-      clock: () => fixedNow,
-    });
-
-    const churnConfig = { ...DEFAULT_CONFIGURATION, churn: { enabled: true, lookbackDays: 90 } };
-    await orchestrator.analyze(churnConfig, neverCancelledCtx());
-
+    const orchestrator = singleFnOrchestrator({ churnProvider, clock: () => fixedNow });
+    await orchestrator.analyze(CHURN_CONFIG, neverCancelledCtx());
     assert(capturedSince !== undefined);
     const expected = new Date(fixedNow);
     expected.setDate(expected.getDate() - 90);
@@ -220,54 +186,22 @@ describe("AnalysisOrchestrator", () => {
   });
 
   it("degrades gracefully when ChurnProvider throws — symbols get g=1", async () => {
-    const uri = "file:///a.ts";
-    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
-    const symbols = new Map([
-      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
-    ]);
-
     const churnProvider: ChurnProvider = {
       async getChurnCounts(_since) {
         throw new Error("git not found");
       },
     };
-
     let loggedWarning = "";
     const logger = { info() {}, warn(msg: string) { loggedWarning = msg; }, error() {} };
-
-    const orchestrator = new AnalysisOrchestrator({
-      documentProvider: fakeDocProvider(docs),
-      symbolProvider: fakeSymbolProvider(symbols),
-      callGraphProvider: fakeCallGraphProvider([]),
-      coverageProvider: fakeCoverageProvider(new Map()),
-      ccRegistry: new CcProviderRegistry(),
-      logger,
-      churnProvider,
-    });
-
-    const churnConfig = { ...DEFAULT_CONFIGURATION, churn: { enabled: true, lookbackDays: 90 } };
-    const result = await orchestrator.analyze(churnConfig, neverCancelledCtx());
+    const orchestrator = singleFnOrchestrator({ churnProvider, logger });
+    const result = await orchestrator.analyze(CHURN_CONFIG, neverCancelledCtx());
     assert(result !== undefined);
     expect(result.symbols[0].g).toBe(1);
     expect(loggedWarning).toContain("churn");
   });
 
   it("leaves g=1 and fPrime=f when no ChurnProvider supplied", async () => {
-    const uri = "file:///a.ts";
-    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
-    const symbols = new Map([
-      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
-    ]);
-
-    const orchestrator = new AnalysisOrchestrator({
-      documentProvider: fakeDocProvider(docs),
-      symbolProvider: fakeSymbolProvider(symbols),
-      callGraphProvider: fakeCallGraphProvider([]),
-      coverageProvider: fakeCoverageProvider(new Map()),
-      ccRegistry: new CcProviderRegistry(),
-      logger: nullLogger,
-    });
-
+    const orchestrator = singleFnOrchestrator();
     const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
     assert(result !== undefined);
     expect(result.symbols[0].g).toBe(1);

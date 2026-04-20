@@ -20,6 +20,7 @@ import {
   PmdCcProvider,
   VsCodeLogger,
 } from "./adapters";
+import { GitChurnAdapter } from "./churn/gitChurnAdapter";
 
 export type { AnalysisResult } from "./analysisOrchestrator";
 
@@ -52,6 +53,11 @@ export class AnalysisService {
       provider: new PmdCcProvider(config.cc.pmdPath),
     });
 
+    const workspaceRootUri = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+    const churnProvider = config.churn.enabled && workspaceRootUri
+      ? new GitChurnAdapter(workspaceRootUri)
+      : undefined;
+
     const orchestrator = new AnalysisOrchestrator({
       documentProvider: new VsCodeDocumentProvider(config.excludeTests),
       symbolProvider: new VsCodeSymbolProvider(),
@@ -59,6 +65,7 @@ export class AnalysisService {
       coverageProvider: new VsCodeCoverageProvider(this.coverageStore, config.coverage.lcovGlob, config.coverage.jacocoGlob, token),
       ccRegistry,
       logger: this.logger,
+      churnProvider,
     });
 
     return orchestrator.analyze(config, { isCancelled: () => token.isCancellationRequested }, scope);

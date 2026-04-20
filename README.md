@@ -41,12 +41,15 @@ Each function is rated using these metrics from [Dependable Dependencies (Gorman
 | **T** | Test Coverage (fraction) | 0.0–1.0 | Percentage of function covered by tests (from LCOV data); 0 if no coverage data found |
 | **CRAP** | Change Risk Anti-Pattern | 0–∞ | Formula: `CC² × (1 − T)³ + CC`; higher = riskier to change |
 | **R** | Rank (call graph importance) | 1.0–∞ | PageRank-like score from the call graph; how many other functions depend on this one (directly or indirectly) |
-| **F** | Failure Risk | 0–∞ | Formula: `R × CRAP`; **the primary risk score**; focus testing/refactoring on high F values |
+| **F** | Failure Risk | 0–∞ | Formula: `R × CRAP`; the base risk score |
+| **G** | Churn Multiplier | 1.0–∞ | Formula: `1 + ln(1 + commitCount)`; reflects how frequently the file has changed in git; G = 1 when churn is disabled |
+| **F′** | Churn-Adjusted Failure Risk | 0–∞ | Formula: `F × G`; **the primary risk score when churn is enabled**; surfaces high-risk code that is also actively changing |
 
 **Quick interpretation:**
 - **High CC, low T** → High CRAP (complex code with little test coverage)
 - **High T** → CRAP reduced significantly (tests make risky code safer)
 - **High R + high CRAP** → High F (failures here cascade through dependents)
+- **High F + frequent git commits** → High F′ (risky code that keeps changing is the most urgent to address)
 
 ### Editor Decorations
 
@@ -209,6 +212,17 @@ Open VS Code **Settings** (Ctrl+,) and search for `ddp` to customize analysis be
 - **`ddp.excludeTests`** (boolean, default: `true`)
   - Exclude test files (matching `*.test.*`, `*.spec.*`, `__tests__/`, `tests/`) from analysis
 
+#### Churn Scoring
+
+- **`ddp.churn.enabled`** (boolean, default: `false`)
+  - Weight risk scores by git commit frequency — computes `G` and `F′ = F × G` for each function
+  - When enabled, the sidebar and decorations use F′ as the primary risk score; two extra sort options appear: **Sort by F′** and **Sort by G**
+  - Requires the workspace to be a git repository
+
+- **`ddp.churn.lookbackDays`** (number, default: `90`)
+  - How many days of git history to count commits from (default: 90 = three months)
+  - A shorter window emphasises recently active files; a longer window gives a fuller picture
+
 ---
 
 ### Example Workspace Settings
@@ -227,7 +241,9 @@ Save this in `.vscode/settings.json` to customize your workspace:
   "ddp.decoration.errorThreshold": 150,
   "ddp.fileRollup": "max",
   "ddp.codelens.enabled": true,
-  "ddp.excludeTests": true
+  "ddp.excludeTests": true,
+  "ddp.churn.enabled": false,
+  "ddp.churn.lookbackDays": 90
 }
 ```
 
