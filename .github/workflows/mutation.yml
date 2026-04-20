@@ -25,11 +25,16 @@ jobs:
         run: npm ci
 
       - name: Run mutation testing
-        run: npm run mutation
+        run: |
+          set -o pipefail
+          npm run mutation 2>&1 | tee mutation-output.txt
 
       - name: Publish report to job summary
         if: always()
-        run: cat reports/mutation/mutation.md >> $GITHUB_STEP_SUMMARY
+        run: |
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat mutation-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload HTML report
         if: always()
