@@ -15,7 +15,7 @@ const config = {
   ],
 
   // Report types
-  reporters: ['html', 'json', 'clear-text'],
+  reporters: ['html', 'json', 'clear-text', 'markdown'],
 
   // Concurrency settings
   concurrency: 4,

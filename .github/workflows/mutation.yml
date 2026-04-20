@@ -26,3 +26,14 @@ jobs:
 
       - name: Run mutation testing
         run: npm run mutation
+
+      - name: Publish report to job summary
+        if: always()
+        run: cat reports/mutation/mutation.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stryker-report
+          path: reports/mutation/
