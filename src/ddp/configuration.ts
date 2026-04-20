@@ -26,6 +26,11 @@ export type DecorationConfig = {
   readonly errorThreshold: number;
 };
 
+export type ChurnConfig = {
+  readonly enabled: boolean;
+  readonly lookbackDays: number;
+};
+
 /**
  * Optional scope constraint for analysis.
  * When set, only files under `rootUri` are fully analyzed.
@@ -42,6 +47,7 @@ export type DdpConfiguration = {
   readonly rank: RankConfig;
   readonly cc: CcConfig;
   readonly decoration: DecorationConfig;
+  readonly churn: ChurnConfig;
   readonly fileRollup: "max" | "sum";
   readonly codelensEnabled: boolean;
   readonly excludeTests: boolean;
@@ -57,6 +63,7 @@ export const DEFAULT_CONFIGURATION: DdpConfiguration = {
     useEslintForTsJs: true,
   },
   decoration: { warnThreshold: 50, errorThreshold: 150 },
+  churn: { enabled: false, lookbackDays: 90 },
   fileRollup: "max",
   codelensEnabled: true,
   excludeTests: true,
@@ -85,6 +92,10 @@ export function buildConfiguration(
     decoration: {
       warnThreshold: get<number>("decoration.warnThreshold", DEFAULT_CONFIGURATION.decoration.warnThreshold),
       errorThreshold: get<number>("decoration.errorThreshold", DEFAULT_CONFIGURATION.decoration.errorThreshold),
+    },
+    churn: {
+      enabled: get<boolean>("churn.enabled", DEFAULT_CONFIGURATION.churn.enabled),
+      lookbackDays: get<number>("churn.lookbackDays", DEFAULT_CONFIGURATION.churn.lookbackDays),
     },
     fileRollup: get<"max" | "sum">("fileRollup", DEFAULT_CONFIGURATION.fileRollup),
     codelensEnabled: get<boolean>("codelens.enabled", DEFAULT_CONFIGURATION.codelensEnabled),

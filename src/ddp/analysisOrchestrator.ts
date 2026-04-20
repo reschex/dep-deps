@@ -7,6 +7,7 @@
  */
 
 import { computeSymbolMetrics, type SymbolInput, type SymbolMetrics } from "../core/analyze";
+import { applyChurn } from "../core/churn";
 import { coverageFractionForSymbol } from "../core/coverageMap";
 import { rollupFileRisk, type SymbolRiskRow } from "../core/rollup";
 import type { RankOptions } from "../core/rank";
@@ -15,6 +16,7 @@ import type {
   SymbolProvider,
   CallGraphProvider,
   CoverageProvider,
+  ChurnProvider,
   Logger,
   FunctionSymbolInfo,
   DocumentInfo,
@@ -26,6 +28,10 @@ import { estimateCyclomaticComplexity } from "../core/estimateCc";
 
 /** Maximum files to scan — avoids overwhelming large workspaces. */
 const MAX_FILES = 400;
+
+const nullChurnProvider: ChurnProvider = {
+  getChurnCounts: () => Promise.resolve(new Map()),
+};
 
 export type AnalysisResult = {
   readonly symbols: SymbolMetrics[];
@@ -44,6 +50,8 @@ export type OrchestratorDeps = {
   readonly coverageProvider: CoverageProvider;
   readonly ccRegistry: CcProviderRegistry;
   readonly logger: Logger;
+  readonly churnProvider?: ChurnProvider;
+  readonly clock?: () => Date;
 };
 
 export class AnalysisOrchestrator {
@@ -74,12 +82,35 @@ export class AnalysisOrchestrator {
       maxIterations: config.rank.maxIterations,
       epsilon: config.rank.epsilon,
     };
-    const symbols = computeSymbolMetrics(edges, symbolInputs, rankOpts);
-    const rows: SymbolRiskRow[] = symbols.map((s) => ({ symbolId: s.id, uri: s.uri, f: s.f }));
+    const rawSymbols = computeSymbolMetrics(edges, symbolInputs, rankOpts);
+
+    const symbols = await this.applyChurnIfEnabled(rawSymbols, config);
+
+    const rows: SymbolRiskRow[] = symbols.map((s) => ({ symbolId: s.id, uri: s.uri, f: s.fPrime }));
     const fileRollup = rollupFileRisk(rows, config.fileRollup);
 
     logger.info(`Analysis complete: ${symbols.length} symbols, ${edges.length} edges`);
     return { symbols, fileRollup, edgesCount: edges.length };
+  }
+
+  private async applyChurnIfEnabled(
+    symbols: SymbolMetrics[],
+    config: DdpConfiguration
+  ): Promise<SymbolMetrics[]> {
+    if (!config.churn.enabled) {
+      return symbols;
+    }
+    const churnProvider = this.deps.churnProvider ?? nullChurnProvider;
+    const now = this.deps.clock?.() ?? new Date();
+    const since = new Date(now);
+    since.setDate(since.getDate() - config.churn.lookbackDays);
+    try {
+      const counts = await churnProvider.getChurnCounts(since);
+      return applyChurn(symbols, counts);
+    } catch (err) {
+      this.deps.logger.warn(`churn data unavailable, skipping: ${err instanceof Error ? err.message : String(err)}`);
+      return symbols;
+    }
   }
 
   private async discoverSourceFiles(config: DdpConfiguration, rootUri?: string): Promise<string[]> {
@@ -93,6 +124,7 @@ export class AnalysisOrchestrator {
     ctx: AnalysisContext
   ): Promise<SymbolInput[]> {
     const result: SymbolInput[] = [];
+    // Sequential: allows cancellation between files.
     for (const uri of fileUris) {
       if (ctx.isCancelled()) {
         break;

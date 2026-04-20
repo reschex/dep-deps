@@ -3,6 +3,8 @@ import type { SymbolMetrics } from "../core/analyze";
 import { sortSymbols, type SortField, symbolsForFile } from "../core/viewModel";
 import type { ExtensionState } from "./extensionState";
 
+const SORT_FIELD_LABELS: Record<SortField, string> = { f: "F", fPrime: "F′", g: "G", cc: "CC", crap: "CRAP" };
+
 export type RiskNode =
   | { type: "file"; uri: string; label: string }
   | { type: "symbol"; symbol: SymbolMetrics }
@@ -43,7 +45,7 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
     }
     if (element.type === "file") {
       const field = this._sortField;
-      const label = field.toUpperCase();
+      const label = SORT_FIELD_LABELS[field];
       const maxVal = Math.max(
         0,
         ...symbolsForFile(element.uri, this.state.lastAnalysis?.symbols ?? []).map((s) => s[field])

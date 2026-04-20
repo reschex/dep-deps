@@ -12,6 +12,7 @@ import type {
   CoverageProvider,
   CyclomaticComplexityProvider,
   CcResult,
+  ChurnProvider,
 } from "../core/ports";
 import type { StatementCover } from "../core/coverageMap";
 import type { CallEdge } from "../core/rank";
@@ -115,6 +116,162 @@ describe("AnalysisOrchestrator", () => {
     assert(bar !== undefined, "expected bar");
     // bar is callee, should have higher rank
     expect(bar.r).toBeGreaterThan(foo.r);
+  });
+
+  it("applies churn multiplier when ChurnProvider is supplied", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const churnProvider: ChurnProvider = {
+      async getChurnCounts(_since) {
+        return new Map([[uri, 10]]);
+      },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+      churnProvider,
+    });
+
+    const churnConfig = { ...DEFAULT_CONFIGURATION, churn: { enabled: true, lookbackDays: 90 } };
+    const result = await orchestrator.analyze(churnConfig, neverCancelledCtx());
+    assert(result !== undefined);
+    const sym = result.symbols[0];
+    expect(sym.g).toBeGreaterThan(1);
+    expect(sym.fPrime).toBeGreaterThan(sym.f);
+  });
+
+  it("fileRollup uses fPrime (churn-adjusted score) when churn is enabled", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const churnProvider: ChurnProvider = {
+      async getChurnCounts(_since) {
+        return new Map([[uri, 10]]); // G = 1 + log1p(10) ≈ 3.4
+      },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+      churnProvider,
+    });
+
+    const churnConfig = { ...DEFAULT_CONFIGURATION, churn: { enabled: true, lookbackDays: 90 } };
+    const result = await orchestrator.analyze(churnConfig, neverCancelledCtx());
+    assert(result !== undefined);
+
+    const sym = result.symbols[0];
+    expect(sym.fPrime).toBeGreaterThan(sym.f);
+
+    const rollupValue = result.fileRollup.get(uri);
+    expect(rollupValue).toBeCloseTo(sym.fPrime, 5);
+  });
+
+  it("passes a date exactly lookbackDays before the clock date to ChurnProvider", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const fixedNow = new Date("2026-04-20T12:00:00.000Z");
+    let capturedSince: Date | undefined;
+    const churnProvider: ChurnProvider = {
+      async getChurnCounts(since) {
+        capturedSince = since;
+        return new Map();
+      },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+      churnProvider,
+      clock: () => fixedNow,
+    });
+
+    const churnConfig = { ...DEFAULT_CONFIGURATION, churn: { enabled: true, lookbackDays: 90 } };
+    await orchestrator.analyze(churnConfig, neverCancelledCtx());
+
+    assert(capturedSince !== undefined);
+    const expected = new Date(fixedNow);
+    expected.setDate(expected.getDate() - 90);
+    expect(capturedSince.getTime()).toBe(expected.getTime());
+  });
+
+  it("degrades gracefully when ChurnProvider throws — symbols get g=1", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const churnProvider: ChurnProvider = {
+      async getChurnCounts(_since) {
+        throw new Error("git not found");
+      },
+    };
+
+    let loggedWarning = "";
+    const logger = { info() {}, warn(msg: string) { loggedWarning = msg; }, error() {} };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger,
+      churnProvider,
+    });
+
+    const churnConfig = { ...DEFAULT_CONFIGURATION, churn: { enabled: true, lookbackDays: 90 } };
+    const result = await orchestrator.analyze(churnConfig, neverCancelledCtx());
+    assert(result !== undefined);
+    expect(result.symbols[0].g).toBe(1);
+    expect(loggedWarning).toContain("churn");
+  });
+
+  it("leaves g=1 and fPrime=f when no ChurnProvider supplied", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result !== undefined);
+    expect(result.symbols[0].g).toBe(1);
+    expect(result.symbols[0].fPrime).toBe(result.symbols[0].f);
   });
 
   it("returns undefined when cancelled before call graph", async () => {

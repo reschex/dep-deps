@@ -152,3 +152,52 @@ Living specification: each scenario maps to one or more automated tests.
 **Given** a JavaScript or TypeScript workspace with `node_modules` present under the workspace root
 **When** the user runs folder-scoped analysis on their application folder
 **Then** the extension does not descend into `node_modules` unless the user explicitly selects that folder as the analysis root.
+
+---
+
+## Feature: Git churn weighting
+
+A churn multiplier **G** is derived from git history: how many times each file has been modified within a configurable look-back window (default 90 days). **G** scales the risk score so that frequently-changed high-risk code surfaces higher than equally-risky but rarely-touched code. The final displayed risk score becomes **F' = F × G**, where **G ≥ 1**.
+
+### Scenario: Frequently-changed files receive a higher risk weighting
+
+**Given** a workspace under git version control
+**And** the DDP churn weighting setting is enabled with a 90-day look-back window
+**When** analysis runs
+**Then** each file's risk score is multiplied by a churn factor **G** derived from its commit frequency within that window, so files edited more often rank higher than files with the same raw **F** but fewer recent changes.
+
+### Scenario: Files with no recent commits use a neutral multiplier
+
+**Given** a file that has not been modified within the configured look-back window
+**When** the churn factor is computed
+**Then** **G = 1** for that file, leaving its risk score **F' = F** unchanged.
+
+### Scenario: Configurable look-back window
+
+**Given** the user sets `ddp.churn.lookbackDays` to **180** (six months)
+**When** analysis runs
+**Then** only commits within the last 180 days contribute to the churn count, and commits older than 180 days are ignored.
+
+### Scenario: Churn weighting can be disabled
+
+**Given** the user sets `ddp.churn.enabled` to **false**
+**When** analysis runs
+**Then** all files receive **G = 1** regardless of commit history, and the risk scores are identical to a run without git churn weighting.
+
+### Scenario: Workspace without a git repository degrades gracefully
+
+**Given** the workspace root is not a git repository (no `.git` directory)
+**When** analysis runs with churn weighting enabled
+**Then** the extension proceeds without churn data, applies **G = 1** to all files, and shows a one-time informational message explaining that git history was not found.
+
+### Scenario: Churn factor is visible in the risk view
+
+**Given** churn weighting is enabled and analysis has completed
+**When** the user views a file node in the DDP risk sidebar
+**Then** the file entry displays the churn-adjusted score **F'** alongside the raw **F** and the multiplier **G**, so the contribution of churn is transparent.
+
+### Scenario: Risk view can be sorted by churn multiplier
+
+**Given** churn weighting is enabled and analysis has completed
+**When** the user selects "Sort by G" in the DDP risk sidebar
+**Then** file nodes are ordered by their churn multiplier **G** descending, so the most frequently-changed files appear at the top regardless of their raw **F** score.

@@ -20,6 +20,10 @@ export type SymbolMetrics = SymbolInput & {
   readonly crap: number;
   /** Failure risk — F = R × CRAP. */
   readonly f: number;
+  /** Churn multiplier (G ≥ 1). 1 until churn is applied. */
+  readonly g: number;
+  /** Churn-adjusted failure risk — F' = F × G. */
+  readonly fPrime: number;
 };
 
 /**
@@ -40,6 +44,6 @@ export function computeSymbolMetrics(
     const rank = ranks.get(symbol.id) ?? 1;
     const crapScore = crap(symbol.cc, symbol.t);
     const failureRisk = failureRiskFromCrap(rank, crapScore);
-    return { ...symbol, r: rank, crap: crapScore, f: failureRisk };
+    return { ...symbol, r: rank, crap: crapScore, f: failureRisk, g: 1, fPrime: failureRisk };
   });
 }

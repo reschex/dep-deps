@@ -71,6 +71,17 @@ export type CcResult = {
   readonly byName: Map<string, number>;
 };
 
+/** Provides git commit frequency data for churn-weighted risk scoring. */
+export interface ChurnProvider {
+  /**
+   * Returns commit count within the look-back window, keyed by file URI string
+   * (absolute, scheme-qualified e.g. `file:///c%3A/code/proj/src/foo.ts`).
+   * Adapters are responsible for converting git-relative paths to workspace-absolute
+   * URIs before returning. Files absent from the map have not been touched (G = 1).
+   */
+  getChurnCounts(since: Date): Promise<Map<string, number>>;
+}
+
 /** Logging port — allows domain code to log without depending on VS Code output channels. */
 export interface Logger {
   info(message: string): void;

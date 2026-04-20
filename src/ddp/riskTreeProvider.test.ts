@@ -71,6 +71,8 @@ function sym(overrides: Partial<SymbolMetrics> & { id: string }): SymbolMetrics 
     r: 1,
     crap: 2.25,
     f: 2.25,
+    g: 1,
+    fPrime: 2.25,
     ...overrides,
   };
 }
@@ -757,6 +759,56 @@ describe("RiskTreeProvider", () => {
   // ─── Sorting ─────────────────────────────────────────────────────
 
   describe("sorting", () => {
+    it("file description shows F′ label when sort field is fPrime", () => {
+      state.setAnalysis(
+        analysis([sym({ id: "a", uri: "file:///x.ts", fPrime: 42.7 })])
+      );
+      provider.setSortField("fPrime");
+      const item = provider.getTreeItem({ type: "file", uri: "file:///x.ts", label: "x.ts" });
+      expect(item.description).toBe("max F′≈43");
+    });
+
+    it("file description shows G label when sort field is g", () => {
+      state.setAnalysis(
+        analysis([sym({ id: "a", uri: "file:///x.ts", g: 2.5 })])
+      );
+      provider.setSortField("g");
+      const item = provider.getTreeItem({ type: "file", uri: "file:///x.ts", label: "x.ts" });
+      expect(item.description).toBe("max G≈3");
+    });
+
+    it("sorts file nodes by max fPrime descending when sort field is fPrime", async () => {
+      state.setAnalysis(
+        analysis([
+          sym({ id: "a", uri: "file:///a.ts", fPrime: 5, f: 100 }),
+          sym({ id: "b", uri: "file:///b.ts", fPrime: 30, f: 1 }),
+          sym({ id: "c", uri: "file:///c.ts", fPrime: 12, f: 50 }),
+        ])
+      );
+      provider.setSortField("fPrime");
+      const roots = fileRoots(await provider.getChildren());
+      expect(roots.map((r) => (r as { uri: string }).uri)).toEqual([
+        "file:///b.ts",
+        "file:///c.ts",
+        "file:///a.ts",
+      ]);
+    });
+
+    it("sorts file nodes by max G descending when sort field is g", async () => {
+      state.setAnalysis(
+        analysis([
+          sym({ id: "a", uri: "file:///a.ts", g: 1.2, f: 100 }),
+          sym({ id: "b", uri: "file:///b.ts", g: 3.5, f: 1 }),
+        ])
+      );
+      provider.setSortField("g");
+      const roots = fileRoots(await provider.getChildren());
+      expect(roots.map((r) => (r as { uri: string }).uri)).toEqual([
+        "file:///b.ts",
+        "file:///a.ts",
+      ]);
+    });
+
     it("sorts symbols by CC descending when sort field is cc", async () => {
       state.setAnalysis(
         analysis([

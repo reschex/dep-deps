@@ -47,6 +47,16 @@
         "icon": "$(arrow-swap)"
       },
       {
+        "command": "ddp.riskView.sortByFPrime",
+        "title": "DDP: Sort by F′ (churn-adjusted)",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "ddp.riskView.sortByG",
+        "title": "DDP: Sort by G (churn)",
+        "icon": "$(arrow-swap)"
+      },
+      {
         "command": "ddp.riskView.sortByCC",
         "title": "DDP: Sort by CC",
         "icon": "$(arrow-swap)"
@@ -67,6 +77,16 @@
         {
           "command": "ddp.riskView.sortByF",
           "when": "view == ddp.riskView",
+          "group": "sort"
+        },
+        {
+          "command": "ddp.riskView.sortByFPrime",
+          "when": "view == ddp.riskView && config.ddp.churn.enabled",
+          "group": "sort"
+        },
+        {
+          "command": "ddp.riskView.sortByG",
+          "when": "view == ddp.riskView && config.ddp.churn.enabled",
           "group": "sort"
         },
         {
@@ -159,6 +179,17 @@
           "type": "boolean",
           "default": true,
           "description": "Exclude test files (*.test.*, *.spec.*, __tests__/, test/, tests/) from analysis. Keeps risk metrics focused on production code."
+        },
+        "ddp.churn.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Weight risk scores by git commit frequency (G). Frequently-changed files surface higher."
+        },
+        "ddp.churn.lookbackDays": {
+          "type": "number",
+          "default": 90,
+          "minimum": 1,
+          "description": "Number of days of git history to count as churn. Default: 90 (three months)."
         }
       }
     },

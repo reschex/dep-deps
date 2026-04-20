@@ -37,6 +37,24 @@ describe("buildConfiguration", () => {
     expect(config.excludeTests).toBe(true);
   });
 
+  it("defaults churn.enabled to false", () => {
+    const config = buildConfiguration(<T>(_key: string, defaultValue: T) => defaultValue);
+    expect(config.churn.enabled).toBe(false);
+  });
+
+  it("defaults churn.lookbackDays to 90", () => {
+    const config = buildConfiguration(<T>(_key: string, defaultValue: T) => defaultValue);
+    expect(config.churn.lookbackDays).toBe(90);
+  });
+
+  it("reads churn overrides from getter", () => {
+    const config = buildConfiguration(<T>(key: string, defaultValue: T) =>
+      (key === "churn.enabled" ? true : key === "churn.lookbackDays" ? 180 : defaultValue) as T
+    );
+    expect(config.churn.enabled).toBe(true);
+    expect(config.churn.lookbackDays).toBe(180);
+  });
+
   it("reads excludeTests override from getter", () => {
     const config = buildConfiguration(<T>(key: string, defaultValue: T) =>
       (key === "excludeTests" ? false : defaultValue) as T
@@ -74,6 +92,7 @@ describe("buildConfiguration", () => {
         useEslintForTsJs: false,
       },
       decoration: { warnThreshold: 25, errorThreshold: 75 },
+      churn: { enabled: false, lookbackDays: 90 },
       fileRollup: "sum",
       codelensEnabled: false,
       excludeTests: false,
@@ -156,6 +175,7 @@ describe("DEFAULT_CONFIGURATION", () => {
         useEslintForTsJs: true,
       },
       decoration: { warnThreshold: 50, errorThreshold: 150 },
+      churn: { enabled: false, lookbackDays: 90 },
       fileRollup: "max",
       codelensEnabled: true,
       excludeTests: true,
@@ -173,6 +193,7 @@ describe("DEFAULT_CONFIGURATION", () => {
     const keys = Object.keys(DEFAULT_CONFIGURATION).sort((a, b) => a.localeCompare(b));
     expect(keys).toEqual([
       "cc",
+      "churn",
       "codelensEnabled",
       "coverage",
       "decoration",
@@ -468,6 +489,8 @@ describe("bugmagnet session 2026-04-16", () => {
         "cc.pmdPath",
         "cc.pythonPath",
         "cc.useEslintForTsJs",
+        "churn.enabled",
+        "churn.lookbackDays",
         "codelens.enabled",
         "coverage.fallbackT",
         "coverage.jacocoGlob",
@@ -499,6 +522,8 @@ describe("bugmagnet session 2026-04-16", () => {
         "cc.useEslintForTsJs": true,
         "decoration.warnThreshold": 50,
         "decoration.errorThreshold": 150,
+        "churn.enabled": false,
+        "churn.lookbackDays": 90,
         "fileRollup": "max",
         "codelens.enabled": true,
         "excludeTests": true,

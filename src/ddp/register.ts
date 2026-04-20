@@ -72,6 +72,8 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("ddp.revealSymbol", (id: string) => revealSymbolById(id)),
     vscode.commands.registerCommand("ddp.riskView.openFile", (uri: vscode.Uri) => openDocument(uri)),
     vscode.commands.registerCommand("ddp.riskView.sortByF", () => tree.setSortField("f")),
+    vscode.commands.registerCommand("ddp.riskView.sortByFPrime", () => tree.setSortField("fPrime")),
+    vscode.commands.registerCommand("ddp.riskView.sortByG", () => tree.setSortField("g")),
     vscode.commands.registerCommand("ddp.riskView.sortByCC", () => tree.setSortField("cc")),
     vscode.commands.registerCommand("ddp.riskView.sortByCRAP", () => tree.setSortField("crap")),
     vscode.languages.registerCodeLensProvider(selector, codeLens),

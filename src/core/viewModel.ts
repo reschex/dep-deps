@@ -1,7 +1,7 @@
 import type { SymbolMetrics } from "./analyze";
 
 /** Supported sort fields for symbol lists. */
-export type SortField = "f" | "cc" | "crap";
+export type SortField = "f" | "fPrime" | "g" | "cc" | "crap";
 
 /** Sort symbols by the given field, descending (highest first). */
 export function sortSymbols(symbols: readonly SymbolMetrics[], field: SortField): SymbolMetrics[] {

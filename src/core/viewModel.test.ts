@@ -18,11 +18,33 @@ function sym(overrides: Partial<SymbolMetrics> & { id: string }): SymbolMetrics 
     r: 1,
     crap: 2.25,
     f: 2.25,
+    g: 1,
+    fPrime: 2.25,
     ...overrides,
   };
 }
 
 describe("sortSymbols", () => {
+  it("sorts by G descending", () => {
+    const list = [
+      sym({ id: "a", g: 1.2 }),
+      sym({ id: "b", g: 3.5 }),
+      sym({ id: "c", g: 2.1 }),
+    ];
+    const sorted = sortSymbols(list, "g");
+    expect(sorted.map((s) => s.id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("sorts by fPrime descending", () => {
+    const list = [
+      sym({ id: "a", fPrime: 5 }),
+      sym({ id: "b", fPrime: 25 }),
+      sym({ id: "c", fPrime: 12 }),
+    ];
+    const sorted = sortSymbols(list, "fPrime");
+    expect(sorted.map((s) => s.id)).toEqual(["b", "c", "a"]);
+  });
+
   it("sorts by CC descending", () => {
     const list = [
       sym({ id: "a", cc: 3 }),
