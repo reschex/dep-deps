@@ -25,9 +25,7 @@ jobs:
         run: npm ci
 
       - name: Run mutation testing
-        run: |
-          set -o pipefail
-          npm run mutation 2>&1
+        run: npm run mutation
 
       - name: Publish report to job summary
         if: always()
