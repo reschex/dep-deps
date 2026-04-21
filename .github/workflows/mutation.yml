@@ -29,7 +29,7 @@ jobs:
         run: npm ci
 
       - name: Run mutation testing
-        run: printenv #&& npm run mutation 
+        run: npm run mutation && cat $GITHUB_STEP_SUMMARY
         # env:
         #   GITHUB_ACTIONS: false
 
