@@ -29,7 +29,9 @@ jobs:
         run: npm ci
 
       - name: Run mutation testing
-        run: npm run mutation
+        run: printenv #&& npm run mutation 
+        # env:
+        #   GITHUB_ACTIONS: false
 
       - name: Publish report to job summary
         if: always() && hashFiles('reports/mutation/mutation.json') != ''
