@@ -233,7 +233,7 @@
     "eslint": "^10.2.0",
     "glob": "^13.0.6",
     "mocha": "^11.7.5",
-    "stryker-gha-ci-report": "^0.1.0",
+    "stryker-gha-ci-report": "^0.2.0",
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.58.2",
     "vitest": "^4.1.4"
