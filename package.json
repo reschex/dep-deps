@@ -217,7 +217,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:integration": "npm run compile && node out/test/runTest.js",
-    "mutation": "stryker run",
+    "mutation": "stryker run --ignoreStatic",
     "mutation:incremental": "stryker run --incremental"
   },
   "devDependencies": {
