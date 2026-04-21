@@ -17,7 +17,7 @@ export type UiRefreshable = {
 };
 
 export class AnalyzeCommand {
-  private analyzing = false;
+  private isAnalyzing = false;
 
   constructor(
     private readonly runAnalysis: (token: vscode.CancellationToken, scope?: AnalysisScope) => Promise<AnalysisResult | undefined>,
@@ -26,10 +26,10 @@ export class AnalyzeCommand {
   ) {}
 
   async execute(scope?: AnalysisScope): Promise<void> {
-    if (this.analyzing) {
+    if (this.isAnalyzing) {
       return;
     }
-    this.analyzing = true;
+    this.isAnalyzing = true;
     const title = scope
       ? `DDP: analyzing folder\u2026`
       : "DDP: analyzing workspace\u2026";
@@ -51,7 +51,7 @@ export class AnalyzeCommand {
         }
       );
     } finally {
-      this.analyzing = false;
+      this.isAnalyzing = false;
     }
   }
 }

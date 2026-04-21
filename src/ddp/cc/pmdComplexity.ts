@@ -13,5 +13,6 @@ export async function pmdCcForFile(
   if (languageId !== "java") {
     return new Map();
   }
-  return runPmdCyclomaticComplexity(pmdPath, fsPath, cwd, 30000);
+  const PMD_TIMEOUT_MS = 30_000;
+  return runPmdCyclomaticComplexity(pmdPath, fsPath, cwd, PMD_TIMEOUT_MS);
 }

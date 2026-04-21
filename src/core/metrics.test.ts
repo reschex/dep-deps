@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { crap, failureRisk, failureRiskFromCrap } from "./metrics";
+import { crap, failureRiskFromCrap } from "./metrics";
 
 describe("CRAP", () => {
   it("matches partial coverage example CC=4 T=0.3", () => {
@@ -15,12 +15,6 @@ describe("CRAP", () => {
 });
 
 describe("failure risk F = R × CRAP", () => {
-  it("matches paper F(A), F(B), F(C)", () => {
-    expect(failureRisk(2, 4, 0.3)).toBeCloseTo(19, 0);
-    expect(failureRisk(3, 2, 0.5)).toBeCloseTo(7.5, 5);
-    expect(failureRisk(5, 9, 0.2)).toBeCloseTo(252.5, 0);
-  });
-
   it("uses precomputed CRAP when needed", () => {
     expect(failureRiskFromCrap(2, 9.5)).toBe(19);
   });

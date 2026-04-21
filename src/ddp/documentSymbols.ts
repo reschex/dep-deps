@@ -20,14 +20,6 @@ export function flattenFunctionSymbols(
   return out;
 }
 
-export function isFunctionLike(kind: vscode.SymbolKind): boolean {
-  return (
-    kind === vscode.SymbolKind.Function ||
-    kind === vscode.SymbolKind.Method ||
-    kind === vscode.SymbolKind.Constructor
-  );
-}
-
 /** Fetch and flatten function symbols for a document URI via the VS Code symbol provider. */
 export async function getFlatFunctionSymbols(uri: vscode.Uri): Promise<vscode.DocumentSymbol[]> {
   let syms: vscode.DocumentSymbol[] | undefined;

@@ -61,7 +61,7 @@ import { collectCallEdgesFromWorkspace } from "./lspCallGraph";
 describe("parseSymbolIdParts", () => {
   it("returns uri, line, and character for a valid symbolId", () => {
     const result = parseSymbolIdParts("file:///a.ts#10:5");
-    expect(result).toEqual({ uriStr: "file:///a.ts", line: 10, ch: 5 });
+    expect(result).toEqual({ uriStr: "file:///a.ts", line: 10, character: 5 });
   });
 
   it("returns undefined when symbolId has no hash", () => {
@@ -86,12 +86,12 @@ describe("parseSymbolIdParts", () => {
 
   it("returns correct parts for zero line and character", () => {
     const result = parseSymbolIdParts("file:///b.ts#0:0");
-    expect(result).toEqual({ uriStr: "file:///b.ts", line: 0, ch: 0 });
+    expect(result).toEqual({ uriStr: "file:///b.ts", line: 0, character: 0 });
   });
 
   it("returns correct parts for large line and character values", () => {
     const result = parseSymbolIdParts("file:///c.ts#9999:1234");
-    expect(result).toEqual({ uriStr: "file:///c.ts", line: 9999, ch: 1234 });
+    expect(result).toEqual({ uriStr: "file:///c.ts", line: 9999, character: 1234 });
   });
 
   it("returns correct parts when URI contains a hash in the path", () => {
@@ -99,7 +99,7 @@ describe("parseSymbolIdParts", () => {
     // but a raw hash in the URI before the fragment would split at the wrong point.
     // The format guarantees URI is toString()'d which encodes #, so test encoded form:
     const result = parseSymbolIdParts("file:///dir/file.ts#3:7");
-    expect(result).toEqual({ uriStr: "file:///dir/file.ts", line: 3, ch: 7 });
+    expect(result).toEqual({ uriStr: "file:///dir/file.ts", line: 3, character: 7 });
   });
 
   it("returns undefined for empty string", () => {
@@ -117,12 +117,12 @@ describe("parseSymbolIdParts", () => {
   it("handles negative line number as valid parseInt result", () => {
     const result = parseSymbolIdParts("file:///a.ts#-1:0");
     // parseInt("-1") === -1, which is not NaN, so it parses
-    expect(result).toEqual({ uriStr: "file:///a.ts", line: -1, ch: 0 });
+    expect(result).toEqual({ uriStr: "file:///a.ts", line: -1, character: 0 });
   });
 
   it("handles extra colon-separated parts by ignoring them", () => {
     const result = parseSymbolIdParts("file:///a.ts#10:5:99");
-    expect(result).toEqual({ uriStr: "file:///a.ts", line: 10, ch: 5 });
+    expect(result).toEqual({ uriStr: "file:///a.ts", line: 10, character: 5 });
   });
 });
 
@@ -161,7 +161,7 @@ describe("bugmagnet session 2026-04-15", () => {
       expect(result).toEqual({
         uriStr: "file:///path%20with%20spaces/file.ts",
         line: 2,
-        ch: 3,
+        character: 3,
       });
     });
 
@@ -170,33 +170,33 @@ describe("bugmagnet session 2026-04-15", () => {
       expect(result).toEqual({
         uriStr: "file:///a.ts?query=1",
         line: 5,
-        ch: 10,
+        character: 10,
       });
     });
 
     it("handles very long URI string", () => {
       const longPath = "file:///" + "a".repeat(5000) + ".ts";
       const result = parseSymbolIdParts(longPath + "#1:2");
-      expect(result).toEqual({ uriStr: longPath, line: 1, ch: 2 });
+      expect(result).toEqual({ uriStr: longPath, line: 1, character: 2 });
     });
 
     it("returns undefined when line is float-like string", () => {
       // parseInt("1.5") is 1 (not NaN), parseInt("2.5") is 2
       const result = parseSymbolIdParts("file:///a.ts#1.5:2.5");
       // parseInt stops at first non-digit: "1.5" → 1, "2.5" → 2
-      expect(result).toEqual({ uriStr: "file:///a.ts", line: 1, ch: 2 });
+      expect(result).toEqual({ uriStr: "file:///a.ts", line: 1, character: 2 });
     });
 
     it("returns undefined when line has leading spaces", () => {
       // parseInt(" 5") is 5 (leading spaces are trimmed by parseInt)
       const result = parseSymbolIdParts("file:///a.ts# 5: 3");
-      expect(result).toEqual({ uriStr: "file:///a.ts", line: 5, ch: 3 });
+      expect(result).toEqual({ uriStr: "file:///a.ts", line: 5, character: 3 });
     });
 
     it("returns undefined when line starts with hex prefix", () => {
       // parseInt("0x10") with radix 10 is 0
       const result = parseSymbolIdParts("file:///a.ts#0x10:5");
-      expect(result).toEqual({ uriStr: "file:///a.ts", line: 0, ch: 5 });
+      expect(result).toEqual({ uriStr: "file:///a.ts", line: 0, character: 5 });
     });
   });
 
@@ -204,12 +204,12 @@ describe("bugmagnet session 2026-04-15", () => {
     it("handles line and character at Number.MAX_SAFE_INTEGER", () => {
       const maxInt = Number.MAX_SAFE_INTEGER;
       const result = parseSymbolIdParts(`file:///a.ts#${maxInt}:${maxInt}`);
-      expect(result).toEqual({ uriStr: "file:///a.ts", line: maxInt, ch: maxInt });
+      expect(result).toEqual({ uriStr: "file:///a.ts", line: maxInt, character: maxInt });
     });
 
     it("handles line zero and character zero", () => {
       const result = parseSymbolIdParts("file:///a.ts#0:0");
-      expect(result).toEqual({ uriStr: "file:///a.ts", line: 0, ch: 0 });
+      expect(result).toEqual({ uriStr: "file:///a.ts", line: 0, character: 0 });
     });
 
     it("returns undefined for line as Infinity string", () => {
@@ -223,14 +223,14 @@ describe("bugmagnet session 2026-04-15", () => {
 
     it("handles negative character value", () => {
       const result = parseSymbolIdParts("file:///a.ts#0:-1");
-      expect(result).toEqual({ uriStr: "file:///a.ts", line: 0, ch: -1 });
+      expect(result).toEqual({ uriStr: "file:///a.ts", line: 0, character: -1 });
     });
   });
 
   describe("parseSymbolIdParts — boundary conditions", () => {
     it("handles single-character URI before hash", () => {
       const result = parseSymbolIdParts("x#1:2");
-      expect(result).toEqual({ uriStr: "x", line: 1, ch: 2 });
+      expect(result).toEqual({ uriStr: "x", line: 1, character: 2 });
     });
 
     it("returns undefined when hash is at position 0 with valid parts after", () => {
@@ -242,7 +242,7 @@ describe("bugmagnet session 2026-04-15", () => {
       // rest = "1:2#extra", parts = ["1", "2#extra"]
       // parseInt("1") = 1, parseInt("2#extra") = 2
       const result = parseSymbolIdParts("file:///a.ts#1:2#extra");
-      expect(result).toEqual({ uriStr: "file:///a.ts", line: 1, ch: 2 });
+      expect(result).toEqual({ uriStr: "file:///a.ts", line: 1, character: 2 });
     });
 
     it("handles symbolId with unicode in URI", () => {
@@ -250,7 +250,7 @@ describe("bugmagnet session 2026-04-15", () => {
       expect(result).toEqual({
         uriStr: "file:///héllo/wörld.ts",
         line: 7,
-        ch: 12,
+        character: 12,
       });
     });
   });
@@ -718,6 +718,15 @@ describe("collectCallEdgesFromWorkspace", () => {
       // Should not throw even without a token
       const edges = await collectCallEdgesFromWorkspace({});
       expect(edges).toEqual([]);
+    });
+
+    it("disposes the internal CancellationTokenSource when no token provided", async () => {
+      const disposeSpy = vi.spyOn(vscode.CancellationTokenSource.prototype, "dispose");
+
+      await collectCallEdgesFromWorkspace({});
+
+      expect(disposeSpy).toHaveBeenCalledOnce();
+      disposeSpy.mockRestore();
     });
   });
 

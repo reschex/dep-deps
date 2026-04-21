@@ -9,5 +9,6 @@ export async function radonCcForFile(
   if (languageId !== "python") {
     return new Map();
   }
-  return runRadonCc(pythonPath, fsPath, cwd, 15000);
+  const RADON_TIMEOUT_MS = 15_000;
+  return runRadonCc(pythonPath, fsPath, cwd, RADON_TIMEOUT_MS);
 }

@@ -3,22 +3,22 @@ import type { AnalysisResult } from "./analysisOrchestrator";
 import type { AnalysisScope } from "./configuration";
 
 export class ExtensionState {
-  private _last: AnalysisResult | undefined;
-  private _seq = 0;
-  private _byId = new Map<string, SymbolMetrics>();
+  private _lastAnalysis: AnalysisResult | undefined;
+  private _generation = 0;
+  private _symbolsById = new Map<string, SymbolMetrics>();
   private _scope: AnalysisScope | undefined;
 
   get lastAnalysis(): AnalysisResult | undefined {
-    return this._last;
+    return this._lastAnalysis;
   }
 
   /** Lookup symbol metrics by ID. Rebuilt on each analysis update. */
   get symbolById(): ReadonlyMap<string, SymbolMetrics> {
-    return this._byId;
+    return this._symbolsById;
   }
 
   get analysisGeneration(): number {
-    return this._seq;
+    return this._generation;
   }
 
   get lastScope(): AnalysisScope | undefined {
@@ -26,9 +26,9 @@ export class ExtensionState {
   }
 
   setAnalysis(result: AnalysisResult | undefined, scope?: AnalysisScope): void {
-    this._last = result;
+    this._lastAnalysis = result;
     this._scope = scope;
-    this._seq += 1;
-    this._byId = new Map(result?.symbols.map((s) => [s.id, s]) ?? []);
+    this._generation += 1;
+    this._symbolsById = new Map(result?.symbols.map((s) => [s.id, s]) ?? []);
   }
 }

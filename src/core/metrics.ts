@@ -19,11 +19,6 @@ export function crap(cc: number, t: number): number {
   return clampedCc * clampedCc * Math.pow(1 - clampedT, 3) + clampedCc;
 }
 
-/** Compute failure risk F = R × CRAP(CC, T). */
-export function failureRisk(rank: number, cc: number, t: number): number {
-  return rank * crap(cc, t);
-}
-
 /** Compute failure risk from a pre-computed CRAP value: F = R × CRAP. */
 export function failureRiskFromCrap(rank: number, crapValue: number): number {
   return rank * crapValue;

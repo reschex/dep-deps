@@ -18,5 +18,6 @@ export async function eslintCcForFile(
   if (!isJsLanguage(languageId)) {
     return new Map();
   }
-  return runEslintComplexity(eslintPath, fsPath, cwd, 20000);
+  const ESLINT_TIMEOUT_MS = 20_000;
+  return runEslintComplexity(eslintPath, fsPath, cwd, ESLINT_TIMEOUT_MS);
 }

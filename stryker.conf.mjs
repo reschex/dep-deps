@@ -31,10 +31,9 @@ const config = {
     'src/**/*.ts',
     '!src/**/*.test.ts',
     '!src/test/**',
+    '!src/core/testFixtures.ts',
+    '!src/ddp/fakeProc.ts',
   ],
-
-  // Explicitly specify test files
-  testFiles: ['src/**/*.test.ts'],
 
   // Specify threshold in percentage
   thresholds: {

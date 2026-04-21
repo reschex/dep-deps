@@ -19,7 +19,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/**/*.test.ts"],
+    files: ["src/**/*.test.ts", "src/core/testFixtures.ts", "src/ddp/fakeProc.ts"],
     ...tseslint.configs.disableTypeChecked,
     rules: {
       ...tseslint.configs.disableTypeChecked.rules,
@@ -27,6 +27,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["out/", "coverage/", "*.config.*"],
+    ignores: ["out/", "coverage/", "vitest.config.ts", "eslint.config.mjs", "stryker.conf.mjs"],
   },
 );

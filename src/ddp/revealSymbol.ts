@@ -14,10 +14,10 @@ export async function revealSymbolById(id: string): Promise<void> {
   const rest = id.slice(hash + 1);
   const parts = rest.split(":");
   const line = parseInt(parts[0] ?? "", 10);
-  const ch = parseInt(parts[1] ?? "", 10);
+  const character = parseInt(parts[1] ?? "", 10);
   let selection: vscode.Range | undefined;
-  if (!Number.isNaN(line) && !Number.isNaN(ch)) {
-    const p = new vscode.Position(line, ch);
+  if (!Number.isNaN(line) && !Number.isNaN(character)) {
+    const p = new vscode.Position(line, character);
     selection = new vscode.Range(p, p);
   }
   await openDocument(uri, selection);

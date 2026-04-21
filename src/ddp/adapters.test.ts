@@ -544,6 +544,27 @@ describe("VsCodeCoverageProvider", () => {
 
     expect(result).toBeUndefined();
   });
+
+  it("runs LCOV and JaCoCo loading sequentially to prevent store race condition", async () => {
+    const callOrder: string[] = [];
+    vi.mocked(loadLcovIntoStore).mockImplementation(async () => {
+      callOrder.push("lcov-start");
+      await new Promise((r) => setTimeout(r, 10));
+      callOrder.push("lcov-end");
+    });
+    vi.mocked(loadJacocoIntoStore).mockImplementation(async () => {
+      callOrder.push("jacoco-start");
+      await new Promise((r) => setTimeout(r, 10));
+      callOrder.push("jacoco-end");
+    });
+
+    const store = { get: vi.fn(), clear: vi.fn(), ingestStatementCovers: vi.fn() };
+    const token = fakeToken();
+    const provider = new VsCodeCoverageProvider(store as any, "lcov-glob", "jacoco-glob", token);
+    await provider.loadCoverage();
+
+    expect(callOrder).toEqual(["lcov-start", "lcov-end", "jacoco-start", "jacoco-end"]);
+  });
 });
 
 // ═════════════════════════════════════════════════════════════════════

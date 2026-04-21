@@ -1,18 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ChildProcess } from "node:child_process";
-import { EventEmitter } from "node:events";
 
 vi.mock("child_process", () => ({ spawn: vi.fn() }));
 
 import * as cp from "child_process";
 import { runGitLog } from "./gitSpawn";
-
-function fakeProc(): ChildProcess {
-  const proc = new EventEmitter() as unknown as ChildProcess;
-  (proc as any).stdout = new EventEmitter();
-  proc.kill = vi.fn();
-  return proc;
-}
+import { fakeProc } from "../fakeProc";
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -1,28 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   sortSymbols,
-  sortSymbolsByFDescending,
   symbolsForFile,
   formatHoverBreakdown,
   formatCodeLensTitle,
   decorationTier,
 } from "./viewModel";
-import type { SymbolMetrics } from "./analyze";
-
-function sym(overrides: Partial<SymbolMetrics> & { id: string }): SymbolMetrics {
-  return {
-    uri: "file:///a.ts",
-    name: "fn",
-    cc: 2,
-    t: 0.5,
-    r: 1,
-    crap: 2.25,
-    f: 2.25,
-    g: 1,
-    fPrime: 2.25,
-    ...overrides,
-  };
-}
+import { sym } from "./testFixtures";
 
 describe("sortSymbols", () => {
   it("sorts by G descending", () => {
@@ -78,21 +62,6 @@ describe("sortSymbols", () => {
   it("does not mutate the original list", () => {
     const list = [sym({ id: "a", cc: 5 }), sym({ id: "b", cc: 1 })];
     const sorted = sortSymbols(list, "cc");
-    expect(sorted).not.toBe(list);
-    expect(list[0].id).toBe("a");
-  });
-});
-
-describe("sortSymbolsByFDescending", () => {
-  it("sorts highest F first", () => {
-    const list = [sym({ id: "a", f: 3 }), sym({ id: "b", f: 10 }), sym({ id: "c", f: 7 })];
-    const sorted = sortSymbolsByFDescending(list);
-    expect(sorted.map((s) => s.id)).toEqual(["b", "c", "a"]);
-  });
-
-  it("does not mutate the original list", () => {
-    const list = [sym({ id: "a", f: 5 }), sym({ id: "b", f: 1 })];
-    const sorted = sortSymbolsByFDescending(list);
     expect(sorted).not.toBe(list);
     expect(list[0].id).toBe("a");
   });

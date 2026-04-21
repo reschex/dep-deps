@@ -137,10 +137,8 @@ export class VsCodeCoverageProvider implements CoverageProvider {
 
   async loadCoverage(): Promise<void> {
     this.store.clear();
-    await Promise.all([
-      loadLcovIntoStore(this.store, this.lcovGlob, this.token),
-      loadJacocoIntoStore(this.store, this.jacocoGlob, this.token),
-    ]);
+    await loadLcovIntoStore(this.store, this.lcovGlob, this.token);
+    await loadJacocoIntoStore(this.store, this.jacocoGlob, this.token);
   }
 
   getStatements(uri: string): StatementCover[] | undefined {

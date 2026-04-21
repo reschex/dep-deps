@@ -7,5 +7,12 @@ src/**
 **/tsconfig.json
 vitest.config.ts
 node_modules/**
-!node_modules/**
 **/*.test.ts
+.github/**
+coverage/**
+reports/**
+.strykerignore
+stryker.conf.mjs
+eslint.config.mjs
+*.md
+!README.md

@@ -51,10 +51,10 @@ export function mergeLcovMaps(
   maps: ReadonlyArray<Map<string, StatementCover[]>>
 ): Map<string, StatementCover[]> {
   const out = new Map<string, StatementCover[]>();
-  for (const m of maps) {
-    for (const [k, v] of m) {
-      const cur = out.get(k);
-      out.set(k, cur ? [...cur, ...v] : [...v]);
+  for (const map of maps) {
+    for (const [filePath, stmts] of map) {
+      const cur = out.get(filePath);
+      out.set(filePath, cur ? [...cur, ...stmts] : [...stmts]);
     }
   }
   return out;

@@ -77,7 +77,7 @@ async function prepareCallHierarchyItem(
   if (!parsed) {
     return undefined;
   }
-  const { uriStr, line, ch } = parsed;
+  const { uriStr, line, character } = parsed;
   let doc: vscode.TextDocument;
   try {
     doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(uriStr));
@@ -85,7 +85,7 @@ async function prepareCallHierarchyItem(
     console.debug(`[DDP] Cannot open ${uriStr} for outgoing calls:`, e);
     return undefined;
   }
-  const pos = new vscode.Position(line, ch);
+  const pos = new vscode.Position(line, character);
   try {
     const items = await languagesCallHierarchy().prepareCallHierarchy(doc, pos, token);
     return items?.[0];
@@ -149,8 +149,13 @@ function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, r
 export async function collectCallEdgesFromWorkspace(
   options: CallGraphCollectOptions = {}
 ): Promise<CallEdge[]> {
-  const token = options.token ?? new vscode.CancellationTokenSource().token;
-  const maxFiles = options.maxFiles ?? 500;
-  const adapter = buildVscodeAdapter(maxFiles, token, options.rootUri, options.excludeTests ?? true);
-  return collectCallEdgesViaAdapter(adapter);
+  const ownSource = options.token ? undefined : new vscode.CancellationTokenSource();
+  const token = options.token ?? ownSource!.token;
+  try {
+    const maxFiles = options.maxFiles ?? 500;
+    const adapter = buildVscodeAdapter(maxFiles, token, options.rootUri, options.excludeTests ?? true);
+    return await collectCallEdgesViaAdapter(adapter);
+  } finally {
+    ownSource?.dispose();
+  }
 }

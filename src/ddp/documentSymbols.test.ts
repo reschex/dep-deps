@@ -25,7 +25,6 @@ vi.mock("vscode", () => ({
 import * as vscode from "vscode";
 import {
   flattenFunctionSymbols,
-  isFunctionLike,
   getFlatFunctionSymbols,
 } from "./documentSymbols";
 
@@ -147,51 +146,6 @@ describe("flattenFunctionSymbols", () => {
 
     const result = flattenFunctionSymbols([cls]);
     expect(result).toEqual([]);
-  });
-});
-
-// ═════════════════════════════════════════════════════════════════════
-// isFunctionLike
-// ═════════════════════════════════════════════════════════════════════
-describe("isFunctionLike", () => {
-  it("returns true for Function kind", () => {
-    expect(isFunctionLike(vscode.SymbolKind.Function)).toBe(true);
-  });
-
-  it("returns true for Method kind", () => {
-    expect(isFunctionLike(vscode.SymbolKind.Method)).toBe(true);
-  });
-
-  it("returns true for Constructor kind", () => {
-    expect(isFunctionLike(vscode.SymbolKind.Constructor)).toBe(true);
-  });
-
-  it("returns false for Class kind", () => {
-    expect(isFunctionLike(vscode.SymbolKind.Class)).toBe(false);
-  });
-
-  it("returns false for Variable kind", () => {
-    expect(isFunctionLike(vscode.SymbolKind.Variable)).toBe(false);
-  });
-
-  it("returns false for Property kind", () => {
-    expect(isFunctionLike(vscode.SymbolKind.Property)).toBe(false);
-  });
-
-  it("returns false for Interface kind", () => {
-    expect(isFunctionLike(vscode.SymbolKind.Interface)).toBe(false);
-  });
-
-  it("returns false for Enum kind", () => {
-    expect(isFunctionLike(vscode.SymbolKind.Enum)).toBe(false);
-  });
-
-  it("returns false for Namespace kind", () => {
-    expect(isFunctionLike(vscode.SymbolKind.Namespace)).toBe(false);
-  });
-
-  it("returns false for File kind", () => {
-    expect(isFunctionLike(vscode.SymbolKind.File)).toBe(false);
   });
 });
 
@@ -372,21 +326,6 @@ describe("bugmagnet session 2026-04-15", () => {
       expect(result.length).toBe(2);
       expect(result[0]).toBe(m1);
       expect(result[1]).toBe(m2);
-    });
-  });
-
-  // ─── isFunctionLike — boundary / edge cases ───────────────────────
-  describe("isFunctionLike — edge cases", () => {
-    it("returns false for Module kind", () => {
-      expect(isFunctionLike(vscode.SymbolKind.Module)).toBe(false);
-    });
-
-    it("returns false for Package kind", () => {
-      expect(isFunctionLike(vscode.SymbolKind.Package)).toBe(false);
-    });
-
-    it("returns false for Field kind", () => {
-      expect(isFunctionLike(vscode.SymbolKind.Field)).toBe(false);
     });
   });
 

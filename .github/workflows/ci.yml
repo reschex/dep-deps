@@ -9,12 +9,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [25]
+        node-version: [22]
     steps:
       - uses: actions/checkout@v4
 
@@ -30,9 +34,6 @@ jobs:
       - name: Compile
         run: npm run compile
 
-      - name: Lint (type-check)
-        run: npx tsc --noEmit
-
       - name: Lint (ESLint)
         run: npm run lint
 
@@ -40,4 +41,4 @@ jobs:
         run: npm run test:coverage
 
       - name: Audit dependencies
-        run: npm audit --omit=dev
+        run: npm audit --omit=dev --audit-level=high

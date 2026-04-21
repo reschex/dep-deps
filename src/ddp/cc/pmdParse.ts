@@ -1,3 +1,5 @@
+import { parseComplexityFromMessage } from "./parseComplexity";
+
 /**
  * Parse PMD XML output for CyclomaticComplexity violations.
  *
@@ -17,7 +19,6 @@
  */
 export function parsePmdCyclomaticXml(xmlText: string): Map<number, number> {
   const byLine = new Map<number, number>();
-  // Match every <violation> that mentions a Cyclomatic rule.
   const violationRe = /<violation\s([^>]*)>([\s\S]*?)<\/violation>/gi;
   const beginlineRe = /\bbeginline="(\d+)"/i;
   const ruleRe = /\brule="[a-z]*cyclomatic[a-z]*"/i;
@@ -34,7 +35,7 @@ export function parsePmdCyclomaticXml(xmlText: string): Map<number, number> {
       continue;
     }
     const line = Number.parseInt(lineMatch[1], 10);
-    const cc = extractComplexityFromMessage(body);
+    const cc = parseComplexityFromMessage(body);
     if (!Number.isNaN(line) && cc !== undefined) {
       const prev = byLine.get(line) ?? 0;
       byLine.set(line, Math.max(prev, cc));
@@ -43,12 +44,4 @@ export function parsePmdCyclomaticXml(xmlText: string): Map<number, number> {
   return byLine;
 }
 
-/** Extract the numeric complexity from PMD's violation message text. */
-export function extractComplexityFromMessage(message: string): number | undefined {
-  const re = /complexity of (\d+)/i;
-  const m = re.exec(message);
-  if (m) {
-    return Number.parseInt(m[1], 10);
-  }
-  return undefined;
-}
+export { parseComplexityFromMessage as extractComplexityFromMessage } from "./parseComplexity";

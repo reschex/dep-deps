@@ -61,22 +61,8 @@ import { DdpCodeLensProvider } from "./codeLensProvider";
 import { getFlatFunctionSymbols } from "./documentSymbols";
 import { symbolIdFromUriRange } from "./symbolId";
 import { formatCodeLensTitle } from "../core/viewModel";
-import type { SymbolMetrics } from "../core/analyze";
 import type { DdpConfiguration } from "./configuration";
-
-// ── helpers ──────────────────────────────────────────────────────────
-function sym(overrides: Partial<SymbolMetrics> & { id: string }): SymbolMetrics {
-  return {
-    uri: "file:///a.ts",
-    name: "fn",
-    cc: 2,
-    t: 0.5,
-    r: 1,
-    crap: 2.25,
-    f: 2.25,
-    ...overrides,
-  };
-}
+import { sym } from "../core/testFixtures";
 
 function fakeState(symbols: SymbolMetrics[] = []) {
   const byId = new Map(symbols.map((s) => [s.id, s]));

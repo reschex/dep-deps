@@ -3,20 +3,7 @@ import type { SymbolMetrics } from "../core/analyze";
 import type { AnalysisResult } from "./analysisOrchestrator";
 import type { AnalysisScope } from "./configuration";
 import { ExtensionState } from "./extensionState";
-
-// ── helpers ────────────────────────────────────────────────────────────
-function sym(overrides: Partial<SymbolMetrics> & { id: string }): SymbolMetrics {
-  return {
-    uri: "file:///a.ts",
-    name: "fn",
-    cc: 2,
-    t: 0.5,
-    r: 1,
-    crap: 2.25,
-    f: 2.25,
-    ...overrides,
-  };
-}
+import { sym } from "../core/testFixtures";
 
 function analysis(symbols: SymbolMetrics[]): AnalysisResult {
   return { symbols, fileRollup: new Map(), edgesCount: 0 };

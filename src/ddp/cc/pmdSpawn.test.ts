@@ -7,14 +7,7 @@ vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 
 import * as cp from "node:child_process";
 import { runPmdCyclomaticComplexity } from "./pmdSpawn";
-
-/** Helper: create a fake ChildProcess backed by EventEmitters. */
-function fakeProc(): ChildProcess {
-  const proc = new EventEmitter() as unknown as ChildProcess;
-  (proc as any).stdout = new EventEmitter();
-  proc.kill = vi.fn();
-  return proc;
-}
+import { fakeProc } from "../fakeProc";
 
 beforeEach(() => {
   vi.clearAllMocks();
