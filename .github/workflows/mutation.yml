@@ -33,9 +33,3 @@ jobs:
         if: always()
         run: npx stryker-gha-ci-report --survived-mutants reports/mutation/mutation.json >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload HTML report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: stryker-report
-          path: reports/mutation/
