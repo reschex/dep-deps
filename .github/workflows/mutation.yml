@@ -31,4 +31,4 @@ jobs:
 
       - name: Publish report to job summary
         if: always() && hashFiles('reports/mutation/mutation.json') != ''
-        run: npx stryker-gha-ci-report --survived-mutants reports/mutation/mutation.json >> $GITHUB_STEP_SUMMARY
+        run: npx stryker-gha-ci-report --survived-mutants reports/mutation/mutation.json > $GITHUB_STEP_SUMMARY
