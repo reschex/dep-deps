@@ -234,10 +234,14 @@
     "mocha": "^11.7.5",
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.58.2",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "stryker-gha-ci-report": "^0.1.0"
   },
   "overrides": {
     "serialize-javascript": "^7.0.5",
     "diff": "^8.0.3"
+  },
+  "dependencies": {
+    "stryker-gha-ci-report": "file:../stryker-gha-ci-report"
   }
 }

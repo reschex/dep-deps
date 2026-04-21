@@ -27,14 +27,11 @@ jobs:
       - name: Run mutation testing
         run: |
           set -o pipefail
-          npm run mutation 2>&1 | tee mutation-output.txt
+          npm run mutation 2>&1
 
       - name: Publish report to job summary
         if: always()
-        run: |
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat mutation-output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+        run: npx stryker-gha-ci-report --survived-mutants reports/mutation/mutation.json >> $GITHUB_STEP_SUMMARY
 
       - name: Upload HTML report
         if: always()
