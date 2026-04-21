@@ -6,6 +6,7 @@ export default defineConfig({
     exclude: ["src/test/**"],
     environment: "node",
     globals: false,
+    reporters: ["agent"],
     coverage: {
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/**/*.test.ts", "src/test/**"],

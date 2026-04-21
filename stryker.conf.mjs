@@ -3,10 +3,6 @@
 const config = {
   // Test runner to use
   testRunner: 'vitest',  
-  testRunnerNodeArgs: [
-    '--reporter=silent'
-  ],
-
 
   // Patterns to ignore (files NOT to include in sandbox)
   ignorePatterns: [
