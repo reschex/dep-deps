@@ -12,7 +12,11 @@ node_modules/**
 coverage/**
 reports/**
 .strykerignore
+.stryker-tmp/**
 stryker.conf.mjs
+stryker.log
 eslint.config.mjs
+.claude/**
+out/test/**
 *.md
 !README.md

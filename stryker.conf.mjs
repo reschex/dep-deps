@@ -30,10 +30,18 @@ const config = {
   mutate: [
     'src/**/*.ts',
     '!src/**/*.test.ts',
-    '!src/test/**',
     '!src/core/testFixtures.ts',
     '!src/ddp/fakeProc.ts',
+    '!src/extension.ts', // extension files are not tested directly
+    '!src/ddp/register.ts', // pure wiring
+    '!src/core/ports.ts'
+
   ],
+  checkers: ["typescript"],
+  tsconfigFile: "tsconfig.json",
+  typescriptChecker: {
+    prioritizePerformanceOverAccuracy: true
+  },
 
   // Specify threshold in percentage
   thresholds: {
