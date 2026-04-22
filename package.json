@@ -4,6 +4,10 @@
   "description": "Surfaces high-risk code using Rank × CRAP (Dependable Dependencies principle).",
   "version": "0.1.0",
   "publisher": "local",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reschex/dep-deps"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -241,5 +245,8 @@
   "overrides": {
     "serialize-javascript": "^7.0.5",
     "diff": "^8.0.3"
+  },
+  "dependencies": {
+    "vsce": "^2.15.0"
   }
 }
