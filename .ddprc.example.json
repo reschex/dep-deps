@@ -1,0 +1,32 @@
+{
+  "$schema": "./.ddprc.schema.json",
+  "maxFiles": 1000,
+  "excludeTests": true,
+  "coverage": {
+    "lcovGlob": "**/coverage/lcov.info",
+    "jacocoGlob": "**/target/site/jacoco/jacoco.xml"
+  },
+  "cc": {
+    "useEslintForTsJs": true,
+    "eslintPath": "node_modules/.bin/eslint",
+    "pythonPath": "python3",
+    "pmdPath": "pmd"
+  },
+  "rank": {
+    "maxIterations": 100,
+    "epsilon": 0.001
+  },
+  "fileRollup": "max",
+  "churn": {
+    "enabled": true,
+    "lookbackDays": 90
+  },
+  "output": {
+    "topFilesCount": 20,
+    "topSymbolsCount": 20,
+    "riskThresholds": {
+      "high": 20,
+      "medium": 10
+    }
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DDP Configuration",
+  "description": "Configuration for Dependable Dependencies analysis",
+  "type": "object",
+  "properties": {
+    "maxFiles": {
+      "type": "number",
+      "description": "Maximum number of files to analyze",
+      "default": 1000,
+      "minimum": 1
+    },
+    "excludeTests": {
+      "type": "boolean",
+      "description": "Exclude test files from analysis",
+      "default": true
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "lcovGlob": {
+          "type": "string",
+          "description": "Glob pattern for LCOV coverage files",
+          "default": "**/coverage/lcov.info"
+        },
+        "jacocoGlob": {
+          "type": "string",
+          "description": "Glob pattern for JaCoCo coverage XML files",
+          "default": "**/target/site/jacoco/jacoco.xml"
+        }
+      }
+    },
+    "cc": {
+      "type": "object",
+      "description": "Cyclomatic complexity tool configuration",
+      "properties": {
+        "useEslintForTsJs": {
+          "type": "boolean",
+          "description": "Use ESLint complexity plugin for TypeScript/JavaScript",
+          "default": true
+        },
+        "eslintPath": {
+          "type": "string",
+          "description": "Path to ESLint executable",
+          "default": "node_modules/.bin/eslint"
+        },
+        "pythonPath": {
+          "type": "string",
+          "description": "Path to Python executable (for Radon)",
+          "default": "python3"
+        },
+        "pmdPath": {
+          "type": "string",
+          "description": "Path to PMD executable (for Java)",
+          "default": "pmd"
+        }
+      }
+    },
+    "rank": {
+      "type": "object",
+      "description": "PageRank computation parameters",
+      "properties": {
+        "maxIterations": {
+          "type": "number",
+          "description": "Maximum PageRank iterations",
+          "default": 100,
+          "minimum": 1
+        },
+        "epsilon": {
+          "type": "number",
+          "description": "Convergence threshold for PageRank",
+          "default": 0.001,
+          "minimum": 0,
+          "exclusiveMinimum": true
+        }
+      }
+    },
+    "fileRollup": {
+      "type": "string",
+      "enum": ["max", "sum", "avg"],
+      "description": "How to aggregate symbol risks to file level",
+      "default": "max"
+    },
+    "churn": {
+      "type": "object",
+      "description": "Git churn analysis configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable churn-weighted risk (F' = F × G)",
+          "default": false
+        },
+        "lookbackDays": {
+          "type": "number",
+          "description": "Number of days to look back for commit history",
+          "default": 90,
+          "minimum": 1
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "Output formatting options",
+      "properties": {
+        "topFilesCount": {
+          "type": "number",
+          "description": "Number of top risky files to include in summary",
+          "default": 20,
+          "minimum": 1
+        },
+        "topSymbolsCount": {
+          "type": "number",
+          "description": "Number of top risky symbols to include in summary",
+          "default": 20,
+          "minimum": 1
+        },
+        "riskThresholds": {
+          "type": "object",
+          "description": "Risk level thresholds for color coding",
+          "properties": {
+            "high": {
+              "type": "number",
+              "description": "F' threshold for high risk (red)",
+              "default": 20
+            },
+            "medium": {
+              "type": "number",
+              "description": "F' threshold for medium risk (yellow)",
+              "default": 10
+            }
+          }
+        }
+      }
+    }
+  }
+}

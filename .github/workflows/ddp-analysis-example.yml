@@ -1,0 +1,216 @@
+# Example GitHub Actions Workflow for DDP Analysis
+
+# This workflow demonstrates how to integrate DDP risk analysis into CI/CD pipeline.
+# It runs on every push and pull request, generating a sortable summary table
+# in the GitHub Actions summary view.
+
+name: DDP Risk Analysis
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ddp-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-risk:
+    name: Analyze Code Risk (DDP)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git churn analysis
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Compile TypeScript
+        run: npm run compile
+      
+      - name: Run tests with coverage
+        run: npm run test:coverage
+        continue-on-error: true  # Don't fail workflow if tests fail
+      
+      - name: Run DDP Analysis (JSON)
+        id: ddp-json
+        run: |
+          node out/cli/analyze.js \
+            --root . \
+            --format json \
+            --output ddp-analysis.json \
+            --max-files 1000 \
+            --exclude-tests \
+            --lcov-glob '**/coverage/lcov.info' \
+            --verbose
+        continue-on-error: true
+      
+      - name: Run DDP Analysis (GitHub Summary)
+        id: ddp-summary
+        run: |
+          node out/cli/analyze.js \
+            --root . \
+            --format github-summary \
+            --output ddp-report.md \
+            --max-files 1000 \
+            --exclude-tests \
+            --lcov-glob '**/coverage/lcov.info'
+        continue-on-error: true
+      
+      - name: Add Analysis to Job Summary
+        if: always()
+        run: |
+          if [ -f ddp-report.md ]; then
+            cat ddp-report.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ DDP analysis did not produce output" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Upload Analysis Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddp-analysis-results
+          path: |
+            ddp-analysis.json
+            ddp-report.md
+            coverage/
+          retention-days: 30
+      
+      - name: Check Risk Threshold (Optional)
+        if: success()
+        run: |
+          # Parse JSON and fail if max F' exceeds threshold
+          MAX_RISK=$(jq '[.files[].symbols[].fPrime] | max' ddp-analysis.json)
+          THRESHOLD=50
+          
+          echo "Maximum risk score: $MAX_RISK"
+          
+          if (( $(echo "$MAX_RISK > $THRESHOLD" | bc -l) )); then
+            echo "❌ Risk threshold exceeded! Max F' = $MAX_RISK (threshold: $THRESHOLD)"
+            exit 1
+          else
+            echo "✅ Risk within acceptable limits (max F' = $MAX_RISK)"
+          fi
+
+  # Optional: Compare risk delta between PR and base branch
+  compare-risk:
+    name: Compare Risk (PR vs Base)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Analyze PR branch
+        run: |
+          npm run compile
+          npm run test:coverage || true
+          node out/cli/analyze.js \
+            --format json \
+            --output ddp-pr.json \
+            --verbose
+      
+      - name: Checkout base branch
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git checkout origin/${{ github.base_ref }}
+      
+      - name: Analyze base branch
+        run: |
+          npm ci
+          npm run compile
+          npm run test:coverage || true
+          node out/cli/analyze.js \
+            --format json \
+            --output ddp-base.json \
+            --verbose
+      
+      - name: Compare results
+        run: |
+          # Compare using jq (simplified example)
+          PR_MAX=$(jq '[.files[].symbols[].fPrime] | max' ddp-pr.json)
+          BASE_MAX=$(jq '[.files[].symbols[].fPrime] | max' ddp-base.json)
+          
+          DELTA=$(echo "$PR_MAX - $BASE_MAX" | bc -l)
+          
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          ## Risk Comparison
+          
+          | Metric | Base | PR | Delta |
+          |--------|------|----|-------|
+          | Max F' | $BASE_MAX | $PR_MAX | $DELTA |
+          EOF
+          
+          if (( $(echo "$DELTA > 10" | bc -l) )); then
+            echo "⚠️ Risk increased significantly!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Optional: Publish analysis to GitHub Pages
+  publish-report:
+    name: Publish DDP Report to GitHub Pages
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      
+      - name: Run analysis
+        run: |
+          npm ci
+          npm run compile
+          npm run test:coverage || true
+          node out/cli/analyze.js \
+            --format json \
+            --output docs/ddp-analysis.json
+      
+      - name: Generate HTML report
+        run: |
+          # Convert JSON to standalone HTML page
+          node scripts/generateHtmlReport.js \
+            --input docs/ddp-analysis.json \
+            --output docs/index.html
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
