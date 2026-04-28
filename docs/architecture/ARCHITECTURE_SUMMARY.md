@@ -33,6 +33,13 @@ This document provides the implementation roadmap for enabling DDP (Dependable D
    - Trend analysis (compare PR vs base branch)
    - Threshold enforcement (fail builds on high risk)
 
+4. **AI Agent Integration**
+   - PreToolUse hook: automatic risk warnings before any file edit
+   - `ddp callers` command: caller tree output in JSON and human-readable text
+   - MCP server: four tools for active agent querying (`ddp_analyze_file`, `ddp_caller_tree`, `ddp_high_risk_symbols`, `ddp_workspace_hotspots`)
+   - Configurable warn/block thresholds per project via `.ddprc.json`
+   - See [ADR-002](./ADR-004-ai-agent-integration.md) for architecture rationale
+
 ### Technical Benefits
 
 - **Architecture validation:** Proves ports/adapters design works
@@ -115,6 +122,21 @@ See [ADR-001-cli-analysis-architecture.md](./ADR-001-cli-analysis-architecture.m
 
 **Estimated Effort:** 2-3 weeks
 
+### Phase 5: AI Agent Integration
+
+**Goal:** Surface DDP risk data to AI coding agents at the point of code modification
+
+**Deliverables:**
+- [ ] `ddp callers` sub-command with `--format json|text|markdown`
+- [ ] Risk level classification (LOW / MEDIUM / HIGH / CRITICAL)
+- [ ] `.claude/hooks/ddp-pre-edit-check.js` (PreToolUse hook)
+- [ ] `.claude/settings.json` hook registration
+- [ ] MCP server (`mcp-server/index.ts`) with four DDP tools
+- [ ] CLAUDE.md Code Modification Safety Protocol
+
+**Estimated Effort:** 9–13 hours  
+**Architecture:** See [ADR-002](./ADR-004-ai-agent-integration.md)
+
 ---
 
 ## Implementation Details
@@ -130,39 +152,39 @@ dep-deps/
 ├── src/
 │   ├── core/              # Domain logic (unchanged)
 │   ├── ddp/               # VS Code adapters (unchanged)
-│   └── cli/               # NEW: CLI infrastructure
+│   └── cli/               # CLI infrastructure
 │       ├── adapters/
 │       │   ├── nodeDocument.ts
-│       │   ├── nodeDocument.test.ts
 │       │   ├── nodeSymbol.ts
-│       │   ├── nodeSymbol.test.ts
 │       │   ├── nodeCoverage.ts
-│       │   ├── nodeCoverage.test.ts
 │       │   ├── nodeCallGraph.ts
 │       │   ├── nodeLogger.ts
 │       │   └── index.ts
 │       ├── formatters/
 │       │   ├── json.ts
-│       │   ├── json.test.ts
+│       │   ├── callersText.ts   # NEW (Phase 5): LLM-readable caller tree
+│       │   ├── callersJson.ts   # NEW (Phase 5): MCP-ready JSON output
 │       │   ├── githubSummary.ts
-│       │   ├── githubSummary.test.ts
 │       │   └── index.ts
-│       ├── analyze.ts       # CLI entry point
-│       ├── analyze.test.ts
+│       ├── analyze.ts       # CLI entry point (ddp analyze)
+│       ├── callers.ts       # NEW (Phase 5): ddp callers sub-command
 │       └── types.ts
+├── mcp-server/              # NEW (Phase 5): MCP server
+│   └── index.ts             # Four DDP tools over stdio
+├── .claude/                 # NEW (Phase 5): Claude Code integration
+│   ├── settings.json        # Hook registration + MCP server registration
+│   └── hooks/
+│       └── ddp-pre-edit-check.js   # PreToolUse hook script
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml           # Updated: add DDP step
-│       └── ddp-analysis-example.yml  # Reference example
-├── .ddprc.json              # Configuration file (user-created)
+│       ├── ci.yml
+│       └── ddp-analysis-example.yml
+├── .ddprc.json              # Configuration (agentIntegration thresholds)
 ├── docs/
 │   └── examples/
-│       ├── ddprc.example.json   # Example configuration
-│       └── ddprc.schema.json    # JSON schema for validation
-├── ADR-001-cli-analysis-architecture.md
-├── IMPLEMENTATION_GUIDE_CLI.md
-├── ARCHITECTURE_SUMMARY.md  # This file
-└── package.json             # Updated: add bin, dependencies
+│       ├── ddprc.example.json
+│       └── ddprc.schema.json
+└── package.json
 
 ```
 
@@ -197,7 +219,8 @@ dep-deps/
 ### CLI Arguments
 
 ```bash
-ddp-analyze [options]
+# Analysis command (existing)
+ddp analyze [options]
 
 Options:
   --root <path>           Workspace root directory (default: cwd)
@@ -211,6 +234,18 @@ Options:
   --verbose, -v           Enable verbose logging
   --help, -h              Show help
   --version, -V           Show version
+
+# Caller tree command (Phase 5 — AI agent integration)
+ddp callers [options]
+
+Options:
+  --file <path>           Source file containing the symbol (required)
+  --symbol <name>         Symbol name to trace callers for (required)
+  --depth <n>             Maximum caller depth (default: 5)
+  --format <type>         Output format: text|json|markdown (default: text)
+                            text     — LLM-readable indented tree with risk header
+                            json     — CallersResult schema for MCP / programmatic use
+                            markdown — GitHub PR comment format
 ```
 
 ### Configuration File (.ddprc.json)
@@ -467,8 +502,10 @@ End-to-end CLI testing:
 
 ## Documentation References
 
-- **[ADR-001: CLI Analysis Architecture](./ADR-001-cli-analysis-architecture.md)** — Detailed architectural decisions and trade-offs
-- **[Implementation Guide](./IMPLEMENTATION_GUIDE_CLI.md)** — Step-by-step technical implementation guide
+- **[ADR-001: CLI Analysis Architecture](./ADR-001-cli-analysis-architecture.md)** — CLI/CI architectural decisions and trade-offs
+- **[ADR-002: AI Agent Integration](./ADR-004-ai-agent-integration.md)** — PreToolUse hook, MCP server, and caller-tree output decisions
+- **[Implementation Guide: CLI](../guides/IMPLEMENTATION_GUIDE_CLI.md)** — Step-by-step CLI implementation guide
+- **[Implementation Guide: AI Agent Integration](../guides/AI_AGENT_INTEGRATION_GUIDE.md)** — Hook and MCP server implementation
 - **[Example Workflow](./.github/workflows/ddp-analysis-example.yml)** — GitHub Actions workflow template
 - **[Configuration Schema](../../examples/ddprc.schema.json)** — JSON schema for .ddprc.json
 - **[Example Configuration](../../examples/ddprc.example.json)** — Sample configuration file

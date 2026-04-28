@@ -27,6 +27,7 @@ This VS Code extension and CLI tool implements **Dependable Dependencies** (Gorm
 1. **VS Code Extension** — Real-time risk analysis with editor decorations, sidebar tree view, and code lens
 2. **CLI Tool** — Headless analysis for CI/CD pipelines (GitHub Actions, GitLab CI, Jenkins)
 3. **GitHub Actions Integration** — Automated risk reports with sortable HTML tables in PR summaries
+4. **AI Agent Integration** — Risk-aware code modification: agents warned before editing high-risk symbols via PreToolUse hooks and MCP tools
 
 ## Documentation Structure
 
@@ -35,6 +36,7 @@ This VS Code extension and CLI tool implements **Dependable Dependencies** (Gorm
 - **[README.md](./README.md)** — User-facing documentation: installation, usage, configuration
 - **[docs/architecture/](./docs/architecture/)** — Architectural decisions and design:
   - `ADR-001-cli-analysis-architecture.md` — Architecture Decision Record for CLI/CI implementation
+  - `ADR-004-ai-agent-integration.md` — Architecture Decision Record for AI agent integration (PreToolUse hook, MCP server)
   - `ARCHITECTURE_SUMMARY.md` — High-level architecture overview and component stack
   - `DEPENDABLE_DEPENDENCIES_PLAN.md` — Original project plan and metrics specification
 
@@ -43,6 +45,7 @@ This VS Code extension and CLI tool implements **Dependable Dependencies** (Gorm
 - **[docs/guides/](./docs/guides/)** — Step-by-step implementation guides:
   - `IMPLEMENTATION_GUIDE_CLI.md` — Detailed CLI implementation with code examples
   - `QUICKSTART_CLI.md` — Quick start for implementing CLI features
+  - `AI_AGENT_INTEGRATION_GUIDE.md` — Implementing PreToolUse hooks and MCP server for AI agent integration
 
 ### For Development & Testing
 
@@ -164,6 +167,41 @@ Current test coverage: **>98%** (see coverage reports in `coverage/lcov-report/`
 - **CRAP Metric**: Change Risk Anti-Pattern (CRAP4J)
 - **PageRank**: Google's algorithm adapted for code dependency graphs
 
+## Code Modification Safety Protocol
+
+Before modifying **any** `.ts`, `.js`, `.py`, or `.java` source file in this codebase:
+
+1. **Run DDP analysis** on the target file:
+   ```bash
+   npx ddp analyze --file <path> --format json
+   ```
+
+2. **If any symbol has F > 100**, run the caller tree for that symbol:
+   ```bash
+   npx ddp callers --file <path> --symbol <name> --format text
+   ```
+
+3. **Apply risk thresholds:**
+
+   | F Score | Risk Level | Action |
+   |---------|-----------|--------|
+   | > 500 | CRITICAL | **Stop.** Inform the user, show the caller tree summary, require explicit confirmation before editing. |
+   | 200–500 | HIGH | **Warn.** Show highest-risk callers. Recommend writing tests to close the coverage gap before editing. |
+   | 100–200 | MEDIUM | **Note** the risk in your response. Continue unless the user indicates concern. |
+   | ≤ 100 | LOW | Proceed normally. |
+
+4. **Interpret the metrics:**
+   - **High R** (R > 10): Many functions depend on this one — a bug cascades widely through callers
+   - **High CC** (CC > 10): Complex branching logic; subtle bugs are easy to introduce
+   - **Low T** (T < 0.5): Under-tested; changes are likely to regress silently
+   - **To reduce F**: write tests (↑ T → ↓ CRAP), refactor (↓ CC → ↓ CRAP), or decouple dependents (↓ R)
+
+> **If the PreToolUse hook is installed** (`.claude/settings.json`), this check runs automatically before every edit. The hook will warn (F > 100) or block (F > 500) without you needing to remember to run it.
+
+> **See:** [AI Agent Integration Guide](./docs/guides/AI_AGENT_INTEGRATION_GUIDE.md) for the hook and MCP server implementation.
+
+---
+
 ## Development Workflow
 
 ### Running Tests
@@ -242,3 +280,5 @@ When working on this codebase:
 - [Implementation Guides](./docs/guides/) — How to implement new features
 - [BDD Scenarios](./docs/development/BDD_SCENARIOS.md) — Living specification
 - [Test Strategy](./docs/testing/) — Coverage and mutation testing
+- [AI Agent Integration Guide](./docs/guides/AI_AGENT_INTEGRATION_GUIDE.md) — Hook and MCP server setup
+- [ADR-004: AI Agent Integration](./docs/architecture/ADR-004-ai-agent-integration.md) — Architecture decisions

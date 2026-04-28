@@ -75,6 +75,18 @@ These feature files serve multiple purposes:
   - Permission errors
   - Edge cases (large files, unicode paths)
 
+### AI Agent Integration
+
+- **[ai-agent-integration.feature](./ai-agent-integration.feature)**
+  - PreToolUse hook warn/block behaviour (F thresholds)
+  - Hook skip logic (non-source files, test files, custom patterns)
+  - Threshold configuration via `.ddprc.json`
+  - CLI caller-tree text format (LLM-optimised output)
+  - CLI caller-tree JSON format (MCP-ready structured output)
+  - Risk level labels: LOW / MEDIUM / HIGH / CRITICAL
+  - MCP server tool contracts and return schemas
+  - Agent workflow: query → assess → acknowledge → act
+
 ## Implementation Workflow
 
 ### 1. Read Feature Scenarios
@@ -266,10 +278,12 @@ When adding new CLI features:
 
 ## Related Documentation
 
-- **[QUICKSTART_CLI.md](../QUICKSTART_CLI.md)** - Implementation quick start guide
-- **[IMPLEMENTATION_GUIDE_CLI.md](../IMPLEMENTATION_GUIDE_CLI.md)** - Detailed technical specs
-- **[ADR-001](../ADR-001-cli-analysis-architecture.md)** - Architectural decisions
-- **[ARCHITECTURE_SUMMARY.md](../ARCHITECTURE_SUMMARY.md)** - Overall architecture
+- **[QUICKSTART_CLI.md](../guides/QUICKSTART_CLI.md)** - Implementation quick start guide
+- **[IMPLEMENTATION_GUIDE_CLI.md](../guides/IMPLEMENTATION_GUIDE_CLI.md)** - Detailed technical specs
+- **[AI_AGENT_INTEGRATION_GUIDE.md](../guides/AI_AGENT_INTEGRATION_GUIDE.md)** - PreToolUse hook and MCP server implementation
+- **[ADR-001](../architecture/ADR-001-cli-analysis-architecture.md)** - CLI/CI architectural decisions
+- **[ADR-004](../architecture/ADR-004-ai-agent-integration.md)** - AI agent integration architectural decisions
+- **[ARCHITECTURE_SUMMARY.md](../architecture/ARCHITECTURE_SUMMARY.md)** - Overall architecture
 
 ## Questions?
 

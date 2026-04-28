@@ -20,6 +20,8 @@ This document previously contained informal BDD scenarios in markdown format. Al
 | Missing data | [default-behavior.feature](../../features/default-behavior.feature) | Graceful degradation |
 | Folder-scoped analysis | [folder-scoped-analysis.feature](../../features/folder-scoped-analysis.feature) | Analyze specific directories |
 | Git churn weighting | [git-churn-weighting.feature](../../features/git-churn-weighting.feature) | Churn multiplier G for F' |
+| Impact tree visualization | [call-graph-visualization.feature](../../features/call-graph-visualization.feature) | Caller tree UI + CLI text/JSON output |
+| AI agent integration | [ai-agent-integration.feature](../../features/ai-agent-integration.feature) | PreToolUse hook, MCP tools, agent workflow |
 
 ---
 
@@ -47,6 +49,15 @@ The `/features` directory contains the living specification for DDP in Gherkin f
 - **[cli-command-interface.feature](../../features/cli-command-interface.feature)** — Headless analysis
 - **[json-output.feature](../../features/json-output.feature)** — Machine-readable output
 - **[github-summary.feature](../../features/github-summary.feature)** — GitHub Actions integration
+- **[call-graph-visualization.feature](../../features/call-graph-visualization.feature)** — Impact tree CLI output (text/JSON/DOT/Mermaid)
+
+### AI Agent Integration
+- **[ai-agent-integration.feature](../../features/ai-agent-integration.feature)** — Complete AI agent integration specification:
+  - PreToolUse hook warn/block behaviour
+  - Configurable thresholds per project
+  - CLI caller-tree text and JSON output formats
+  - MCP server tool contracts (`ddp_analyze_file`, `ddp_caller_tree`, `ddp_high_risk_symbols`, `ddp_workspace_hotspots`)
+  - Agent workflow: query before edit, acknowledge risk, recommend remediation
 
 ### Workflows
 - **[end-to-end-workflow.feature](../../features/end-to-end-workflow.feature)** — Full analysis pipeline
