@@ -206,6 +206,17 @@
           "minimum": 1,
           "description": "Number of days of git history to count as churn. Default: 90 (three months)."
         },
+        "ddp.impactTree.maxDepth": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "Maximum depth for caller tree traversal when showing impact analysis. Deeper trees show more transitive dependencies."
+        },
+        "ddp.analysis.defaultFolder": {
+          "type": "string",
+          "default": "",
+          "description": "Default folder path (relative to workspace root) to analyze. Empty string means analyze entire workspace. Example: 'src' to focus on src/ folder."
+        },
         "ddp.maxFiles": {
           "type": "number",
           "default": 400,

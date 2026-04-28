@@ -31,6 +31,14 @@ export type ChurnConfig = {
   readonly lookbackDays: number;
 };
 
+export type ImpactTreeConfig = {
+  readonly maxDepth: number;
+};
+
+export type AnalysisConfig = {
+  readonly defaultFolder: string;
+};
+
 /**
  * Optional scope constraint for analysis.
  * When set, only files under `rootUri` are fully analyzed.
@@ -48,6 +56,8 @@ export type DdpConfiguration = {
   readonly cc: CcConfig;
   readonly decoration: DecorationConfig;
   readonly churn: ChurnConfig;
+  readonly impactTree: ImpactTreeConfig;
+  readonly analysis: AnalysisConfig;
   readonly fileRollup: "max" | "sum";
   readonly codelensEnabled: boolean;
   readonly excludeTests: boolean;
@@ -65,6 +75,8 @@ export const DEFAULT_CONFIGURATION: DdpConfiguration = {
   },
   decoration: { warnThreshold: 50, errorThreshold: 150 },
   churn: { enabled: false, lookbackDays: 90 },
+  impactTree: { maxDepth: 5 },
+  analysis: { defaultFolder: "" },
   fileRollup: "max",
   codelensEnabled: true,
   excludeTests: true,
@@ -98,6 +110,12 @@ export function buildConfiguration(
     churn: {
       enabled: get<boolean>("churn.enabled", DEFAULT_CONFIGURATION.churn.enabled),
       lookbackDays: get<number>("churn.lookbackDays", DEFAULT_CONFIGURATION.churn.lookbackDays),
+    },
+    impactTree: {
+      maxDepth: get<number>("impactTree.maxDepth", DEFAULT_CONFIGURATION.impactTree.maxDepth),
+    },
+    analysis: {
+      defaultFolder: get<string>("analysis.defaultFolder", DEFAULT_CONFIGURATION.analysis.defaultFolder),
     },
     fileRollup: get<"max" | "sum">("fileRollup", DEFAULT_CONFIGURATION.fileRollup),
     codelensEnabled: get<boolean>("codelens.enabled", DEFAULT_CONFIGURATION.codelensEnabled),

@@ -2,39 +2,44 @@
 
 ## Impact Tree Visualization (ADR-003) - Caller Dependency Analysis
 
-**Status**: Designed, ready for implementation  
+**Status**: ✅ MVP Complete (2026-04-28)  
 **Docs**: [ADR-003](../architecture/ADR-003-call-graph-visualization.md), [Implementation Guide](../guides/IMPLEMENTATION_GUIDE_CALL_GRAPH.md)
 
 **Focus**: Show who calls a symbol (direct and indirect callers) to understand impact radius of changes. Callees are NOT shown as they are irrelevant for impact analysis.
 
-### Phase 1: Core Domain Logic (TDD)
-- [ ] Create `src/core/graphTraversal.ts` with `indexEdges()` function
-  - [ ] Tests for empty edges
-  - [ ] Tests for indexing callers by callee
-- [ ] Implement `buildCallerTree()` for impact analysis
-  - [ ] Tests for single-level caller trees
-  - [ ] Tests for multi-level caller trees (transitive dependencies)
-  - [ ] Tests for cycle detection (mutual/recursive calls)
-  - [ ] Tests for maxDepth limiting
-- [ ] Implement impact summary metrics
-  - [ ] Count direct callers
-  - [ ] Count total affected symbols (all depths)
-  - [ ] Find highest-risk caller
-- [ ] Update `AnalysisResult` type to include `edges: ReadonlyArray<CallEdge>`
-- [ ] Update `AnalysisOrchestrator` to preserve edges in result
-- [ ] Update all test fixtures to include edges
+### Phase 1: Core Domain Logic (TDD) ✅
+- [x] Create `src/core/callerTree.ts` with caller indexing (implemented as `buildCallerIndex`)
+  - [x] Tests for empty edges
+  - [x] Tests for indexing callers by callee
+- [x] Implement `callerTree()` for impact analysis
+  - [x] Tests for single-level caller trees
+  - [x] Tests for multi-level caller trees (transitive dependencies)
+  - [x] Tests for cycle detection (mutual/recursive calls)
+  - [x] Tests for maxDepth limiting
+- [x] Implement impact summary metrics
+  - [x] Count direct callers
+  - [x] Count total affected symbols (all depths)
+  - [x] Find highest-risk caller (integrated into `flattenTree`)
+- [x] Update `AnalysisResult` type to include `edges: ReadonlyArray<CallEdge>`
+- [x] Update `AnalysisOrchestrator` to preserve edges in result
+- [x] Update all test fixtures to include edges
 
-### Phase 2: VS Code UI (Lightweight MVP)
-- [ ] Create `src/adapter/vscode/showImpactTreeCommand.ts`
-  - [ ] Tests with no analysis
-  - [ ] Tests with symbol not found
-  - [ ] Tests with no callers (entry point)
-  - [ ] Tests with multi-level caller hierarchy
-  - [ ] Tests showing impact summary
-- [ ] Register `ddp.showImpactTree` command in `register.ts`
-- [ ] Add context menu to Risk Tree View for symbols
-- [ ] Update `package.json` contributions (menus, commands)
-- [ ] Set `contextValue = "ddpSymbol"` on symbol tree items
+### Phase 2: VS Code UI (Lightweight MVP) ✅
+- [x] Create `src/adapter/vscode/impactTreeCommand.ts`
+  - [x] Tests with no analysis
+  - [x] Tests with symbol not found
+  - [x] Tests with no callers (entry point)
+  - [x] Tests with multi-level caller hierarchy
+  - [x] Tests showing impact summary
+- [x] Register `ddp.showImpactTree` command in `register.ts`
+- [x] Add context menu to Risk Tree View for symbols
+- [x] Update `package.json` contributions (menus, commands)
+- [x] Set `contextValue = "ddpSymbol"` on symbol tree items
+
+**Notes**:  
+- Implementation uses `callerTree.ts` (domain logic) + `impactTreeCommand.ts` (VS Code adapter)
+- Fixed: "R is always 1" defect - LSP call graph now uses `vscode.commands.executeCommand` API instead of direct language API (2026-04-28)
+- Improved test quality: removed unsafe non-null assertions, fixed magic index access patterns
 
 ### Phase 3: CLI Output  
 - [ ] Create `src/core/formatImpactTree.ts` for ASCII tree formatting
@@ -64,3 +69,4 @@
 - [ ] test against python code (integration tests with sample Python projects)
 - [ ] test against Java code (integration tests with sample Java projects)
 - [ ] auto load/update symbol setting on code change
+- [ ] right click context menu on symbol with ddp view call graph option

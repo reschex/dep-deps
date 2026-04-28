@@ -93,6 +93,8 @@ describe("buildConfiguration", () => {
       },
       decoration: { warnThreshold: 25, errorThreshold: 75 },
       churn: { enabled: false, lookbackDays: 90 },
+      impactTree: { maxDepth: 5 },
+      analysis: { defaultFolder: "" },
       fileRollup: "sum",
       codelensEnabled: false,
       excludeTests: false,
@@ -105,6 +107,20 @@ describe("buildConfiguration", () => {
       (key === "codelens.enabled" ? true : defaultValue) as T
     );
     expect(config.codelensEnabled).toBe(true);
+  });
+
+  it("reads impactTree.maxDepth override from getter", () => {
+    const config = buildConfiguration(<T>(key: string, defaultValue: T) =>
+      (key === "impactTree.maxDepth" ? 10 : defaultValue) as T
+    );
+    expect(config.impactTree.maxDepth).toBe(10);
+  });
+
+  it("reads analysis.defaultFolder override from getter", () => {
+    const config = buildConfiguration(<T>(key: string, defaultValue: T) =>
+      (key === "analysis.defaultFolder" ? "src" : defaultValue) as T
+    );
+    expect(config.analysis.defaultFolder).toBe("src");
   });
 
   it("preserves zero values from getter without falling back to defaults", () => {
@@ -177,6 +193,8 @@ describe("DEFAULT_CONFIGURATION", () => {
       },
       decoration: { warnThreshold: 50, errorThreshold: 150 },
       churn: { enabled: false, lookbackDays: 90 },
+      impactTree: { maxDepth: 5 },
+      analysis: { defaultFolder: "" },
       fileRollup: "max",
       codelensEnabled: true,
       excludeTests: true,
@@ -190,10 +208,19 @@ describe("DEFAULT_CONFIGURATION", () => {
     );
   });
 
+  it("defaults impactTree.maxDepth to 5", () => {
+    expect(DEFAULT_CONFIGURATION.impactTree.maxDepth).toBe(5);
+  });
+
+  it("defaults analysis.defaultFolder to empty string", () => {
+    expect(DEFAULT_CONFIGURATION.analysis.defaultFolder).toBe("");
+  });
+
   it("is frozen at module level (prevents accidental mutation)", () => {
     // Verify the structure keys exist — if someone renames a key, this catches it
     const keys = Object.keys(DEFAULT_CONFIGURATION).sort((a, b) => a.localeCompare(b));
     expect(keys).toEqual([
+      "analysis",
       "cc",
       "churn",
       "codelensEnabled",
@@ -201,6 +228,7 @@ describe("DEFAULT_CONFIGURATION", () => {
       "decoration",
       "excludeTests",
       "fileRollup",
+      "impactTree",
       "maxFiles",
       "rank",
     ]);
@@ -488,6 +516,7 @@ describe("bugmagnet session 2026-04-16", () => {
       });
       // Each config key should be read exactly once
       expect(calls.toSorted((a, b) => a.localeCompare(b))).toEqual([
+        "analysis.defaultFolder",
         "cc.eslintPath",
         "cc.pmdPath",
         "cc.pythonPath",
@@ -502,6 +531,7 @@ describe("bugmagnet session 2026-04-16", () => {
         "decoration.warnThreshold",
         "excludeTests",
         "fileRollup",
+        "impactTree.maxDepth",
         "maxFiles",
         "rank.epsilon",
         "rank.maxIterations",
@@ -528,6 +558,8 @@ describe("bugmagnet session 2026-04-16", () => {
         "decoration.errorThreshold": 150,
         "churn.enabled": false,
         "churn.lookbackDays": 90,
+        "impactTree.maxDepth": 5,
+        "analysis.defaultFolder": "",
         "fileRollup": "max",
         "codelens.enabled": true,
         "excludeTests": true,
