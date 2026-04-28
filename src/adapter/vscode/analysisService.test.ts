@@ -643,7 +643,7 @@ describe("AnalysisService", () => {
           ...defaultTestConfig,
           cc: {
             eslintPath: "/path with spaces/eslint",
-            pythonPath: "C:\\Program Files\\Python\\python",
+            pythonPath: String.raw`C:\Program Files\Python\python`,
             pmdPath: "/usr/local/pmd tool/pmd",
             useEslintForTsJs: true,
           },
@@ -653,7 +653,7 @@ describe("AnalysisService", () => {
         await service.analyze(fakeToken());
 
         expect(EslintCcProvider).toHaveBeenCalledWith("/path with spaces/eslint");
-        expect(RadonCcProvider).toHaveBeenCalledWith("C:\\Program Files\\Python\\python");
+        expect(RadonCcProvider).toHaveBeenCalledWith(String.raw`C:\Program Files\Python\python`);
         expect(PmdCcProvider).toHaveBeenCalledWith("/usr/local/pmd tool/pmd");
       });
 

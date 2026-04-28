@@ -69,6 +69,10 @@
         "command": "ddp.riskView.sortByCRAP",
         "title": "DDP: Sort by CRAP",
         "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "ddp.showImpactTree",
+        "title": "DDP: Show Impact Tree"
       }
     ],
     "menus": {
@@ -102,6 +106,13 @@
           "command": "ddp.riskView.sortByCRAP",
           "when": "view == ddp.riskView",
           "group": "sort"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "ddp.showImpactTree",
+          "when": "view == ddp.riskView && viewItem == ddpSymbol",
+          "group": "navigation"
         }
       ]
     },

@@ -225,6 +225,12 @@ describe("RiskTreeProvider", () => {
       expect(item.description).toBe("F=12.3  R=0.57  CC=5  T=80%");
     });
 
+    it("sets contextValue ddpSymbol on symbol nodes", () => {
+      const s = sym({ id: "fn", name: "fn" });
+      const item = provider.getTreeItem({ type: "symbol", symbol: s });
+      expect(item.contextValue).toBe("ddpSymbol");
+    });
+
     it("sets tooltip as MarkdownString for symbol node", () => {
       const s = sym({ id: "fn", name: "fn", f: 5.678, r: 1.234, crap: 4.567 });
       const item = provider.getTreeItem({ type: "symbol", symbol: s });

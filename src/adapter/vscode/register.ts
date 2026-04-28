@@ -8,6 +8,7 @@ import { DdpHoverProvider } from "./ui/hoverProvider";
 import { revealSymbolById } from "./ui/revealSymbol";
 import { openDocument } from "./ui/editor";
 import { AnalyzeCommand } from "./analyzeCommand";
+import { showImpactTree } from "./impactTreeCommand";
 import { buildConfiguration, type AnalysisScope } from "./configuration";
 
 const selector: vscode.DocumentSelector = [
@@ -76,6 +77,14 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("ddp.riskView.sortByG", () => tree.setSortField("g")),
     vscode.commands.registerCommand("ddp.riskView.sortByCC", () => tree.setSortField("cc")),
     vscode.commands.registerCommand("ddp.riskView.sortByCRAP", () => tree.setSortField("crap")),
+    vscode.commands.registerCommand("ddp.showImpactTree", async (node?: { type: string; symbol?: { id: string } }) => {
+      if (node?.type === "symbol" && node.symbol) {
+        const selectedId = await showImpactTree(state, node.symbol.id);
+        if (selectedId) {
+          await revealSymbolById(selectedId);
+        }
+      }
+    }),
     vscode.languages.registerCodeLensProvider(selector, codeLens),
     vscode.languages.registerHoverProvider(selector, hover),
     deco,

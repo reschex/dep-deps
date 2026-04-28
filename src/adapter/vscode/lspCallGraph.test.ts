@@ -31,10 +31,6 @@ vi.mock("vscode", () => {
     commands: {
       executeCommand: vi.fn(async () => undefined),
     },
-    languages: {
-      prepareCallHierarchy: vi.fn(async () => undefined),
-      provideCallHierarchyOutgoingCalls: vi.fn(async () => undefined),
-    },
     Uri: {
       parse(str: string) {
         const colonIdx = str.indexOf(":");
@@ -299,8 +295,6 @@ describe("collectCallEdgesFromWorkspace", () => {
     vi.mocked(vscode.workspace.findFiles).mockReset().mockResolvedValue([]);
     vi.mocked(vscode.workspace.openTextDocument).mockReset().mockResolvedValue({} as any);
     vi.mocked(vscode.commands.executeCommand).mockReset().mockResolvedValue(undefined as any);
-    (vscode.languages as any).prepareCallHierarchy.mockReset().mockResolvedValue(undefined);
-    (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockReset().mockResolvedValue(undefined);
     debugSpy?.mockRestore();
     debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
   });
@@ -454,8 +448,10 @@ describe("collectCallEdgesFromWorkspace", () => {
 
       await collectCallEdgesFromWorkspace();
 
-      // good.ts still got processed — 2 calls total (one failed, one succeeded)
-      expect(vi.mocked(vscode.commands.executeCommand)).toHaveBeenCalledTimes(2);
+      const symbolProviderCalls = vi.mocked(vscode.commands.executeCommand).mock.calls.filter(
+        ([command]) => command === "vscode.executeDocumentSymbolProvider"
+      );
+      expect(symbolProviderCalls).toHaveLength(2);
       expect(debugSpy).toHaveBeenCalledWith(
         expect.stringContaining("[DDP]"),
         expect.any(Error),
@@ -532,21 +528,28 @@ describe("collectCallEdgesFromWorkspace", () => {
   describe("outgoing call resolution", () => {
     it("returns edges from outgoing call hierarchy", async () => {
       const callerUri = fakeUri("file:///src/caller.ts");
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("doWork", 5, 2)] as any);
-
       const calleeUri = fakeUri("file:///src/callee.ts");
       const hierarchyItem = { uri: callerUri, selectionRange: { start: { line: 5, character: 2 } } };
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue([hierarchyItem]);
-      (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue([
-        {
-          to: {
-            uri: calleeUri,
-            selectionRange: { start: { line: 10, character: 0 } },
-            range: { start: { line: 10, character: 0 } },
-          },
-        },
-      ]);
+      
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("doWork", 5, 2)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          return [hierarchyItem] as any;
+        }
+        if (command === "vscode.provideOutgoingCalls") {
+          return [{
+            to: {
+              uri: calleeUri,
+              selectionRange: { start: { line: 10, character: 0 } },
+              range: { start: { line: 10, character: 0 } },
+            },
+          }] as any;
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
@@ -562,8 +565,15 @@ describe("collectCallEdgesFromWorkspace", () => {
       // pipeline works E2E with a normal ID and no call hierarchy:
       const uri = fakeUri("file:///src/a.ts");
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(undefined);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("fn", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          return undefined as any;
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
@@ -591,10 +601,15 @@ describe("collectCallEdgesFromWorkspace", () => {
     it("returns empty edges when prepareCallHierarchy throws", async () => {
       const uri = fakeUri("file:///src/a.ts");
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-      (vscode.languages as any).prepareCallHierarchy.mockRejectedValue(
-        new Error("no call hierarchy"),
-      );
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("fn", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          throw new Error("no call hierarchy");
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
@@ -608,8 +623,15 @@ describe("collectCallEdgesFromWorkspace", () => {
     it("does not log prepareCallHierarchy error when it returns null", async () => {
       const uri = fakeUri("file:///src/a.ts");
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(null);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("fn", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          return null as any;
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
@@ -623,32 +645,96 @@ describe("collectCallEdgesFromWorkspace", () => {
     it("returns empty edges when prepareCallHierarchy returns empty array", async () => {
       const uri = fakeUri("file:///src/a.ts");
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue([]);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("fn", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          return [] as any;
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
       expect(edges).toEqual([]);
     });
 
+    it("falls back to built-in call hierarchy commands when direct language API returns undefined", async () => {
+      const callerUri = fakeUri("file:///src/caller.ts");
+      const calleeUri = fakeUri("file:///src/callee.ts");
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string, ...args: unknown[]) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("caller", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          expect((args[0] as { toString(): string }).toString()).toBe("file:///src/caller.ts");
+          return [{ uri: callerUri, selectionRange: { start: { line: 0, character: 0 } } }] as any;
+        }
+        if (command === "vscode.provideOutgoingCalls") {
+          return [
+            {
+              to: {
+                uri: calleeUri,
+                selectionRange: { start: { line: 3, character: 1 } },
+                range: { start: { line: 3, character: 1 } },
+              },
+            },
+          ] as any;
+        }
+        return undefined as any;
+      });
+
+      const edges = await collectCallEdgesFromWorkspace();
+
+      expect(edges).toEqual([
+        { caller: "file:///src/caller.ts#0:0", callee: "file:///src/callee.ts#3:1" },
+      ]);
+    });
+
     it("does not call provideOutgoingCalls when prepareCallHierarchy returns undefined", async () => {
       const uri = fakeUri("file:///src/a.ts");
+      let prepareCallCount = 0;
+      let provideOutgoingCount = 0;
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(undefined);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("fn", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          prepareCallCount++;
+          return undefined as any;
+        }
+        if (command === "vscode.provideOutgoingCalls") {
+          provideOutgoingCount++;
+          return [] as any;
+        }
+        return undefined as any;
+      });
 
       await collectCallEdgesFromWorkspace();
 
-      expect((vscode.languages as any).provideCallHierarchyOutgoingCalls).not.toHaveBeenCalled();
+      expect(prepareCallCount).toBeGreaterThan(0);
+      expect(provideOutgoingCount).toBe(0);
     });
 
     it("returns empty edges when provideCallHierarchyOutgoingCalls returns null", async () => {
       const uri = fakeUri("file:///src/a.ts");
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
       const item = { uri, selectionRange: { start: { line: 0, character: 0 } } };
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue([item]);
-      (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue(null);
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("fn", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          return [item] as any;
+        }
+        if (command === "vscode.provideOutgoingCalls") {
+          return null as any;
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
@@ -657,21 +743,28 @@ describe("collectCallEdgesFromWorkspace", () => {
 
     it("uses selectionRange over range for callee symbolId", async () => {
       const callerUri = fakeUri("file:///src/caller.ts");
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-
       const calleeUri = fakeUri("file:///src/callee.ts");
       const item = { uri: callerUri, selectionRange: { start: { line: 0, character: 0 } } };
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue([item]);
-      (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue([
-        {
-          to: {
-            uri: calleeUri,
-            selectionRange: { start: { line: 3, character: 4 } },
-            range: { start: { line: 1, character: 0 } },
-          },
-        },
-      ]);
+      
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("fn", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          return [item] as any;
+        }
+        if (command === "vscode.provideOutgoingCalls") {
+          return [{
+            to: {
+              uri: calleeUri,
+              selectionRange: { start: { line: 3, character: 4 } },
+              range: { start: { line: 1, character: 0 } },
+            },
+          }] as any;
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
@@ -681,21 +774,28 @@ describe("collectCallEdgesFromWorkspace", () => {
 
     it("falls back to range when selectionRange is missing", async () => {
       const callerUri = fakeUri("file:///src/caller.ts");
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-
       const calleeUri = fakeUri("file:///src/callee.ts");
       const item = { uri: callerUri, selectionRange: { start: { line: 0, character: 0 } } };
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue([item]);
-      (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue([
-        {
-          to: {
-            uri: calleeUri,
-            selectionRange: undefined,
-            range: { start: { line: 7, character: 2 } },
-          },
-        },
-      ]);
+      
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("fn", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          return [item] as any;
+        }
+        if (command === "vscode.provideOutgoingCalls") {
+          return [{
+            to: {
+              uri: calleeUri,
+              selectionRange: undefined,
+              range: { start: { line: 7, character: 2 } },
+            },
+          }] as any;
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
@@ -735,27 +835,37 @@ describe("collectCallEdgesFromWorkspace", () => {
     it("produces edges from good files even when one file fails to open", async () => {
       const badUri = fakeUri("file:///src/bad.ts");
       const goodUri = fakeUri("file:///src/good.ts");
+      const calleeUri = fakeUri("file:///src/callee.ts");
+      const item = { uri: goodUri, selectionRange: { start: { line: 0, character: 0 } } };
+      
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([badUri, goodUri] as any);
       vi.mocked(vscode.workspace.openTextDocument)
         .mockRejectedValueOnce(new Error("cannot open"))
         .mockResolvedValue({} as any);
-      // bad.ts → no symbols (open failed); good.ts → has a function
-      vi.mocked(vscode.commands.executeCommand)
-        .mockResolvedValueOnce(undefined as any)
-        .mockResolvedValueOnce([fnSymbol("fn", 0)] as any);
-
-      const calleeUri = fakeUri("file:///src/callee.ts");
-      const item = { uri: goodUri, selectionRange: { start: { line: 0, character: 0 } } };
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue([item]);
-      (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue([
-        {
-          to: {
-            uri: calleeUri,
-            selectionRange: { start: { line: 1, character: 0 } },
-            range: { start: { line: 1, character: 0 } },
-          },
-        },
-      ]);
+      
+      let symbolCallCount = 0;
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          symbolCallCount++;
+          if (symbolCallCount === 1) {
+            return undefined as any; // bad.ts - no symbols (open failed)
+          }
+          return [fnSymbol("fn", 0)] as any; // good.ts
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          return [item] as any;
+        }
+        if (command === "vscode.provideOutgoingCalls") {
+          return [{
+            to: {
+              uri: calleeUri,
+              selectionRange: { start: { line: 1, character: 0 } },
+              range: { start: { line: 1, character: 0 } },
+            },
+          }] as any;
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
@@ -766,13 +876,21 @@ describe("collectCallEdgesFromWorkspace", () => {
 
     it("returns empty edges when provideCallHierarchyOutgoingCalls throws", async () => {
       const uri = fakeUri("file:///src/a.ts");
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
       const item = { uri, selectionRange: { start: { line: 0, character: 0 } } };
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue([item]);
-      (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockRejectedValue(
-        new Error("outgoing calls failed"),
-      );
+      
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("fn", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          return [item] as any;
+        }
+        if (command === "vscode.provideOutgoingCalls") {
+          throw new Error("outgoing calls failed");
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
@@ -826,87 +944,125 @@ describe("collectCallEdgesFromWorkspace", () => {
       // URI with raw # produces "file:///a#b.ts#0:0" — parseSymbolIdParts
       // finds the first # and fails to parse the rest as line:ch
       const uri = fakeUri("file:///a#b.ts");
+      let provideOutgoingCallCount = 0;
+      
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("fn", 0)] as any;
+        }
+        if (command === "vscode.provideOutgoingCalls") {
+          provideOutgoingCallCount++;
+          return [] as any;
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
       expect(edges).toEqual([]);
       // provideCallHierarchyOutgoingCalls not reached for unparseable id
-      expect((vscode.languages as any).provideCallHierarchyOutgoingCalls).not.toHaveBeenCalled();
+      expect(provideOutgoingCallCount).toBe(0);
     });
 
     it("only extracts Function, Method, and Constructor symbols", async () => {
       const uri = fakeUri("file:///src/a.ts");
+      let prepareCallCount = 0;
+      
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([
-        fnSymbol("myFunc", 1),              // kind 11 — Function ✓
-        { ...fnSymbol("myMethod", 2), kind: 5 },  // kind 5 — Method ✓
-        { ...fnSymbol("myCtor", 3), kind: 8 },    // kind 8 — Constructor ✓
-        { ...fnSymbol("myClass", 4), kind: 4 },   // kind 4 — Class ✗
-        { ...fnSymbol("myVar", 5), kind: 12 },    // kind 12 — Variable ✗
-      ] as any);
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(undefined);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [
+            fnSymbol("myFunc", 1),              // kind 11 — Function ✓
+            { ...fnSymbol("myMethod", 2), kind: 5 },  // kind 5 — Method ✓
+            { ...fnSymbol("myCtor", 3), kind: 8 },    // kind 8 — Constructor ✓
+            { ...fnSymbol("myClass", 4), kind: 4 },   // kind 4 — Class ✗
+            { ...fnSymbol("myVar", 5), kind: 12 },    // kind 12 — Variable ✗
+          ] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          prepareCallCount++;
+          return undefined as any;
+        }
+        return undefined as any;
+      });
 
       await collectCallEdgesFromWorkspace();
 
       // 3 function-like symbols discovered, each calls getOutgoingCalleeIds
       // prepareCallHierarchy returns undefined → no edges, but verify discovery count
-      expect((vscode.languages as any).prepareCallHierarchy).toHaveBeenCalledTimes(3);
+      expect(prepareCallCount).toBe(3);
     });
 
     it("handles nested function symbols inside classes", async () => {
       const uri = fakeUri("file:///src/a.ts");
+      let prepareCallCount = 0;
+      
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
       // Class with a nested method
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([
-        {
-          name: "MyClass",
-          kind: 4, // Class
-          selectionRange: { start: { line: 0, character: 0 } },
-          range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
-          children: [
-            {
-              name: "doWork",
-              kind: 5, // Method
-              selectionRange: { start: { line: 2, character: 2 } },
-              range: { start: { line: 2, character: 2 }, end: { line: 5, character: 3 } },
-              children: [],
-            },
-          ],
-        },
-      ] as any);
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(undefined);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [{
+            name: "MyClass",
+            kind: 4, // Class
+            selectionRange: { start: { line: 0, character: 0 } },
+            range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+            children: [
+              {
+                name: "doWork",
+                kind: 5, // Method
+                selectionRange: { start: { line: 2, character: 2 } },
+                range: { start: { line: 2, character: 2 }, end: { line: 5, character: 3 } },
+                children: [],
+              },
+            ],
+          }] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          prepareCallCount++;
+          return undefined as any;
+        }
+        return undefined as any;
+      });
 
       await collectCallEdgesFromWorkspace();
 
       // The nested method should be discovered and have call hierarchy prepared
-      expect((vscode.languages as any).prepareCallHierarchy).toHaveBeenCalledTimes(1);
+      expect(prepareCallCount).toBe(1);
     });
 
     it("produces multiple edges from a single function with multiple callees", async () => {
       const callerUri = fakeUri("file:///src/caller.ts");
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("main", 0)] as any);
-
       const item = { uri: callerUri, selectionRange: { start: { line: 0, character: 0 } } };
-      (vscode.languages as any).prepareCallHierarchy.mockResolvedValue([item]);
-      (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue([
-        {
-          to: {
-            uri: fakeUri("file:///src/a.ts"),
-            selectionRange: { start: { line: 1, character: 0 } },
-            range: { start: { line: 1, character: 0 } },
-          },
-        },
-        {
-          to: {
-            uri: fakeUri("file:///src/b.ts"),
-            selectionRange: { start: { line: 2, character: 0 } },
-            range: { start: { line: 2, character: 0 } },
-          },
-        },
-      ]);
+      
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [fnSymbol("main", 0)] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          return [item] as any;
+        }
+        if (command === "vscode.provideOutgoingCalls") {
+          return [
+            {
+              to: {
+                uri: fakeUri("file:///src/a.ts"),
+                selectionRange: { start: { line: 1, character: 0 } },
+                range: { start: { line: 1, character: 0 } },
+              },
+            },
+            {
+              to: {
+                uri: fakeUri("file:///src/b.ts"),
+                selectionRange: { start: { line: 2, character: 0 } },
+                range: { start: { line: 2, character: 0 } },
+              },
+            },
+          ] as any;
+        }
+        return undefined as any;
+      });
 
       const edges = await collectCallEdgesFromWorkspace();
 
@@ -949,27 +1105,35 @@ describe("collectCallEdgesFromWorkspace", () => {
       it("handles multiple files with multiple functions each producing a call graph", async () => {
         const uri1 = fakeUri("file:///src/a.ts");
         const uri2 = fakeUri("file:///src/b.ts");
-        vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri1, uri2] as any);
-        // a.ts has 2 functions, b.ts has 1
-        vi.mocked(vscode.commands.executeCommand)
-          .mockResolvedValueOnce([fnSymbol("fn1", 0), fnSymbol("fn2", 5)] as any)
-          .mockResolvedValueOnce([fnSymbol("fn3", 0)] as any);
-
         const calleeUri = fakeUri("file:///src/callee.ts");
-        (vscode.languages as any).prepareCallHierarchy.mockImplementation(
-          async (_doc: any, pos: any) => {
-            return [{ uri: uri1, selectionRange: { start: { line: pos.line, character: pos.character } } }];
-          },
-        );
-        (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue([
-          {
-            to: {
-              uri: calleeUri,
-              selectionRange: { start: { line: 99, character: 0 } },
-              range: { start: { line: 99, character: 0 } },
-            },
-          },
-        ]);
+        
+        vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri1, uri2] as any);
+        
+        let callIndex = 0;
+        vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string, ...args: unknown[]) => {
+          if (command === "vscode.executeDocumentSymbolProvider") {
+            callIndex++;
+            if (callIndex === 1) {
+              return [fnSymbol("fn1", 0), fnSymbol("fn2", 5)] as any; // a.ts has 2 functions
+            } else {
+              return [fnSymbol("fn3", 0)] as any; // b.ts has 1
+            }
+          }
+          if (command === "vscode.prepareCallHierarchy") {
+            const pos = args[1] as { line: number; character: number };
+            return [{ uri: uri1, selectionRange: { start: { line: pos.line, character: pos.character } } }] as any;
+          }
+          if (command === "vscode.provideOutgoingCalls") {
+            return [{
+              to: {
+                uri: calleeUri,
+                selectionRange: { start: { line: 99, character: 0 } },
+                range: { start: { line: 99, character: 0 } },
+              },
+            }] as any;
+          }
+          return undefined as any;
+        });
 
         const edges = await collectCallEdgesFromWorkspace();
 
@@ -982,27 +1146,36 @@ describe("collectCallEdgesFromWorkspace", () => {
 
       it("filters self-edges when a function calls itself", async () => {
         const uri = fakeUri("file:///src/a.ts");
-        vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-        vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("rec", 3, 0)] as any);
-
         const item = { uri, selectionRange: { start: { line: 3, character: 0 } } };
-        (vscode.languages as any).prepareCallHierarchy.mockResolvedValue([item]);
-        (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue([
-          {
-            to: {
-              uri,
-              selectionRange: { start: { line: 3, character: 0 } }, // same as caller
-              range: { start: { line: 3, character: 0 } },
-            },
-          },
-          {
-            to: {
-              uri: fakeUri("file:///src/b.ts"),
-              selectionRange: { start: { line: 0, character: 0 } },
-              range: { start: { line: 0, character: 0 } },
-            },
-          },
-        ]);
+        
+        vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
+        vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+          if (command === "vscode.executeDocumentSymbolProvider") {
+            return [fnSymbol("rec", 3, 0)] as any;
+          }
+          if (command === "vscode.prepareCallHierarchy") {
+            return [item] as any;
+          }
+          if (command === "vscode.provideOutgoingCalls") {
+            return [
+              {
+                to: {
+                  uri,
+                  selectionRange: { start: { line: 3, character: 0 } }, // same as caller
+                  range: { start: { line: 3, character: 0 } },
+                },
+              },
+              {
+                to: {
+                  uri: fakeUri("file:///src/b.ts"),
+                  selectionRange: { start: { line: 0, character: 0 } },
+                  range: { start: { line: 0, character: 0 } },
+                },
+              },
+            ] as any;
+          }
+          return undefined as any;
+        });
 
         const edges = await collectCallEdgesFromWorkspace();
 
@@ -1019,18 +1192,26 @@ describe("collectCallEdgesFromWorkspace", () => {
           fakeUri("file:///src/b.ts"),
           fakeUri("file:///src/c.ts"),
         ];
+        
         vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
-        vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
 
         let callCount = 0;
-        (vscode.languages as any).prepareCallHierarchy.mockImplementation(async () => {
-          callCount++;
-          if (callCount >= 2) {
-            token.isCancellationRequested = true;
+        vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+          if (command === "vscode.executeDocumentSymbolProvider") {
+            return [fnSymbol("fn", 0)] as any;
           }
-          return [{ uri: uris[0], selectionRange: { start: { line: 0, character: 0 } } }];
+          if (command === "vscode.prepareCallHierarchy") {
+            callCount++;
+            if (callCount >= 2) {
+              token.isCancellationRequested = true;
+            }
+            return [{ uri: uris[0], selectionRange: { start: { line: 0, character: 0 } } }] as any;
+          }
+          if (command === "vscode.provideOutgoingCalls") {
+            return [] as any;
+          }
+          return undefined as any;
         });
-        (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue([]);
 
         await collectCallEdgesFromWorkspace({ token });
 
@@ -1045,8 +1226,15 @@ describe("collectCallEdgesFromWorkspace", () => {
         // First call: 1 file with 1 function
         const uri1 = fakeUri("file:///src/first.ts");
         vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri1] as any);
-        vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-        (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(undefined);
+        vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+          if (command === "vscode.executeDocumentSymbolProvider") {
+            return [fnSymbol("fn", 0)] as any;
+          }
+          if (command === "vscode.prepareCallHierarchy") {
+            return undefined as any;
+          }
+          return undefined as any;
+        });
 
         const edges1 = await collectCallEdgesFromWorkspace();
         expect(edges1).toEqual([]);
@@ -1055,24 +1243,29 @@ describe("collectCallEdgesFromWorkspace", () => {
         vi.mocked(vscode.workspace.findFiles).mockReset();
         vi.mocked(vscode.workspace.openTextDocument).mockReset().mockResolvedValue({} as any);
         vi.mocked(vscode.commands.executeCommand).mockReset();
-        (vscode.languages as any).prepareCallHierarchy.mockReset();
-        (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockReset();
 
         // Second call: different file, produces edges
         const uri2 = fakeUri("file:///src/second.ts");
-        vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri2] as any);
-        vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
         const item = { uri: uri2, selectionRange: { start: { line: 0, character: 0 } } };
-        (vscode.languages as any).prepareCallHierarchy.mockResolvedValue([item]);
-        (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue([
-          {
-            to: {
-              uri: fakeUri("file:///src/target.ts"),
-              selectionRange: { start: { line: 1, character: 0 } },
-              range: { start: { line: 1, character: 0 } },
-            },
-          },
-        ]);
+        vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri2] as any);
+        vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+          if (command === "vscode.executeDocumentSymbolProvider") {
+            return [fnSymbol("fn", 0)] as any;
+          }
+          if (command === "vscode.prepareCallHierarchy") {
+            return [item] as any;
+          }
+          if (command === "vscode.provideOutgoingCalls") {
+            return [{
+              to: {
+                uri: fakeUri("file:///src/target.ts"),
+                selectionRange: { start: { line: 1, character: 0 } },
+                range: { start: { line: 1, character: 0 } },
+              },
+            }] as any;
+          }
+          return undefined as any;
+        });
 
         const edges2 = await collectCallEdgesFromWorkspace();
         expect(edges2).toEqual([
@@ -1086,8 +1279,15 @@ describe("collectCallEdgesFromWorkspace", () => {
       it("handles findFiles returning duplicate URIs", async () => {
         const uri = fakeUri("file:///src/a.ts");
         vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri, uri] as any);
-        vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-        (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(undefined);
+        vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+          if (command === "vscode.executeDocumentSymbolProvider") {
+            return [fnSymbol("fn", 0)] as any;
+          }
+          if (command === "vscode.prepareCallHierarchy") {
+            return undefined as any;
+          }
+          return undefined as any;
+        });
 
         const edges = await collectCallEdgesFromWorkspace();
 
@@ -1102,22 +1302,27 @@ describe("collectCallEdgesFromWorkspace", () => {
         // but different URIs so IDs differ
         const uri1 = fakeUri("file:///src/a.ts");
         const uri2 = fakeUri("file:///src/b.ts");
-        vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri1, uri2] as any);
-        vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0, 0)] as any);
-
         const calleeUri = fakeUri("file:///src/callee.ts");
-        (vscode.languages as any).prepareCallHierarchy.mockImplementation(async () => [
-          { uri: uri1, selectionRange: { start: { line: 0, character: 0 } } },
-        ]);
-        (vscode.languages as any).provideCallHierarchyOutgoingCalls.mockResolvedValue([
-          {
-            to: {
-              uri: calleeUri,
-              selectionRange: { start: { line: 5, character: 0 } },
-              range: { start: { line: 5, character: 0 } },
-            },
-          },
-        ]);
+        
+        vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri1, uri2] as any);
+        vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+          if (command === "vscode.executeDocumentSymbolProvider") {
+            return [fnSymbol("fn", 0, 0)] as any;
+          }
+          if (command === "vscode.prepareCallHierarchy") {
+            return [{ uri: uri1, selectionRange: { start: { line: 0, character: 0 } } }] as any;
+          }
+          if (command === "vscode.provideOutgoingCalls") {
+            return [{
+              to: {
+                uri: calleeUri,
+                selectionRange: { start: { line: 5, character: 0 } },
+                range: { start: { line: 5, character: 0 } },
+              },
+            }] as any;
+          }
+          return undefined as any;
+        });
 
         const edges = await collectCallEdgesFromWorkspace();
 
@@ -1189,8 +1394,15 @@ describe("collectCallEdgesFromWorkspace", () => {
       it("handles prepareCallHierarchy returning null", async () => {
         const uri = fakeUri("file:///a.ts");
         vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-        vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-        (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(null);
+        vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+          if (command === "vscode.executeDocumentSymbolProvider") {
+            return [fnSymbol("fn", 0)] as any;
+          }
+          if (command === "vscode.prepareCallHierarchy") {
+            return null as any;
+          }
+          return undefined as any;
+        });
 
         const edges = await collectCallEdgesFromWorkspace();
 
@@ -1211,11 +1423,24 @@ describe("collectCallEdgesFromWorkspace", () => {
           .mockRejectedValueOnce(new Error("open fail"))
           .mockResolvedValueOnce({} as any)
           .mockResolvedValue({} as any);
-        vi.mocked(vscode.commands.executeCommand)
-          .mockResolvedValueOnce(undefined as any) // a.ts (after catch, still called)
-          .mockRejectedValueOnce(new Error("symbol fail")) // b.ts
-          .mockResolvedValueOnce([fnSymbol("fn", 0)] as any); // c.ts
-        (vscode.languages as any).prepareCallHierarchy.mockResolvedValue(undefined);
+        
+        let callIndex = 0;
+        vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+          if (command === "vscode.executeDocumentSymbolProvider") {
+            callIndex++;
+            if (callIndex === 1) {
+              return undefined as any; // a.ts (after catch, still called)
+            }
+            if (callIndex === 2) {
+              throw new Error("symbol fail"); // b.ts
+            }
+            return [fnSymbol("fn", 0)] as any; // c.ts
+          }
+          if (command === "vscode.prepareCallHierarchy") {
+            return undefined as any;
+          }
+          return undefined as any;
+        });
 
         const edges = await collectCallEdgesFromWorkspace();
 

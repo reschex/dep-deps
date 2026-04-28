@@ -67,6 +67,7 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
     item.tooltip = new vscode.MarkdownString(
       `**${s.name}**\n\nR=${s.r.toFixed(3)}  CRAP=${s.crap.toFixed(2)}  F=${s.f.toFixed(2)}`
     );
+    item.contextValue = "ddpSymbol";
     item.command = {
       command: "ddp.revealSymbol",
       title: "Reveal symbol",

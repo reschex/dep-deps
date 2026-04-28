@@ -859,7 +859,7 @@ describe("bugmagnet session 2026-04-15", () => {
 
       // callee: CC=5 (same tool provider applies to both TS files), T=1.0, has incoming edge → higher rank
       expect(callee.cc).toBe(5);
-      expect(callee.t).toBeCloseTo(1.0, 3);
+      expect(callee.t).toBeCloseTo(1, 3);
       expect(callee.r).toBeGreaterThan(caller.r);
 
       // Both files in rollup
@@ -1245,7 +1245,7 @@ describe("bugmagnet session 2026-04-15", () => {
 
       const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
       assert(result !== undefined, "expected result");
-      expect(result.symbols[0].t).toBeCloseTo(1.0, 5);
+      expect(result.symbols[0].t).toBeCloseTo(1, 5);
       // With t=1.0, CRAP = CC² × 0 + CC = CC
       expect(result.symbols[0].crap).toBeCloseTo(result.symbols[0].cc, 5);
     });
@@ -1275,7 +1275,7 @@ describe("bugmagnet session 2026-04-15", () => {
 
       const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
       assert(result !== undefined, "expected result");
-      expect(result.symbols[0].t).toBeCloseTo(0.0, 5);
+      expect(result.symbols[0].t).toBeCloseTo(0, 5);
       // With t=0.0, CRAP = CC² × 1 + CC = CC² + CC
       const cc = result.symbols[0].cc;
       expect(result.symbols[0].crap).toBeCloseTo(cc * cc + cc, 5);

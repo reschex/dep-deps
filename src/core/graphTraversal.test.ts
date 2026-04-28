@@ -49,9 +49,9 @@ describe("buildCallerTree", () => {
 
     expect(tree.symbolId).toBe("A");
     expect(tree.callers).toHaveLength(2);
-    expect(tree.callers.map((c) => c.symbolId).sort()).toEqual(["B", "C"]);
-    expect(tree.callers[0].depth).toBe(1);
-    expect(tree.callers[0].isRecursive).toBe(false);
+    expect(tree.callers.map((c) => c.symbolId).sort((a, b) => a.localeCompare(b))).toEqual(["B", "C"]);
+    expect(tree.callers.every((c) => c.depth === 1)).toBe(true);
+    expect(tree.callers.every((c) => !c.isRecursive)).toBe(true);
   });
 
   it("builds multi-level caller tree (transitive dependencies)", () => {

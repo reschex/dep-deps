@@ -380,14 +380,14 @@ describe("DecorationManager", () => {
       });
 
       it("passes NaN fileRollup value to decorationTier", () => {
-        const rollup = new Map([["file:///a.ts", NaN]]);
+        const rollup = new Map([["file:///a.ts", Number.NaN]]);
         const mgr = new DecorationManager(fakeState(rollup), () => defaultDecoConfig);
         const editor = fakeEditor("file:///a.ts");
         vi.mocked(decorationTier).mockReturnValue("none");
 
         mgr.applyActiveEditor(editor);
 
-        expect(decorationTier).toHaveBeenCalledWith(NaN, 50, 150);
+        expect(decorationTier).toHaveBeenCalledWith(Number.NaN, 50, 150);
       });
 
       it("passes Infinity fileRollup value to decorationTier", () => {
