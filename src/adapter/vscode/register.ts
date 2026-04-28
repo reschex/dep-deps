@@ -9,6 +9,7 @@ import { revealSymbolById } from "./ui/revealSymbol";
 import { openDocument } from "./ui/editor";
 import { AnalyzeCommand } from "./analyzeCommand";
 import { ImpactTreeProvider } from "./ui/impactTreeProvider";
+import { openImpactGraph } from "./ui/impactGraphPanel";
 import { buildConfiguration, type AnalysisScope } from "./configuration";
 
 const selector: vscode.DocumentSelector = [
@@ -86,12 +87,13 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("ddp.showImpactTree", (node?: { type: string; symbol?: { id: string } }) => {
       if (node?.type === "symbol" && node.symbol) {
         impactTree.setRootSymbol(node.symbol.id);
-        Promise.resolve(impactView.reveal(undefined as never, { focus: true })).catch(() => {/* view may not be visible yet */});
+        openImpactGraph(state, node.symbol.id);
       }
     }),
     vscode.commands.registerCommand("ddp.impactView.showForSymbol", (node?: { type: string; symbolId?: string }) => {
       if (node?.type === "caller" && node.symbolId) {
         impactTree.setRootSymbol(node.symbolId);
+        openImpactGraph(state, node.symbolId);
       }
     }),
     vscode.languages.registerCodeLensProvider(selector, codeLens),

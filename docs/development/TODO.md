@@ -110,3 +110,4 @@ Three-layer architecture: CLI output → PreToolUse hook → MCP server.
 - [ ] test against Java code (integration tests with sample Java projects)
 - [ ] auto load/update symbol setting on code change
 - [ ] right click context menu on symbol with ddp view call graph option
+- [ ] update formatHooverBreakdown to show dynamic analysis of the metric combination
