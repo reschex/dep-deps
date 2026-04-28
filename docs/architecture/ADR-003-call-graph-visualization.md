@@ -11,17 +11,18 @@
 
 When DDP identifies a high-risk symbol (high F score = R × CRAP), developers need to understand:
 
-1. **Which functions depend on this symbol?** (inbound dependencies / callers)
-2. **What is the transitive impact?** (callers of callers, forming a dependency tree)
-3. **What does this symbol depend on?** (outbound dependencies / callees)
-4. **Where should I be cautious when changing this symbol?** (impact radius)
+1. **Which functions depend on this symbol?** (direct callers)
+2. **What is the transitive impact?** (callers of callers, forming an impact tree)
+3. **Where will changes propagate?** (impact radius for refactoring safety)
 
 Currently, the call graph is computed and used to calculate PageRank (R), but:
 - The edges are **discarded** after rank computation
 - Users see only the **R value** (a number), not the **structure** that produced it
-- There's no way to visualize **why** a symbol has high rank or **where** changes will propagate
+- There's no way to visualize **why** a symbol has high rank or **which code depends on it**
 
-This limits the actionability of DDP's risk scores — users know *what* is risky but not *why* or *where the risk spreads*.
+This limits the actionability of DDP's risk scores — users know *what* is risky but not *which parts of the codebase will be affected by changes*.
+
+**What a symbol calls (callees) is irrelevant for impact analysis** — changing a function doesn't risk breaking its dependencies, only its dependents.
 
 ---
 
@@ -38,7 +39,7 @@ This limits the actionability of DDP's risk scores — users know *what* is risk
 
 ## Decision
 
-We will implement **hierarchical call graph visualization** with the following design:
+We will implement **caller tree visualization** (impact analysis) with the following design:
 
 ### 1. Data Model Changes
 
@@ -57,9 +58,9 @@ export type AnalysisResult = {
 
 ```typescript
 // src/core/graphTraversal.ts
-export type DependencyTree = {
+export type CallerTree = {
   readonly symbolId: string;
-  readonly children: ReadonlyArray<DependencyTree>;  // callers or callees
+  readonly callers: ReadonlyArray<CallerTree>;  // who calls this
   readonly depth: number;
   readonly isRecursive: boolean;  // cycle detection
 };
@@ -68,44 +69,38 @@ export function buildCallerTree(
   symbolId: string,
   edges: ReadonlyArray<CallEdge>,
   maxDepth: number
-): DependencyTree;
-
-export function buildCalleeTree(
-  symbolId: string,
-  edges: ReadonlyArray<CallEdge>,
-  maxDepth: number
-): DependencyTree;
+): CallerTree;
 ```
 
 ### 2. VS Code UI Components
 
-**Command: `ddp.showCallGraph`** (context menu on symbol in DDP sidebar):
+**Command: `ddp.showImpactTree`** (context menu on symbol in DDP sidebar):
 
-- Opens a **new tree view panel** or **webview** showing:
-  - **Inbound tab**: Caller tree (who depends on this?)
-  - **Outbound tab**: Callee tree (what does this depend on?)
+- Opens a **QuickPick** or **tree view panel** showing:
+  - **Caller tree**: Who calls this symbol (direct and indirect)
+  - Multi-level hierarchy showing impact radius
 - Each node displays:
   - Symbol name + file path
-  - Risk metrics (F, R, CC) in line
-  - Visual indicators for high-risk symbols (color-coded)
+  - Risk metrics (F, R, CC) inline
+  - Visual indicators for high-risk callers (color-coded)
 - **Interactive**:
   - Click to navigate to symbol definition
   - Expand/collapse tree nodes
-  - Context menu to "Show call graph" for any node (recursive exploration)
+  - Context menu to "Show Impact Tree" for any node (recursive exploration)
 
 **Integration with existing sidebar**:
 
-- Add tree item context menu: "Show Call Graph" on any symbol node
-- Add command palette entry: "DDP: Show Call Graph for Current Symbol"
+- Add tree item context menu: "Show Impact Tree" on any symbol node
+- Add command palette entry: "DDP: Show Impact Tree for Current Symbol"
 
-**Alternative (lightweight MVP)**: QuickPick / Hover instead of full tree view:
+**Lightweight MVP**: QuickPick showing multi-level callers:
 
-- For MVP, show caller/callee list in a QuickPick menu
-- Defer full tree view to iteration 2
+- For MVP, show caller hierarchy in a QuickPick menu with depth indicators
+- Defer full tree view to iteration 2 if needed
 
 ### 3. CLI Output Format
 
-**Command**: `ddp-cli --symbol <symbol-id> --show-graph`
+**Command**: `ddp-cli --symbol <symbol-id> --show-impact`
 
 **Output format** (ASCII tree):
 
@@ -113,33 +108,47 @@ export function buildCalleeTree(
 Symbol: processOrder (src/orders/processor.ts#L45)
 Risk: F=245.6  R=12.3  CRAP=20.0  CC=15  T=25%
 
-CALLERS (who calls this):
+IMPACT TREE (who calls this, directly or indirectly):
 └─ handleCheckout (src/checkout/handler.ts#L112) [F=189.2]
    ├─ POST /api/checkout (src/routes/checkout.ts#L25) [F=50.1]
+   │  └─ apiRouter (src/routes/index.ts#L15) [F=35.0]
    └─ submitOrderForm (src/ui/forms.ts#L88) [F=120.5]
       └─ onSubmit (src/ui/orderWidget.ts#L200) [F=45.0]
 
-CALLEES (what this calls):
-├─ validateOrder (src/orders/validator.ts#L34) [F=156.3]
-├─ calculateTax (src/tax/calculator.ts#L67) [F=89.7]
-└─ saveToDatabase (src/db/orders.ts#L101) [F=512.8] ⚠️ HIGH RISK
+IMPACT SUMMARY:
+- Direct callers: 1
+- Total affected symbols (depth 3): 5
+- Highest risk caller: submitOrderForm (F=120.5)
 ```
 
-**JSON output**: `--format json` includes edges in standard format for tooling:
+**JSON output**: `--format json` includes nested caller structure for tooling:
 
 ```json
 {
   "symbol": "processOrder",
   "metrics": { "f": 245.6, "r": 12.3, "crap": 20.0, "cc": 15, "t": 0.25 },
+  "impactSummary": {
+    "directCallers": 1,
+    "totalAffected": 5,
+    "maxDepth": 3
+  },
   "callers": [
     {
       "id": "file:///src/checkout/handler.ts#L112",
       "name": "handleCheckout",
       "metrics": { "f": 189.2 },
-      "callers": [ ... ]
+      "depth": 1,
+      "callers": [
+        {
+          "id": "file:///src/routes/checkout.ts#L25",
+          "name": "POST /api/checkout",
+          "metrics": { "f": 50.1 },
+          "depth": 2,
+          "callers": [ ... ]
+        }
+      ]
     }
-  ],
-  "callees": [ ... ]
+  ]
 }
 ```
 
@@ -154,7 +163,6 @@ CALLEES (what this calls):
   // src/core/graphTraversal.ts
   export type EdgeIndex = {
     readonly callersByCallee: ReadonlyMap<string, string[]>;
-    readonly calleesByCaller: ReadonlyMap<string, string[]>;
   };
   
   export function indexEdges(edges: ReadonlyArray<CallEdge>): EdgeIndex;
@@ -193,37 +201,40 @@ graph TD
 ## Implementation Phases
 
 ### Phase 1: Core Domain Logic (TDD)
-- [ ] `graphTraversal.ts`: `indexEdges`, `buildCallerTree`, `buildCalleeTree` with cycle detection
+- [ ] `graphTraversal.ts`: `indexEdges`, `buildCallerTree` with cycle detection
 - [ ] Persist edges in `AnalysisResult`
 - [ ] Update `AnalysisOrchestrator` to include edges in result
 - [ ] Tests for tree building, depth limiting, cycle detection
+- [ ] Impact summary metrics (direct callers, total affected, max depth)
 
 ### Phase 2: VS Code UI (Lightweight MVP)
-- [ ] Command: `ddp.showCallGraph` → QuickPick with callers/callees list
+- [ ] Command: `ddp.showImpactTree` → QuickPick with hierarchical caller list
 - [ ] Context menu integration in `RiskTreeProvider`
-- [ ] Display symbol metrics inline
+- [ ] Display symbol metrics and depth indicators inline
 
 ### Phase 3: CLI Output
-- [ ] `--show-graph` flag for symbol-level analysis
-- [ ] ASCII tree formatting
-- [ ] JSON format with nested structure
+- [ ] `--show-impact <symbol-id>` flag for impact analysis
+- [ ] ASCII tree formatting with depth indicators
+- [ ] Impact summary (direct callers, total affected)
+- [ ] JSON format with nested caller structure
 
 ### Phase 4: Advanced Visualization
-- [ ] Full TreeView panel in VS Code (if QuickPick is insufficient)
-- [ ] DOT/Mermaid export formats
-- [ ] Risk-based filtering (show only high-F paths)
-- [ ] Interactive navigation (click to explore)
+- [ ] Full TreeView panel in VS Code for better navigation
+- [ ] DOT/Mermaid export formats (caller trees only)
+- [ ] Risk-based filtering (show only high-F caller paths)
+- [ ] Impact metrics: "Changing this affects N symbols with combined F = X"
 
 ---
 
 ## Consequences
 
 ### Positive
-- **Better decision-making**: Developers can see impact radius before making changes
+- **Better decision-making**: Developers can see exactly which code will be affected by changes
+- **Impact quantification**: "Changing this affects N functions with combined risk F = X"
 - **Faster root-cause analysis**: Trace high-risk symbols to their dependents
-- **Validation of refactoring**: Verify that decoupling reduces R and F
-- **Documentation**: Export graphs for architecture discussions
-- **Alignment with DDP principles**: Makes "R = importance via dependency" tangible
+- **Validation of refactoring**: Verify that decoupling reduces R and impact radius
+- **Documentation**: Export caller trees for architecture discussions
+- **Alignment with DDP principles**: Makes "R = importance via dependency" tangible and actionable
 
 ### Negative
 - **Memory overhead**: Storing edges increases `AnalysisResult` size (mitigated: edges are small `{caller, callee}` pairs)

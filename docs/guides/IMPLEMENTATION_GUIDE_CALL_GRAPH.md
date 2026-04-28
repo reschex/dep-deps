@@ -1,7 +1,9 @@
-# Call Graph Visualization - Implementation Guide
+# Impact Tree Visualization - Implementation Guide
 
 **ADR**: [ADR-003: Call Graph Visualization](../architecture/ADR-003-call-graph-visualization.md)  
-**Purpose**: Step-by-step guide for implementing call graph visualization for impact analysis
+**Purpose**: Step-by-step guide for implementing caller tree visualization for impact analysis
+
+**Key Principle**: When changing a function, you need to know **who calls it** (impact radius), not what it calls. This guide focuses exclusively on **caller trees** (inbound dependencies).
 
 ---
 
@@ -15,7 +17,7 @@ This guide follows the TDD approach and hexagonal architecture principles establ
 
 **Goal**: Build graph traversal and tree construction logic with no infrastructure dependencies.
 
-### 1.1 Create Edge Index Data Structure
+### 1.1 Create Edge Index Data Structure (Callers Only)
 
 **Test first** (`src/core/graphTraversal.test.ts`):
 
@@ -28,7 +30,6 @@ describe("indexEdges", () => {
   it("builds empty index for empty edges", () => {
     const index = indexEdges([]);
     expect(index.callersByCallee.size).toBe(0);
-    expect(index.calleesByCaller.size).toBe(0);
   });
 
   it("indexes single edge correctly", () => {
@@ -37,21 +38,7 @@ describe("indexEdges", () => {
     ];
     const index = indexEdges(edges);
     
-    expect(index.calleesByCaller.get("A")).toEqual(["B"]);
     expect(index.callersByCallee.get("B")).toEqual(["A"]);
-  });
-
-  it("groups multiple callees per caller", () => {
-    const edges: CallEdge[] = [
-      { caller: "A", callee: "B" },
-      { caller: "A", callee: "C" },
-    ];
-    const index = indexEdges(edges);
-    
-    const callees = index.calleesByCaller.get("A") ?? [];
-    expect(callees).toHaveLength(2);
-    expect(callees).toContain("B");
-    expect(callees).toContain("C");
   });
 
   it("groups multiple callers per callee", () => {
@@ -76,36 +63,26 @@ import type { CallEdge } from "./rank";
 
 export type EdgeIndex = {
   readonly callersByCallee: ReadonlyMap<string, readonly string[]>;
-  readonly calleesByCaller: ReadonlyMap<string, readonly string[]>;
 };
 
 export function indexEdges(edges: ReadonlyArray<CallEdge>): EdgeIndex {
   const callersByCallee = new Map<string, string[]>();
-  const calleesByCaller = new Map<string, string[]>();
 
   for (const edge of edges) {
-    // Index callers by callee (inbound edges)
+    // Index callers by callee (inbound edges for impact analysis)
     let callers = callersByCallee.get(edge.callee);
     if (!callers) {
       callers = [];
       callersByCallee.set(edge.callee, callers);
     }
     callers.push(edge.caller);
-
-    // Index callees by caller (outbound edges)
-    let callees = calleesByCaller.get(edge.caller);
-    if (!callees) {
-      callees = [];
-      calleesByCaller.set(edge.caller, callees);
-    }
-    callees.push(edge.callee);
   }
 
-  return { callersByCallee, calleesByCaller };
+  return { callersByCallee };
 }
 ```
 
-### 1.2 Build Caller Tree (Inbound Dependencies)
+### 1.2 Build Caller Tree (Impact Analysis)
 
 **Test first**:
 
@@ -117,7 +94,7 @@ describe("buildCallerTree", () => {
     const tree = buildCallerTree("A", index, 3);
     
     expect(tree.symbolId).toBe("A");
-    expect(tree.children).toHaveLength(0);
+    expect(tree.callers).toHaveLength(0);
     expect(tree.depth).toBe(0);
     expect(tree.isRecursive).toBe(false);
   });
@@ -130,12 +107,12 @@ describe("buildCallerTree", () => {
     const index = indexEdges(edges);
     const tree = buildCallerTree("A", index, 3);
     
-    expect(tree.children).toHaveLength(2);
-    expect(tree.children.map(c => c.symbolId).sort()).toEqual(["B", "C"]);
-    expect(tree.children[0].depth).toBe(1);
+    expect(tree.callers).toHaveLength(2);
+    expect(tree.callers.map(c => c.symbolId).sort()).toEqual(["B", "C"]);
+    expect(tree.callers[0].depth).toBe(1);
   });
 
-  it("builds tree with multiple levels", () => {
+  it("builds tree with multiple levels (transitive dependencies)", () => {
     const edges: CallEdge[] = [
       { caller: "C", callee: "B" },
       { caller: "B", callee: "A" },
@@ -144,11 +121,11 @@ describe("buildCallerTree", () => {
     const tree = buildCallerTree("A", index, 3);
     
     expect(tree.symbolId).toBe("A");
-    expect(tree.children).toHaveLength(1);
-    expect(tree.children[0].symbolId).toBe("B");
-    expect(tree.children[0].children).toHaveLength(1);
-    expect(tree.children[0].children[0].symbolId).toBe("C");
-    expect(tree.children[0].children[0].depth).toBe(2);
+    expect(tree.callers).toHaveLength(1);
+    expect(tree.callers[0].symbolId).toBe("B");
+    expect(tree.callers[0].callers).toHaveLength(1);
+    expect(tree.callers[0].callers[0].symbolId).toBe("C");
+    expect(tree.callers[0].callers[0].depth).toBe(2);
   });
 
   it("respects maxDepth limit", () => {
@@ -161,9 +138,9 @@ describe("buildCallerTree", () => {
     const tree = buildCallerTree("A", index, 2);
     
     // Should only go up to B (depth 1) and C (depth 2)
-    expect(tree.children[0].symbolId).toBe("B");
-    expect(tree.children[0].children[0].symbolId).toBe("C");
-    expect(tree.children[0].children[0].children).toHaveLength(0); // D excluded
+    expect(tree.callers[0].symbolId).toBe("B");
+    expect(tree.callers[0].callers[0].symbolId).toBe("C");
+    expect(tree.callers[0].callers[0].callers).toHaveLength(0); // D excluded
   });
 
   it("detects recursive calls (cycles)", () => {
@@ -174,11 +151,11 @@ describe("buildCallerTree", () => {
     const index = indexEdges(edges);
     const tree = buildCallerTree("A", index, 5);
     
-    expect(tree.children[0].symbolId).toBe("B");
-    expect(tree.children[0].children).toHaveLength(1);
-    expect(tree.children[0].children[0].symbolId).toBe("A");
-    expect(tree.children[0].children[0].isRecursive).toBe(true);
-    expect(tree.children[0].children[0].children).toHaveLength(0); // stop expansion
+    expect(tree.callers[0].symbolId).toBe("B");
+    expect(tree.callers[0].callers).toHaveLength(1);
+    expect(tree.callers[0].callers[0].symbolId).toBe("A");
+    expect(tree.callers[0].callers[0].isRecursive).toBe(true);
+    expect(tree.callers[0].callers[0].callers).toHaveLength(0); // stop expansion
   });
 });
 ```
@@ -186,9 +163,9 @@ describe("buildCallerTree", () => {
 **Implementation**:
 
 ```typescript
-export type DependencyTree = {
+export type CallerTree = {
   readonly symbolId: string;
-  readonly children: ReadonlyArray<DependencyTree>;
+  readonly callers: ReadonlyArray<CallerTree>;  // who calls this symbol
   readonly depth: number;
   readonly isRecursive: boolean;
 };
@@ -197,51 +174,22 @@ export function buildCallerTree(
   symbolId: string,
   index: EdgeIndex,
   maxDepth: number
-): DependencyTree {
-  const visited = new Set<string>();
-  
-  function build(id: string, depth: number, ancestors: Set<string>): DependencyTree {
+): CallerTree {
+  function build(id: string, depth: number, ancestors: Set<string>): CallerTree {
     const isRecursive = ancestors.has(id);
     
     if (isRecursive || depth >= maxDepth) {
-      return { symbolId: id, children: [], depth, isRecursive };
+      return { symbolId: id, callers: [], depth, isRecursive };
     }
     
-    const callers = index.callersByCallee.get(id) ?? [];
+    const callerIds = index.callersByCallee.get(id) ?? [];
     const newAncestors = new Set(ancestors).add(id);
     
-    const children = callers.map(callerId => 
+    const callers = callerIds.map(callerId => 
       build(callerId, depth + 1, newAncestors)
     );
     
-    return { symbolId: id, children, depth, isRecursive: false };
-  }
-  
-  return build(symbolId, 0, new Set());
-}
-
-export function buildCalleeTree(
-  symbolId: string,
-  index: EdgeIndex,
-  maxDepth: number
-): DependencyTree {
-  const visited = new Set<string>();
-  
-  function build(id: string, depth: number, ancestors: Set<string>): DependencyTree {
-    const isRecursive = ancestors.has(id);
-    
-    if (isRecursive || depth >= maxDepth) {
-      return { symbolId: id, children: [], depth, isRecursive };
-    }
-    
-    const callees = index.calleesByCaller.get(id) ?? [];
-    const newAncestors = new Set(ancestors).add(id);
-    
-    const children = callees.map(calleeId => 
-      build(calleeId, depth + 1, newAncestors)
-    );
-    
-    return { symbolId: id, children, depth, isRecursive: false };
+    return { symbolId: id, callers, depth, isRecursive: false };
   }
   
   return build(symbolId, 0, new Set());
@@ -283,29 +231,29 @@ return {
 
 ## Phase 2: VS Code UI (Lightweight MVP)
 
-**Goal**: Add a QuickPick command to show callers/callees for any symbol.
+**Goal**: Add a QuickPick command to show caller hierarchy for any symbol.
 
-### 2.1 Create Command: `ddp.showCallGraph`
+### 2.1 Create Command: `ddp.showImpactTree`
 
-**Test first** (`src/adapter/vscode/showCallGraphCommand.test.ts`):
+**Test first** (`src/adapter/vscode/showImpactTreeCommand.test.ts`):
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as vscode from "vscode";
-import { ShowCallGraphCommand } from "./showCallGraphCommand";
+import { ShowImpactTreeCommand } from "./showImpactTreeCommand";
 import type { ExtensionState } from "./extensionState";
 import type { AnalysisResult } from "./analysisOrchestrator";
 import type { SymbolMetrics } from "../../core/analyze";
 
 vi.mock("vscode");
 
-describe("ShowCallGraphCommand", () => {
+describe("ShowImpactTreeCommand", () => {
   let state: ExtensionState;
-  let command: ShowCallGraphCommand;
+  let command: ShowImpactTreeCommand;
   
   beforeEach(() => {
     state = new ExtensionState();
-    command = new ShowCallGraphCommand(state);
+    command = new ShowImpactTreeCommand(state);
   });
   
   it("shows error when no analysis exists", async () => {
@@ -331,16 +279,16 @@ describe("ShowCallGraphCommand", () => {
     );
   });
   
-  it("shows QuickPick with callers and callees", async () => {
+  it("shows QuickPick with multi-level caller hierarchy", async () => {
     state.setAnalysis({
       symbols: [
-        { id: "A", name: "funcA", /* ... */ },
-        { id: "B", name: "funcB", /* ... */ },
-        { id: "C", name: "funcC", /* ... */ },
+        { id: "A", name: "funcA", f: 100, /* ... */ },
+        { id: "B", name: "funcB", f: 80, /* ... */ },
+        { id: "C", name: "funcC", f: 50, /* ... */ },
       ],
       edges: [
         { caller: "B", callee: "A" },
-        { caller: "A", callee: "C" },
+        { caller: "C", callee: "B" },
       ],
       fileRollup: new Map(),
       edgesCount: 2,
@@ -351,33 +299,43 @@ describe("ShowCallGraphCommand", () => {
     expect(vscode.window.showQuickPick).toHaveBeenCalled();
     const items = vi.mocked(vscode.window.showQuickPick).mock.calls[0][0];
     
-    // Should show section headers and symbols
+    // Should show impact summary and hierarchical callers
     expect(items).toContainEqual(expect.objectContaining({
-      label: "$(call-incoming) Callers (who calls funcA)",
-      kind: vscode.QuickPickItemKind.Separator,
+      label: expect.stringContaining("Impact:"),
     }));
     expect(items).toContainEqual(expect.objectContaining({
       label: "funcB",
+      description: expect.stringContaining("F=80"),
     }));
+    // funcC should appear nested under funcB (depth 2)
+  });
+  
+  it("shows message for entry point (no callers)", async () => {
+    state.setAnalysis({
+      symbols: [{ id: "main", name: "main", /* ... */ }],
+      edges: [],
+      fileRollup: new Map(),
+      edgesCount: 0,
+    });
+    
+    await command.execute("main");
+    
+    const items = vi.mocked(vscode.window.showQuickPick).mock.calls[0][0];
     expect(items).toContainEqual(expect.objectContaining({
-      label: "$(call-outgoing) Callees (what funcA calls)",
-      kind: vscode.QuickPickItemKind.Separator,
-    }));
-    expect(items).toContainEqual(expect.objectContaining({
-      label: "funcC",
+      label: expect.stringContaining("No callers (entry point)"),
     }));
   });
 });
 ```
 
-**Implementation** (`src/adapter/vscode/showCallGraphCommand.ts`):
+**Implementation** (`src/adapter/vscode/showImpactTreeCommand.ts`):
 
 ```typescript
 import * as vscode from "vscode";
 import type { ExtensionState } from "./extensionState";
-import { indexEdges, buildCallerTree, buildCalleeTree } from "../../core/graphTraversal";
+import { indexEdges, buildCallerTree } from "../../core/graphTraversal";
 
-export class ShowCallGraphCommand {
+export class ShowImpactTreeCommand {
   constructor(private readonly state: ExtensionState) {}
 
   async execute(symbolId: string): Promise<void> {
@@ -394,65 +352,71 @@ export class ShowCallGraphCommand {
     }
 
     const index = indexEdges(analysis.edges);
-    const callerTree = buildCallerTree(symbolId, index, 1); // depth 1 for QuickPick
-    const calleeTree = buildCalleeTree(symbolId, index, 1);
+    const maxDepth = vscode.workspace.getConfiguration("ddp").get<number>("impactTree.maxDepth", 3);
+    const callerTree = buildCallerTree(symbolId, index, maxDepth);
 
     const items: vscode.QuickPickItem[] = [];
 
-    // Callers section
+    // Impact summary
+    const directCallers = callerTree.callers.length;
+    const totalAffected = countAllNodes(callerTree) - 1; // exclude root
+    
     items.push({
-      label: `$(call-incoming) Callers (who calls ${symbol.name})`,
+      label: directCallers === 0 
+        ? "Impact: No callers (entry point)" 
+        : `Impact: ${directCallers} direct caller(s), ${totalAffected} total affected`,
       kind: vscode.QuickPickItemKind.Separator,
     });
 
-    for (const caller of callerTree.children) {
-      const callerSymbol = this.state.symbolById.get(caller.symbolId);
+    if (callerTree.callers.length === 0) {
       items.push({
-        label: callerSymbol?.name ?? caller.symbolId,
-        description: callerSymbol ? `F=${callerSymbol.f.toFixed(1)}` : undefined,
-        detail: caller.symbolId,
+        label: "  No code depends on this symbol",
+        description: "Safe to change (no impact)",
       });
-    }
-
-    if (callerTree.children.length === 0) {
-      items.push({
-        label: "  (none)",
-        description: "No callers found",
-      });
-    }
-
-    // Callees section
-    items.push({
-      label: `$(call-outgoing) Callees (what ${symbol.name} calls)`,
-      kind: vscode.QuickPickItemKind.Separator,
-    });
-
-    for (const callee of calleeTree.children) {
-      const calleeSymbol = this.state.symbolById.get(callee.symbolId);
-      items.push({
-        label: calleeSymbol?.name ?? callee.symbolId,
-        description: calleeSymbol ? `F=${calleeSymbol.f.toFixed(1)}` : undefined,
-        detail: callee.symbolId,
-      });
-    }
-
-    if (calleeTree.children.length === 0) {
-      items.push({
-        label: "  (none)",
-        description: "No callees found",
-      });
+    } else {
+      // Build flattened list with depth indicators
+      this.addCallersToList(callerTree.callers, items, 0);
     }
 
     const selected = await vscode.window.showQuickPick(items, {
-      title: `Call Graph: ${symbol.name}`,
-      placeHolder: "Select a symbol to navigate",
+      title: `Impact Tree: ${symbol.name} (F=${symbol.f.toFixed(1)})`,
+      placeHolder: "Select a caller to navigate",
     });
 
     if (selected?.detail) {
-      // Navigate to selected symbol (trigger ddp.revealSymbol)
+      // Navigate to selected symbol
       await vscode.commands.executeCommand("ddp.revealSymbol", selected.detail);
     }
   }
+
+  private addCallersToList(callers: readonly CallerTree[], items: vscode.QuickPickItem[], depth: number): void {
+    const indent = "  ".repeat(depth);
+    for (const caller of callers) {
+      const callerSymbol = this.state.symbolById.get(caller.symbolId);
+      const icon = caller.isRecursive ? "🔄 " : "";
+      items.push({
+        label: `${indent}${icon}${callerSymbol?.name ?? caller.symbolId}`,
+        description: callerSymbol 
+          ? `F=${callerSymbol.f.toFixed(1)} (depth ${caller.depth})`
+          : `depth ${caller.depth}`,
+        detail: caller.symbolId,
+      });
+      
+      if (!caller.isRecursive && caller.callers.length > 0) {
+        this.addCallersToList(caller.callers, items, depth + 1);
+      }
+    }
+  }
+}
+
+function countAllNodes(tree: CallerTree): number {
+  let count = 1;
+  for (const caller of tree.callers) {
+    if (!caller.isRecursive) {
+      count += countAllNodes(caller);
+    }
+  }
+  return count;
 }
 ```
 
@@ -461,16 +425,16 @@ export class ShowCallGraphCommand {
 **Update** (`src/adapter/vscode/register.ts`):
 
 ```typescript
-import { ShowCallGraphCommand } from "./showCallGraphCommand";
+import { ShowImpactTreeCommand } from "./showImpactTreeCommand";
 
 export function registerDdp(context: vscode.ExtensionContext): void {
   // ... existing code ...
   
-  const showCallGraph = new ShowCallGraphCommand(state);
+  const showImpactTree = new ShowImpactTreeCommand(state);
   
   context.subscriptions.push(
-    vscode.commands.registerCommand("ddp.showCallGraph", (symbolId: string) => 
-      showCallGraph.execute(symbolId)
+    vscode.commands.registerCommand("ddp.showImpactTree", (symbolId: string) => 
+      showImpactTree.execute(symbolId)
     )
   );
 }
@@ -486,7 +450,7 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     "menus": {
       "view/item/context": [
         {
-          "command": "ddp.showCallGraph",
+          "command": "ddp.showImpactTree",
           "when": "view == ddp.riskView && viewItem == ddpSymbol",
           "group": "navigation"
         }
@@ -494,12 +458,15 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     },
     "commands": [
       {
-        "command": "ddp.showCallGraph",
-        "title": "Show Call Graph",
+        "command": "ddp.showImpactTree",
+        "title": "Show Impact Tree",
         "category": "DDP",
         "icon": "$(graph)"
       }
     ]
+  }
+}
+```
   }
 }
 ```
@@ -519,23 +486,23 @@ if (element.type === "symbol") {
 
 ## Phase 3: CLI Output
 
-**Goal**: Add `--show-graph <symbol-id>` flag to CLI for text-based visualization.
+**Goal**: Add `--show-impact <symbol-id>` flag to CLI for text-based impact visualization.
 
-### 3.1 Create Graph Formatter
+###3.1 Create Impact Tree Formatter
 
-**Test first** (`src/core/formatCallGraph.test.ts`):
+**Test first** (`src/core/formatImpactTree.test.ts`):
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { formatCallGraph, type CallGraphFormatOptions } from "./formatCallGraph";
-import type { DependencyTree } from "./graphTraversal";
+import { formatImpactTree, formatImpactSummary } from "./formatImpactTree";
+import type { CallerTree } from "./graphTraversal";
 import type { SymbolMetrics } from "./analyze";
 
-describe("formatCallGraph", () => {
-  it("formats empty caller tree", () => {
-    const tree: DependencyTree = {
+describe("formatImpactTree", () => {
+  it("formats empty caller tree (entry point)", () => {
+    const tree: CallerTree = {
       symbolId: "A",
-      children: [],
+      callers: [],
       depth: 0,
       isRecursive: false,
     };
@@ -543,16 +510,16 @@ describe("formatCallGraph", () => {
       ["A", { id: "A", name: "funcA", f: 10, /* ... */ }],
     ]);
     
-    const output = formatCallGraph(tree, symbols, { direction: "callers" });
-    expect(output).toContain("CALLERS (who calls this):");
-    expect(output).toContain("(none)");
+    const output = formatImpactTree(tree, symbols);
+    expect(output).toContain("IMPACT TREE (who calls this):");
+    expect(output).toContain("(none - entry point)");
   });
 
   it("formats single-level caller tree", () => {
-    const tree: DependencyTree = {
+    const tree: CallerTree = {
       symbolId: "A",
-      children: [
-        { symbolId: "B", children: [], depth: 1, isRecursive: false },
+      callers: [
+        { symbolId: "B", callers: [], depth: 1, isRecursive: false },
       ],
       depth: 0,
       isRecursive: false,
@@ -562,25 +529,94 @@ describe("formatCallGraph", () => {
       ["B", { id: "B", name: "funcB", uri: "file:///b.ts", f: 20, /* ... */ }],
     ]);
     
-    const output = formatCallGraph(tree, symbols, { direction: "callers" });
+    const output = formatImpactTree(tree, symbols);
     expect(output).toContain("└─ funcB");
-    expect(output).toContain("F=20");
+    expect(output).toContain("[F=20.0]");
+    expect(output).toContain("(depth 1)");
   });
 
   it("formats multi-level tree with proper indentation", () => {
-    const tree: DependencyTree = {
+    const tree: CallerTree = {
       symbolId: "A",
-      children: [
+      callers: [
         {
           symbolId: "B",
-          children: [
-            { symbolId: "C", children: [], depth: 2, isRecursive: false },
+          callers: [
+            { symbolId: "C", callers: [], depth: 2, isRecursive: false },
           ],
           depth: 1,
           isRecursive: false,
         },
       ],
       depth: 0,
+      isRecursive: false,
+    };
+    const symbols = new Map([
+      ["A", { id: "A", name: "funcA", uri: "file:///a.ts", f: 10, /* ... */ }],
+      ["B", { id: "B", name: "funcB", uri: "file:///b.ts", f: 20, /* ... */ }],
+      ["C", { id: "C", name: "funcC", uri: "file:///c.ts", f: 30, /* ... */ }],
+    ]);
+    
+    const output = formatImpactTree(tree, symbols);
+    expect(output).toMatch(/└─ funcB.*\n   └─ funcC/);
+  });
+
+  it("marks recursive calls", () => {
+    const tree: CallerTree = {
+      symbolId: "A",
+      callers: [
+        {
+          symbolId: "B",
+          callers: [
+            { symbolId: "A", callers: [], depth: 2, isRecursive: true },
+          ],
+          depth: 1,
+          isRecursive: false,
+        },
+      ],
+      depth: 0,
+      isRecursive: false,
+    };
+    const symbols = new Map([
+      ["A", { id: "A", name: "funcA", uri: "file:///a.ts", f: 10, /* ... */ }],
+      ["B", { id: "B", name: "funcB", uri: "file:///b.ts", f: 20, /* ... */ }],
+    ]);
+    
+    const output = formatImpactTree(tree, symbols);
+    expect(output).toContain("funcA");
+    expect(output).toContain("🔄 RECURSIVE");
+  });
+});
+
+describe("formatImpactSummary", () => {
+  it("calculates impact metrics correctly", () => {
+    const tree: CallerTree = {
+      symbolId: "A",
+      callers: [
+        {
+          symbolId: "B",
+          callers: [
+            { symbolId: "C", callers: [], depth: 2, isRecursive: false },
+          ],
+          depth: 1,
+          isRecursive: false,
+        },
+      ],
+      depth: 0,
+      isRecursive: false,
+    };
+    const symbols = new Map([
+      ["B", { id: "B", name: "funcB", f: 150, /* ... */ }],
+      ["C", { id: "C", name: "funcC", f: 80, /* ... */ }],
+    ]);
+    
+    const summary = formatImpactSummary(tree, symbols);
+    expect(summary).toContain("Direct callers: 1");
+    expect(summary).toContain("Total affected symbols: 2");
+    expect(summary).toContain("Highest risk caller: funcB (F=150");
+  });
+});
+```
       isRecursive: false,
     };
     const symbols = new Map([
@@ -621,47 +657,84 @@ describe("formatCallGraph", () => {
 });
 ```
 
-**Implementation** (`src/core/formatCallGraph.ts`):
+**Implementation** (`src/core/formatImpactTree.ts`):
 
 ```typescript
-import type { DependencyTree } from "./graphTraversal";
+import type { CallerTree } from "./graphTraversal";
 import type { SymbolMetrics } from "./analyze";
 
-export type CallGraphFormatOptions = {
-  readonly direction: "callers" | "callees";
-  readonly showRisk?: boolean;
-};
-
-export function formatCallGraph(
-  tree: DependencyTree,
-  symbols: ReadonlyMap<string, SymbolMetrics>,
-  options: CallGraphFormatOptions
+export function formatImpactTree(
+  tree: CallerTree,
+  symbols: ReadonlyMap<string, SymbolMetrics>
 ): string {
   const lines: string[] = [];
-  const title = options.direction === "callers" 
-    ? "CALLERS (who calls this):" 
-    : "CALLEES (what this calls):";
+  lines.push("IMPACT TREE (who calls this):");
   
-  lines.push(title);
-  
-  if (tree.children.length === 0) {
-    lines.push("(none)");
+  if (tree.callers.length === 0) {
+    lines.push("(none - entry point)");
     return lines.join("\n");
   }
   
-  function formatNode(node: DependencyTree, prefix: string, isLast: boolean): void {
+  function formatNode(node: CallerTree, prefix: string, isLast: boolean): void {
     const symbol = symbols.get(node.symbolId);
     const name = symbol?.name ?? node.symbolId;
-    const risk = symbol && options.showRisk !== false ? ` [F=${symbol.f.toFixed(1)}]` : "";
+    const risk = symbol ? ` [F=${symbol.f.toFixed(1)}]` : "";
+    const depthInfo = ` (depth ${node.depth})`;
     const recursive = node.isRecursive ? " 🔄 RECURSIVE" : "";
     
     const connector = isLast ? "└─ " : "├─ ";
-    lines.push(`${prefix}${connector}${name}${risk}${recursive}`);
+    lines.push(`${prefix}${connector}${name}${risk}${depthInfo}${recursive}`);
     
-    if (!node.isRecursive && node.children.length > 0) {
+    if (!node.isRecursive && node.callers.length > 0) {
       const childPrefix = prefix + (isLast ? "   " : "│  ");
-      node.children.forEach((child, i) => {
-        formatNode(child, childPrefix, i === node.children.length - 1);
+      node.callers.forEach((caller, i) => {
+        formatNode(caller, childPrefix, i === node.callers.length - 1);
+      });
+    }
+  }
+  
+  tree.callers.forEach((caller, i) => {
+    formatNode(caller, "", i === tree.callers.length - 1);
+  });
+  
+  return lines.join("\n");
+}
+
+export function formatImpactSummary(
+  tree: CallerTree,
+  symbols: ReadonlyMap<string, SymbolMetrics>
+): string {
+  const directCallers = tree.callers.length;
+  let totalAffected = 0;
+  let highestRisk = 0;
+  let highestRiskSymbol = "";
+  
+  function countNodes(node: CallerTree): void {
+    if (!node.isRecursive) {
+      totalAffected++;
+      const symbol = symbols.get(node.symbolId);
+      if (symbol && symbol.f > highestRisk) {
+        highestRisk = symbol.f;
+        highestRiskSymbol = symbol.name;
+      }
+      node.callers.forEach(countNodes);
+    }
+  }
+  
+  tree.callers.forEach(countNodes);
+  
+  const lines: string[] = [];
+  lines.push("");
+  lines.push("IMPACT SUMMARY:");
+  lines.push(`- Direct callers: ${directCallers}`);
+  lines.push(`- Total affected symbols: ${totalAffected}`);
+  if (highestRiskSymbol) {
+    lines.push(`- Highest risk caller: ${highestRiskSymbol} (F=${highestRisk.toFixed(1)})`);
+  }
+  
+  return lines.join("\n");
+}
+```
       });
     }
   }
@@ -700,15 +773,15 @@ Add settings to `package.json`:
 {
   "configuration": {
     "properties": {
-      "ddp.callGraph.maxDepth": {
+      "ddp.impactTree.maxDepth": {
         "type": "number",
         "default": 3,
-        "description": "Maximum depth for call graph traversal"
+        "description": "Maximum depth for impact tree traversal (caller hierarchy)"
       },
-      "ddp.callGraph.showRiskScores": {
+      "ddp.impactTree.showRiskScores": {
         "type": "boolean",
         "default": true,
-        "description": "Show risk scores (F, R) in call graph visualization"
+        "description": "Show risk scores (F, R) in impact tree visualization"
       }
     }
   }
@@ -720,17 +793,17 @@ Add settings to `package.json`:
 ## Future Enhancements
 
 - **Full Tree View Panel**: Replace QuickPick with dedicated tree view for deeper navigation
-- **Export formats**: DOT, Mermaid, JSON
-- **Risk-based filtering**: Show only paths with F > threshold
-- **Webview visualization**: Interactive graph with D3.js/Cytoscape
-- **Impact metrics**: "Changing this symbol affects N symbols (total F = X)"
-- **Reverse lookup**: "Show all paths from root to this symbol"
+- **Export formats**: DOT, Mermaid, JSON (caller trees only)
+- **Risk-based filtering**: Show only paths where callers have F > threshold
+- **Impact quantification**: "Changing this symbol affects N symbols with combined F = X"
+- **Reverse lookup**: "Show all paths from entry points to this symbol"
+- **Safe-to-change indicator**: Highlight symbols with no callers or only low-F callers
 
 ---
 
 ## Related Files
 
 - ADR: [ADR-003-call-graph-visualization.md](../architecture/ADR-003-call-graph-visualization.md)
-- Core: `src/core/graphTraversal.ts`, `src/core/formatCallGraph.ts`
-- VS Code: `src/adapter/vscode/showCallGraphCommand.ts`
-- Tests: `src/core/graphTraversal.test.ts`, `src/adapter/vscode/showCallGraphCommand.test.ts`
+- Core: `src/core/graphTraversal.ts`, `src/core/formatImpactTree.ts`
+- VS Code: `src/adapter/vscode/showImpactTreeCommand.ts`
+- Tests: `src/core/graphTraversal.test.ts`, `src/adapter/vscode/showImpactTreeCommand.test.ts`
