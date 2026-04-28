@@ -6,7 +6,6 @@ const config = {
 
   // Patterns to ignore (files NOT to include in sandbox)
   ignorePatterns: [
-    'src/test/**',
     'src/**/*.d.ts',
     'node_modules/**',
     'coverage/**',
@@ -30,6 +29,7 @@ const config = {
   mutate: [
     'src/**/*.ts',
     '!src/**/*.test.ts',
+    '!src/test/**',
     '!src/core/testFixtures.ts',
     '!src/shared/fakeProc.ts',
     '!src/extension.ts', // extension files are not tested directly
