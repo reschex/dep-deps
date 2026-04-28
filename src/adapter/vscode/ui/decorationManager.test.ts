@@ -41,7 +41,7 @@ function fakeState(fileRollup?: Map<string, number>) {
     return { lastAnalysis: undefined } as any;
   }
   return {
-    lastAnalysis: { fileRollup, symbols: [], edgesCount: 0 },
+    lastAnalysis: { fileRollup, symbols: [], edges: [], edgesCount: 0 },
   } as any;
 }
 
@@ -461,7 +461,7 @@ describe("DecorationManager", () => {
       it("handles state going from analysis to undefined between calls", () => {
         const rollup = new Map([["file:///a.ts", 200]]);
         const mutableState = {
-          lastAnalysis: { fileRollup: rollup, symbols: [], edgesCount: 0 } as any,
+          lastAnalysis: { fileRollup: rollup, symbols: [], edges: [], edgesCount: 0 } as any,
         };
         const mgr = new DecorationManager(mutableState as any, () => defaultDecoConfig);
         const editor = fakeEditor("file:///a.ts");
@@ -483,7 +483,7 @@ describe("DecorationManager", () => {
         const rollup1 = new Map([["file:///a.ts", 200]]);
         const rollup2 = new Map([["file:///a.ts", 10]]);
         const mutableState = {
-          lastAnalysis: { fileRollup: rollup1, symbols: [], edgesCount: 0 } as any,
+          lastAnalysis: { fileRollup: rollup1, symbols: [], edges: [], edgesCount: 0 } as any,
         };
         const mgr = new DecorationManager(mutableState as any, () => defaultDecoConfig);
         const editor = fakeEditor("file:///a.ts");
@@ -494,7 +494,7 @@ describe("DecorationManager", () => {
         mgr.applyActiveEditor(editor);
 
         // Update analysis in place
-        mutableState.lastAnalysis = { fileRollup: rollup2, symbols: [], edgesCount: 0 };
+        mutableState.lastAnalysis = { fileRollup: rollup2, symbols: [], edges: [], edgesCount: 0 };
         mgr.applyActiveEditor(editor);
 
         expect(decorationTier).toHaveBeenNthCalledWith(1, 200, 50, 150);

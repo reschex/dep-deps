@@ -26,7 +26,7 @@ const { AnalyzeCommand } = await import("./analyzeCommand");
 
 // ── helpers ────────────────────────────────────────────────────────────
 function fakeResult(): AnalysisResult {
-  return { symbols: [], fileRollup: new Map(), edgesCount: 0 };
+  return { symbols: [], fileRollup: new Map(), edges: [], edgesCount: 0 };
 }
 
 function fakeUi(): UiRefreshable {

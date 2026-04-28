@@ -10,7 +10,7 @@ import { computeSymbolMetrics, type SymbolInput, type SymbolMetrics } from "../.
 import { applyChurn } from "../../core/churn";
 import { coverageFractionForSymbol } from "../../core/coverageMap";
 import { rollupFileRisk, type SymbolRiskRow } from "../../core/rollup";
-import type { RankOptions } from "../../core/rank";
+import type { RankOptions, CallEdge } from "../../core/rank";
 import type {
   DocumentProvider,
   SymbolProvider,
@@ -34,6 +34,7 @@ const nullChurnProvider: ChurnProvider = {
 export type AnalysisResult = {
   readonly symbols: SymbolMetrics[];
   readonly fileRollup: Map<string, number>;
+  readonly edges: ReadonlyArray<CallEdge>;
   readonly edgesCount: number;
 };
 
@@ -88,7 +89,7 @@ export class AnalysisOrchestrator {
     const fileRollup = rollupFileRisk(rows, config.fileRollup);
 
     logger.info(`Analysis complete: ${symbols.length} symbols, ${edges.length} edges`);
-    return { symbols, fileRollup, edgesCount: edges.length };
+    return { symbols, fileRollup, edges, edgesCount: edges.length };
   }
 
   private async applyChurnIfEnabled(

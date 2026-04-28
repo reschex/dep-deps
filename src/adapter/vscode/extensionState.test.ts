@@ -6,7 +6,7 @@ import { ExtensionState } from "./extensionState";
 import { sym } from "../../core/testFixtures";
 
 function analysis(symbols: SymbolMetrics[]): AnalysisResult {
-  return { symbols, fileRollup: new Map(), edgesCount: 0 };
+  return { symbols, fileRollup: new Map(), edges: [], edgesCount: 0 };
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────

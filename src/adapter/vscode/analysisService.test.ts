@@ -108,6 +108,7 @@ describe("AnalysisService", () => {
       symbols: [],
       fileRollup: new Map(),
       edgesCount: 0,
+      edges: [],
     });
     vi.mocked(AnalysisOrchestrator).mockImplementation(
       function () { return { analyze: mockOrchestratorAnalyze }; } as any,
@@ -600,7 +601,7 @@ describe("AnalysisService", () => {
 
         // Re-apply analyze mocks
         mockOrchestratorAnalyze = vi.fn().mockResolvedValue({
-          symbols: [], fileRollup: new Map(), edgesCount: 0,
+          symbols: [], fileRollup: new Map(), edges: [], edgesCount: 0,
         });
         vi.mocked(AnalysisOrchestrator).mockImplementation(
           function () { return { analyze: mockOrchestratorAnalyze }; } as any,

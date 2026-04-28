@@ -131,6 +131,8 @@ describe("AnalysisOrchestrator", () => {
     expect(result.edgesCount).toBe(1);
     expect(result.fileRollup.has(uri)).toBe(true);
 
+    expect(result.edges).toEqual(edges);
+
     const foo = result.symbols.find((s) => s.name === "foo");
     const bar = result.symbols.find((s) => s.name === "bar");
     assert(foo !== undefined, "expected foo");
