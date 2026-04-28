@@ -280,4 +280,17 @@ npm run mutation              # Full mutation test run
 npm run mutation:incremental  # Faster incremental testing
 ```
 
-This analyzes how well tests detect bugs by introducing mutations to source code. See [MUTATION_TESTING.md](MUTATION_TESTING.md) for detailed guidance on interpreting results and improving test effectiveness.
+This analyzes how well tests detect bugs by introducing mutations to source code. See [docs/testing/MUTATION_TESTING.md](docs/testing/MUTATION_TESTING.md) for detailed guidance on interpreting results and improving test effectiveness.
+
+---
+
+## Documentation
+
+- **[claude.md](./claude.md)** — AI context file with high-level intent and architecture overview
+- **[docs/](./docs/)** — Complete documentation organized by purpose:
+  - **[architecture/](./docs/architecture/)** — Architecture decisions and system design
+  - **[guides/](./docs/guides/)** — Implementation guides for CLI and GitHub Actions
+  - **[development/](./docs/development/)** — Development process, TODOs, and BDD scenarios
+  - **[testing/](./docs/testing/)** — Testing strategies (mutation testing, coverage analysis)
+
+See [docs/README.md](./docs/README.md) for navigation and document purpose guide.

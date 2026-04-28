@@ -1,0 +1,3 @@
+- there must be a neat way of visualising the dependencies into a tree graph to show where a method is depended upon
+- test against python code 
+- test against Java code

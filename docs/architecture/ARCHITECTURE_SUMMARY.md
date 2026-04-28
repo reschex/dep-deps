@@ -1,10 +1,12 @@
-# GitHub Actions DDP Analysis - Architecture Summary
+# GitHub Actions DDP Analysis - Implementation Roadmap
 
 ## Executive Summary
 
-This document provides a complete architectural design for enabling DDP (Dependable Dependencies) risk analysis in GitHub Actions CI/CD pipelines with sortable summary tables.
+This document provides the implementation roadmap for enabling DDP (Dependable Dependencies) risk analysis in GitHub Actions CI/CD pipelines.
 
-**Status:** Design Complete, Ready for Implementation  
+> **Architecture Decision**: See [ADR-001](./ADR-001-cli-analysis-architecture.md) for the architecture rationale and technical decisions.
+
+**Status:** Implementation In Progress  
 **Complexity:** Medium (estimated 2-3 weeks for MVP)  
 **Risk Level:** Low (reuses existing tested domain logic)
 
@@ -40,53 +42,16 @@ This document provides a complete architectural design for enabling DDP (Dependa
 
 ---
 
-## Architecture Overview
+## Architecture
 
-### Component Stack
+See [ADR-001-cli-analysis-architecture.md](./ADR-001-cli-analysis-architecture.md) for complete architecture details, including:
+- Component stack diagram
+- Symbol extraction strategy
+- Call graph strategy
+- Coverage integration approach
+- Output format specifications
 
-```
-┌─────────────────────────────────────────┐
-│  GitHub Actions Workflow                │
-│  (runs on push/PR)                      │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│  CLI Runner (analyze.ts)                │
-│  - Parse args                           │
-│  - Load config                          │
-│  - Wire adapters                        │
-│  - Format output                        │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│  Node.js Adapters (implements ports)    │
-│  - NodeDocumentProvider                 │
-│  - NodeSymbolProvider (TS Compiler API) │
-│  - NodeCoverageProvider (file parsing)  │
-│  - NodeCallGraphProvider (stub for MVP) │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│  Domain Logic (REUSED, no changes)      │
-│  - AnalysisOrchestrator                 │
-│  - computeSymbolMetrics                 │
-│  - computeRanks (PageRank)              │
-│  - applyChurn                           │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│  Output Formatters                      │
-│  - JSON (machine-readable)              │
-│  - GitHub Summary (markdown + HTML)     │
-└─────────────────────────────────────────┘
-```
-
-### Key Design Principles
-
+**Key Principles:**
 1. **Separation of Concerns:** VS Code adapters ≠ Node.js adapters
 2. **Single Responsibility:** CLI only orchestrates, doesn't compute
 3. **Dependency Inversion:** Domain depends on ports, not infrastructure
@@ -152,29 +117,9 @@ This document provides a complete architectural design for enabling DDP (Dependa
 
 ---
 
-## Technical Decisions
+## Implementation Details
 
-### ✅ Approved Decisions
-
-1. **Reuse domain logic** (AnalysisOrchestrator) — no duplication
-2. **TypeScript Compiler API** for symbol extraction (TS/JS)
-3. **Direct file parsing** for coverage (LCOV, JaCoCo)
-4. **Simplified ranking for MVP** (R=1, upgrade later)
-5. **JSON as primary output** (transform to other formats)
-6. **GitHub Actions native summary** (no external services)
-
-### 🔄 Deferred Decisions
-
-1. **Full call graph implementation** — Phase 2
-2. **Multi-language support** — Phase 3
-3. **Docker-based GitHub Action** — Phase 4
-4. **PR comment automation** — Phase 4
-
-### ❌ Rejected Alternatives
-
-1. **VS Code headless mode** — too heavy, fragile
-2. **Separate CLI tool** — violates DRY, maintenance burden
-3. **External API service** — adds complexity, cost
+> **Technical Decisions**: See [ADR-001](./ADR-001-cli-analysis-architecture.md) for approved decisions, rejected alternatives, and detailed rationale.
 
 ---
 
@@ -209,9 +154,11 @@ dep-deps/
 │   └── workflows/
 │       ├── ci.yml           # Updated: add DDP step
 │       └── ddp-analysis-example.yml  # Reference example
-├── .ddprc.json              # Configuration file
-├── .ddprc.schema.json       # JSON schema for validation
-├── .ddprc.example.json      # Example configuration
+├── .ddprc.json              # Configuration file (user-created)
+├── docs/
+│   └── examples/
+│       ├── ddprc.example.json   # Example configuration
+│       └── ddprc.schema.json    # JSON schema for validation
 ├── ADR-001-cli-analysis-architecture.md
 ├── IMPLEMENTATION_GUIDE_CLI.md
 ├── ARCHITECTURE_SUMMARY.md  # This file
@@ -268,7 +215,7 @@ Options:
 
 ### Configuration File (.ddprc.json)
 
-See [.ddprc.example.json](./.ddprc.example.json) for full schema.
+See [docs/examples/ddprc.example.json](../../examples/ddprc.example.json) for full schema.
 
 ---
 
@@ -523,8 +470,8 @@ End-to-end CLI testing:
 - **[ADR-001: CLI Analysis Architecture](./ADR-001-cli-analysis-architecture.md)** — Detailed architectural decisions and trade-offs
 - **[Implementation Guide](./IMPLEMENTATION_GUIDE_CLI.md)** — Step-by-step technical implementation guide
 - **[Example Workflow](./.github/workflows/ddp-analysis-example.yml)** — GitHub Actions workflow template
-- **[Configuration Schema](./.ddprc.schema.json)** — JSON schema for .ddprc.json
-- **[Example Configuration](./.ddprc.example.json)** — Sample configuration file
+- **[Configuration Schema](../../examples/ddprc.schema.json)** — JSON schema for .ddprc.json
+- **[Example Configuration](../../examples/ddprc.example.json)** — Sample configuration file
 
 ---
 

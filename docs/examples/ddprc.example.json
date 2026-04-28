@@ -1,5 +1,5 @@
 {
-  "$schema": "./.ddprc.schema.json",
+  "$schema": "./ddprc.schema.json",
   "maxFiles": 1000,
   "excludeTests": true,
   "coverage": {

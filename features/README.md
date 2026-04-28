@@ -1,282 +1,125 @@
-# DDP CLI BDD Feature Files
+# Feature Files — Gherkin Specifications
 
-This directory contains Behavior-Driven Development (BDD) feature files that specify the expected behavior of the DDP CLI tool for GitHub Actions integration.
-
-## Overview
-
-These feature files serve multiple purposes:
-
-1. **Requirements Specification:** Human-readable documentation of what the CLI should do
-2. **Test Scenarios:** Concrete examples that can be automated as integration tests
-3. **TDD Driver:** Scenarios guide Red-Green-Refactor implementation workflow
-4. **Living Documentation:** Features stay in sync with implementation
-
-## Feature Files
-
-### Core CLI Functionality
-
-- **[cli-command-interface.feature](./cli-command-interface.feature)**
-  - Command-line argument parsing
-  - Help and version display
-  - Output file handling
-  - Verbose logging
-
-- **[file-discovery.feature](./file-discovery.feature)**
-  - Source file pattern matching
-  - Test file exclusion
-  - Directory filtering (node_modules, out, etc.)
-  - Max files limit enforcement
-
-- **[symbol-extraction.feature](./symbol-extraction.feature)**
-  - TypeScript/JavaScript function detection
-  - Method extraction from classes
-  - Arrow function handling
-  - Line range accuracy
-
-### Analysis and Metrics
-
-- **[coverage-integration.feature](./coverage-integration.feature)**
-  - LCOV file parsing
-  - JaCoCo XML parsing
-  - Coverage-to-symbol mapping
-  - Missing coverage handling
-
-- **[risk-metrics.feature](./risk-metrics.feature)**
-  - CRAP score calculation
-  - Failure risk (F = R × CRAP)
-  - File-level rollup strategies
-  - Edge cases (zero/full coverage)
-
-### Output Formatting
-
-- **[json-output.feature](./json-output.feature)**
-  - JSON schema validation
-  - Summary statistics
-  - URI-to-path conversion
-  - Stdout vs file output
-
-- **[github-summary.feature](./github-summary.feature)**
-  - Markdown generation
-  - Sortable HTML tables
-  - Color-coded risk levels
-  - JavaScript sorting functionality
-
-### Integration and Error Handling
-
-- **[end-to-end-workflow.feature](./end-to-end-workflow.feature)**
-  - Complete analysis workflows
-  - Configuration file loading
-  - Performance requirements
-  - Signal handling (Ctrl+C)
-
-- **[error-handling.feature](./error-handling.feature)**
-  - Invalid inputs
-  - Missing files/directories
-  - Permission errors
-  - Edge cases (large files, unicode paths)
-
-## Implementation Workflow
-
-### 1. Read Feature Scenarios
-
-Before implementing a component, read the relevant feature file to understand expected behavior.
-
-Example:
-```bash
-# Before implementing NodeDocumentProvider
-cat features/file-discovery.feature
-```
-
-### 2. Write Failing Tests (RED)
-
-Translate scenarios into automated tests:
-
-```typescript
-// src/cli/adapters/nodeDocument.test.ts
-import { describe, it, expect } from 'vitest';
-import { NodeDocumentProvider } from './nodeDocument';
-
-describe('NodeDocumentProvider - file-discovery.feature', () => {
-  it('should find TypeScript and JavaScript files', async () => {
-    // Scenario: Find TypeScript and JavaScript files
-    const provider = new NodeDocumentProvider(TEST_FIXTURE_PATH);
-    const files = await provider.findSourceFiles(100);
-    
-    expect(files).toContain('src/utils.ts');
-    expect(files).toContain('src/main.ts');
-    expect(files.some(f => f.endsWith('.ts') || f.endsWith('.js'))).toBe(true);
-  });
-
-  it('should exclude test files by default', async () => {
-    // Scenario: Exclude test files by default
-    const provider = new NodeDocumentProvider(TEST_FIXTURE_PATH, true);
-    const files = await provider.findSourceFiles(100);
-    
-    expect(files).toContain('src/utils.ts');
-    expect(files).not.toContain('src/utils.test.ts');
-    expect(files).not.toContain('tests/integration.test.ts');
-  });
-});
-```
-
-### 3. Implement to Pass (GREEN)
-
-Write minimal code to make tests pass:
-
-```typescript
-// src/cli/adapters/nodeDocument.ts
-import { glob } from 'glob';
-
-export class NodeDocumentProvider implements DocumentProvider {
-  async findSourceFiles(maxFiles: number): Promise<string[]> {
-    const files = await glob('**/*.{ts,tsx,js,jsx}', {
-      ignore: ['**/node_modules/**', '**/out/**', '**/*.test.ts'],
-      absolute: true,
-    });
-    return files.slice(0, maxFiles);
-  }
-}
-```
-
-### 4. Refactor (REFACTOR)
-
-Clean up code while keeping tests green.
-
-### 5. Repeat
-
-Move to the next scenario and repeat Red-Green-Refactor.
-
-## Test Fixtures
-
-Create test fixtures to support scenario automation:
-
-```
-tests/fixtures/cli/
-  simple-project/
-    src/
-      utils.ts
-      main.ts
-    package.json
-  
-  with-coverage/
-    src/
-      app.ts
-    coverage/
-      lcov.info
-    package.json
-  
-  with-tests/
-    src/
-      logic.ts
-      logic.test.ts
-    tests/
-      integration.test.ts
-  
-  large-project/
-    # 500+ files for performance testing
-  
-  malformed/
-    src/
-      syntax-error.ts  # Invalid TypeScript
-  
-  unicode-paths/
-    src/
-      файл.ts  # Cyrillic filename
-```
-
-## Running Feature Tests
-
-### Manual Verification
-
-```bash
-# Test a specific scenario manually
-npm run compile
-npm run cli -- --help  # Should show usage info
-
-# Scenario: Display help information ✓
-```
-
-### Automated Test Suite
-
-```bash
-# Run all CLI integration tests
-npm run test:cli
-
-# Run specific feature tests
-npm run test -- file-discovery
-```
-
-### CI Integration
-
-Feature tests run automatically in GitHub Actions:
-
-```yaml
-- name: Test CLI Features
-  run: npm run test:cli
-```
-
-## Gherkin Syntax Reference
-
-### Keywords
-
-- **Feature:** High-level description of functionality
-- **Scenario:** Specific example of behavior
-- **Given:** Precondition/context
-- **When:** Action/event
-- **Then:** Expected outcome
-- **And/But:** Additional conditions or outcomes
-- **Background:** Common preconditions for all scenarios in a feature
-
-### Example
-
-```gherkin
-Feature: User Login
-  As a user
-  I want to log in securely
-  So that I can access my account
-
-  Scenario: Successful login
-    Given I am on the login page
-    And I have valid credentials
-    When I enter my username and password
-    And I click the "Login" button
-    Then I should be redirected to the dashboard
-    And I should see a welcome message
-```
-
-## Coverage Tracking
-
-Track which scenarios have automated tests:
-
-```bash
-# Generate coverage report showing scenario coverage
-npm run test:scenarios:coverage
-```
-
-Target: **100% scenario coverage** before declaring feature "done."
-
-## Contributing
-
-When adding new CLI features:
-
-1. **Write feature file first** (BDD scenarios)
-2. **Review with team** (scenarios are the spec)
-3. **Implement with TDD** (Red-Green-Refactor)
-4. **Update this README** if adding new feature files
-
-## Related Documentation
-
-- **[QUICKSTART_CLI.md](../QUICKSTART_CLI.md)** - Implementation quick start guide
-- **[IMPLEMENTATION_GUIDE_CLI.md](../IMPLEMENTATION_GUIDE_CLI.md)** - Detailed technical specs
-- **[ADR-001](../ADR-001-cli-analysis-architecture.md)** - Architectural decisions
-- **[ARCHITECTURE_SUMMARY.md](../ARCHITECTURE_SUMMARY.md)** - Overall architecture
-
-## Questions?
-
-- Check scenario comments for clarification
-- See implementation guide for technical details
-- Open discussion for ambiguous scenarios
+This directory contains **Acceptance Test-Driven Development (ATDD)** specifications written in Gherkin format. Each feature file describes expected behavior using Given/When/Then scenarios.
 
 ---
 
-**Remember:** Features drive development. Implement what's specified, then refactor. Don't add unspecified behavior without adding scenarios first!
+## Feature File Index
+
+### Core Risk Metrics
+- **[risk-metrics.feature](./risk-metrics.feature)** — CRAP score, failure risk (F), and R × CRAP calculations
+- **[rank-computation.feature](./rank-computation.feature)** — PageRank algorithm for call graph importance (R)
+- **[coverage-mapping.feature](./coverage-mapping.feature)** — Statement coverage mapping to function symbols (T)
+- **[git-churn-weighting.feature](./git-churn-weighting.feature)** — Churn multiplier (G) and churn-adjusted risk (F')
+
+### Data Integration
+- **[coverage-integration.feature](./coverage-integration.feature)** — LCOV and JaCoCo coverage file parsing
+- **[symbol-extraction.feature](./symbol-extraction.feature)** — Function/method discovery across TypeScript, JavaScript, Python, Java
+- **[file-discovery.feature](./file-discovery.feature)** — Workspace file traversal and filtering
+
+### User Interface
+- **[ui-risk-view.feature](./ui-risk-view.feature)** — Sidebar tree view, sorting, and navigation
+- **[editor-decorations.feature](./editor-decorations.feature)** — High-risk squiggle decorations in editor
+- **[editor-inline-metrics.feature](./editor-inline-metrics.feature)** — Code lens and hover tooltips
+
+### CLI & CI/CD
+- **[cli-command-interface.feature](./cli-command-interface.feature)** — Headless analysis for automation
+- **[json-output.feature](./json-output.feature)** — Machine-readable structured output
+- **[github-summary.feature](./github-summary.feature)** — GitHub Actions markdown reports
+
+### Workflows & Edge Cases
+- **[end-to-end-workflow.feature](./end-to-end-workflow.feature)** — Complete analysis pipeline from files to results
+- **[folder-scoped-analysis.feature](./folder-scoped-analysis.feature)** — Analyze specific directories, exclude dependencies
+- **[error-handling.feature](./error-handling.feature)** — Error recovery and validation
+- **[default-behavior.feature](./default-behavior.feature)** — Graceful degradation with missing data (coverage, CC tools)
+
+---
+
+## Gherkin Format
+
+All feature files follow this structure:
+
+```gherkin
+Feature: <Title>
+  As a <role>
+  I want <goal>
+  So that <benefit>
+
+  Background:
+    Given <common precondition>
+
+  Scenario: <Description>
+    Given <precondition>
+    And <additional context>
+    When <action>
+    Then <expected outcome>
+    And <additional verification>
+```
+
+**Comments** document formulas or implementation notes:
+```gherkin
+Then CRAP should be 13.744
+# CRAP = CC² × (1 - T)³ + CC
+# CRAP = 4² × (1 - 0.3)³ + 4 = 16 × 0.343 + 4 = 13.744
+```
+
+---
+
+## Usage
+
+### For QA Engineers
+1. **Define behavior** — Write new scenarios in feature files before implementation
+2. **Review coverage** — Ensure all edge cases have scenarios
+3. **Update specs** — Keep scenarios synchronized with product changes
+
+### For Software Engineers
+1. **Implement step definitions** — Map Given/When/Then to test code
+2. **TDD workflow** — RED (write failing scenario) → GREEN (implement) → REFACTOR
+3. **Verify behavior** — Run automated tests against scenarios
+
+### For Stakeholders
+- **Read scenarios** to understand what the system does
+- **Propose new scenarios** for missing features or edge cases
+- **Validate acceptance criteria** before release
+
+---
+
+## Test Implementation Status
+
+| Feature File | Implementation | Step Definitions |
+|---|---|---|
+| risk-metrics.feature | ✅ Complete | `src/core/metrics.test.ts` |
+| rank-computation.feature | ✅ Complete | `src/core/rank.test.ts` |
+| coverage-mapping.feature | ✅ Complete | `src/core/coverageMap.test.ts` |
+| coverage-integration.feature | ✅ Complete | `src/core/lcovParse.test.ts`, `src/core/jacocoParse.test.ts` |
+| symbol-extraction.feature | ✅ Complete | `src/cli/adapters/nodeSymbol.test.ts` |
+| file-discovery.feature | ✅ Complete | `src/cli/adapters/nodeDocument.test.ts` |
+| cli-command-interface.feature | ✅ Complete | `src/cli/analyze.test.ts` |
+| json-output.feature | ✅ Complete | `src/cli/formatters/json.test.ts` |
+| github-summary.feature | ✅ Complete | `src/cli/formatters/github.test.ts` |
+| end-to-end-workflow.feature | ✅ Complete | `src/core/analyze.test.ts` |
+| error-handling.feature | ✅ Complete | Various test files |
+| git-churn-weighting.feature | 🔄 Partial | `src/core/churn.test.ts`, `src/core/churnParse.test.ts` |
+| ui-risk-view.feature | 🔄 Partial | `src/ddp/riskTreeProvider.test.ts` |
+| editor-decorations.feature | 🔄 Partial | `src/ddp/decorationManager.test.ts` |
+| editor-inline-metrics.feature | 🔄 Partial | `src/ddp/codeLensProvider.test.ts`, `src/ddp/hoverProvider.test.ts` |
+| folder-scoped-analysis.feature | ❌ Not Implemented | Planned |
+| default-behavior.feature | ✅ Complete | Configuration and fallback tests |
+
+---
+
+## Adding New Features
+
+1. **Create feature file**: `features/<name>.feature`
+2. **Write scenarios**: Follow Gherkin format with Given/When/Then
+3. **Implement tests**: Create corresponding `.test.ts` file(s)
+4. **Validate**: Ensure scenarios pass with test suite
+5. **Update this README**: Add feature to index and status table
+
+---
+
+## References
+
+- [Gherkin Syntax](https://cucumber.io/docs/gherkin/reference/)
+- [BDD Best Practices](https://cucumber.io/docs/bdd/)
+- [Original BDD Scenarios](../docs/development/BDD_SCENARIOS.md) — Migration source
