@@ -73,6 +73,11 @@
       {
         "command": "ddp.showImpactTree",
         "title": "DDP: Show Impact Tree"
+      },
+      {
+        "command": "ddp.impactView.showForSymbol",
+        "title": "DDP: Show Impact Tree",
+        "icon": "$(type-hierarchy)"
       }
     ],
     "menus": {
@@ -112,6 +117,11 @@
         {
           "command": "ddp.showImpactTree",
           "when": "view == ddp.riskView && viewItem == ddpSymbol",
+          "group": "navigation"
+        },
+        {
+          "command": "ddp.impactView.showForSymbol",
+          "when": "view == ddp.impactView && viewItem == ddpImpactCaller",
           "group": "navigation"
         }
       ]
@@ -225,11 +235,26 @@
         }
       }
     },
+    "viewContainers": {
+      "panel": [
+        {
+          "id": "ddp-impact-panel",
+          "title": "DDP Impact",
+          "icon": "$(type-hierarchy)"
+        }
+      ]
+    },
     "views": {
       "explorer": [
         {
           "id": "ddp.riskView",
           "name": "DDP Risk"
+        }
+      ],
+      "ddp-impact-panel": [
+        {
+          "id": "ddp.impactView",
+          "name": "Impact Tree"
         }
       ]
     }

@@ -159,3 +159,66 @@ Feature: Impact Tree Visualization (Caller Dependency Tree)
       - Combined risk: F=1456.8
       - Warning: High-impact change
       """
+
+  # ── Phase 4: Full TreeView Panel ──────────────────────────────────────
+
+  Scenario: Impact tree panel shows empty state when no symbol is selected
+    Given the DDP Impact Tree panel is visible
+    And no symbol has been selected for impact analysis
+    Then the panel should show "Select a symbol to view its impact tree"
+
+  Scenario: Impact tree panel shows callers when symbol is selected
+    Given a symbol "processOrder" exists with the following callers:
+      | Symbol ID | Symbol Name    | F Score | Depth |
+      | checkout  | handleCheckout | 189.2   | 1     |
+    When I right-click on "processOrder" in the DDP sidebar
+    And I select "Show Impact Tree"
+    Then the DDP Impact Tree panel should show "handleCheckout" as a collapsible node
+    And the node description should show "F=189.2"
+    And the node should have a "symbol-function" icon
+
+  Scenario: Lazy-load deeper caller levels on expand
+    Given the impact tree panel is rooted at "processOrder"
+    And "handleCheckout" calls "processOrder" and "apiRoute" calls "handleCheckout"
+    When I expand the "handleCheckout" node in the impact tree panel
+    Then "apiRoute" should appear as a child node at depth 2
+
+  Scenario: Navigate to symbol from impact tree panel
+    Given the impact tree panel is rooted at "processOrder"
+    And "handleCheckout" is shown as a caller
+    When I click on "handleCheckout" in the impact tree panel
+    Then the editor should navigate to the definition of "handleCheckout"
+
+  Scenario: Re-root impact tree from any caller node
+    Given the impact tree panel is rooted at "processOrder"
+    And "handleCheckout" is shown as a caller
+    When I right-click on "handleCheckout" in the impact tree panel
+    And I select "Show Impact Tree"
+    Then the impact tree panel should re-root at "handleCheckout"
+    And the panel should now show callers of "handleCheckout"
+
+  Scenario: Recursive nodes are marked and non-expandable in tree panel
+    Given the impact tree panel is rooted at "processA"
+    And "processB" calls "processA" and "processA" calls "processB"
+    When I expand "processB" in the impact tree panel
+    Then "processA" should appear marked with "RECURSIVE"
+    And the "processA" node should not be expandable (no expand arrow)
+
+  Scenario: Impact tree panel shows combined risk summary
+    Given a symbol "coreUtility" has 5 direct callers with combined F=1456.8
+    When I select "coreUtility" for impact analysis
+    Then the impact tree panel should expose a summary with:
+      | directCallers | totalAffected | combinedF |
+      | 5             | 23            | 1456.8    |
+
+  Scenario: Impact tree panel context menu only on caller nodes
+    Given the impact tree panel has caller nodes
+    When I right-click on a caller node
+    Then the "Show Impact Tree" option should appear
+    When the panel shows an empty message node
+    Then no context menu options should appear
+
+  Scenario: Impact tree refreshes after new analysis
+    Given the impact tree panel is rooted at "processOrder"
+    When I run a new DDP analysis
+    Then the impact tree panel should refresh with updated metrics

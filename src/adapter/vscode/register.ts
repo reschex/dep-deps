@@ -8,7 +8,7 @@ import { DdpHoverProvider } from "./ui/hoverProvider";
 import { revealSymbolById } from "./ui/revealSymbol";
 import { openDocument } from "./ui/editor";
 import { AnalyzeCommand } from "./analyzeCommand";
-import { showImpactTree } from "./impactTreeCommand";
+import { ImpactTreeProvider } from "./ui/impactTreeProvider";
 import { buildConfiguration, type AnalysisScope } from "./configuration";
 
 const selector: vscode.DocumentSelector = [
@@ -32,17 +32,23 @@ export function registerDdp(context: vscode.ExtensionContext): void {
   const codeLens = new DdpCodeLensProvider(state, getConfig);
   const hover = new DdpHoverProvider(state);
 
+  const impactTree = new ImpactTreeProvider(state);
+
   const treeView = vscode.window.createTreeView("ddp.riskView", {
     treeDataProvider: tree,
     showCollapseAll: true,
   });
-  context.subscriptions.push(treeView);
+  const impactView = vscode.window.createTreeView("ddp.impactView", {
+    treeDataProvider: impactTree,
+    showCollapseAll: true,
+  });
+  context.subscriptions.push(treeView, impactView);
 
   const analyzeCmd = new AnalyzeCommand(
     (token, scope) => analysisService.analyze(token, scope),
     state,
     {
-      refreshTree: () => tree.refresh(),
+      refreshTree: () => { tree.refresh(); impactTree.refresh(); },
       invalidateCodeLens: () => codeLens.invalidate(),
       applyDecorations: () => {
         for (const ed of vscode.window.visibleTextEditors) {
@@ -77,12 +83,15 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("ddp.riskView.sortByG", () => tree.setSortField("g")),
     vscode.commands.registerCommand("ddp.riskView.sortByCC", () => tree.setSortField("cc")),
     vscode.commands.registerCommand("ddp.riskView.sortByCRAP", () => tree.setSortField("crap")),
-    vscode.commands.registerCommand("ddp.showImpactTree", async (node?: { type: string; symbol?: { id: string } }) => {
+    vscode.commands.registerCommand("ddp.showImpactTree", (node?: { type: string; symbol?: { id: string } }) => {
       if (node?.type === "symbol" && node.symbol) {
-        const selectedId = await showImpactTree(state, node.symbol.id);
-        if (selectedId) {
-          await revealSymbolById(selectedId);
-        }
+        impactTree.setRootSymbol(node.symbol.id);
+        Promise.resolve(impactView.reveal(undefined as never, { focus: true })).catch(() => {/* view may not be visible yet */});
+      }
+    }),
+    vscode.commands.registerCommand("ddp.impactView.showForSymbol", (node?: { type: string; symbolId?: string }) => {
+      if (node?.type === "caller" && node.symbolId) {
+        impactTree.setRootSymbol(node.symbolId);
       }
     }),
     vscode.languages.registerCodeLensProvider(selector, codeLens),
