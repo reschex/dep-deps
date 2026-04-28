@@ -32,27 +32,59 @@ export class NodeSymbolProvider implements SymbolProvider {
 
     const symbols: FunctionSymbolInfo[] = [];
 
-    // Extract symbol information from function or method declaration
-    function extractSymbol(node: ts.FunctionDeclaration | ts.MethodDeclaration): void {
-      if (!node.name) return;
-      
-      const name = ts.isIdentifier(node.name) ? node.name.text : node.name.getText(sourceFile);
+    // Create symbol info from name and node
+    function createSymbol(name: string, node: ts.Node): FunctionSymbolInfo {
       const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
       const end = sourceFile.getLineAndCharacterOfPosition(node.end);
 
-      symbols.push({
+      return {
         name,
         selectionStartLine: start.line,
         selectionStartCharacter: start.character,
         bodyStartLine: start.line,
         bodyEndLine: end.line,
-      });
+      };
+    }
+
+    // Extract the text of a named declaration's name
+    function nameOf(node: { name?: ts.PropertyName | ts.BindingName }): string | undefined {
+      if (!node.name) return undefined;
+      return ts.isIdentifier(node.name) ? node.name.text : node.name.getText(sourceFile);
+    }
+
+    // Extract symbol information from function or method declaration
+    function extractSymbol(node: ts.FunctionDeclaration | ts.MethodDeclaration): void {
+      if (!node.body) return;
+      const name = nameOf(node);
+      if (!name) return;
+      symbols.push(createSymbol(name, node));
     }
 
     // Traverse AST to find function declarations and method declarations
     function visit(node: ts.Node) {
       if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) {
         extractSymbol(node);
+      } else if (ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node)) {
+        const name = nameOf(node);
+        if (name) {
+          symbols.push(createSymbol(name, node));
+        }
+      } else if (ts.isVariableDeclaration(node)) {
+        // Check if this is an arrow function or function expression assignment
+        if (node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) {
+          const name = nameOf(node);
+          if (name) {
+            symbols.push(createSymbol(name, node.initializer));
+          }
+        }
+      } else if (ts.isPropertyDeclaration(node)) {
+        // Check if this is a class property with arrow function or function expression
+        if (node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) {
+          const name = nameOf(node);
+          if (name) {
+            symbols.push(createSymbol(name, node.initializer));
+          }
+        }
       }
 
       ts.forEachChild(node, visit);
