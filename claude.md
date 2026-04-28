@@ -70,8 +70,9 @@ Adapters (VS Code or Node.js)
 ```
 
 - **Ports** (`src/core/ports.ts`): Interfaces for `DocumentProvider`, `SymbolProvider`, `CoverageProvider`, `CallGraphProvider`, etc.
-- **VS Code Adapters** (`src/ddp/adapters.ts`): Use VS Code LSP APIs
-- **Node.js Adapters** (`src/cli/adapters/`): Use TypeScript Compiler API and file system
+- **Language Layer** (`src/language/`): CC providers, file patterns, TS symbol extraction — shared across tools
+- **VS Code Adapters** (`src/adapter/vscode/adapters.ts`): Use VS Code LSP APIs
+- **Node.js Adapters** (`src/adapter/cli/`): Use TypeScript Compiler API and file system
 
 **Benefit**: The same `AnalysisOrchestrator` runs in both VS Code and CLI contexts without modification.
 
@@ -98,29 +99,48 @@ Current test coverage: **>98%** (see coverage reports in `coverage/lcov-report/`
   - `churn.ts` — Git churn multiplier (G)
   - `coverageMap.ts` — Coverage fraction calculation per symbol
   - `lcovParse.ts`, `jacocoParse.ts` — Coverage file parsers
+  - `ccRegistry.ts` — CC provider registry (strategy dispatch)
+
+### Language Knowledge (Shared Across Tools)
+
+- `src/language/` — Language-specific logic, no tool dependency:
   - `estimateCc.ts` — Fallback cyclomatic complexity via regex
+  - `patterns.ts` — Aggregated file globs, test-file detection
+  - `parseComplexity.ts` — Shared CC message parsing
+  - `typescript/` — TypeScript/JavaScript:
+    - `symbols.ts` — TS Compiler API symbol extraction
+    - `cc/` — ESLint CC provider (eslintComplexity, eslintSpawn, eslintParse)
+  - `python/` — Python:
+    - `cc/` — Radon CC provider (radonCc, radonSpawn, radonParse)
+  - `java/` — Java:
+    - `cc/` — PMD CC provider (pmdComplexity, pmdSpawn, pmdParse)
+
+### Shared Infrastructure
+
+- `src/shared/` — Tool-agnostic utilities:
+  - `spawnCollect.ts` — Subprocess spawning and output collection
+  - `fakeProc.ts` — Test helper for mocking child processes
 
 ### VS Code Extension
 
 - `src/extension.ts` — Extension entry point
-- `src/ddp/` — VS Code-specific implementation:
+- `src/adapter/vscode/` — VS Code-specific implementation:
   - `register.ts` — Command registration
   - `analysisOrchestrator.ts` — Orchestrates domain logic with VS Code adapters
   - `adapters.ts` — VS Code implementations of ports (LSP, workspace APIs)
-  - `riskTreeProvider.ts` — Sidebar tree view
-  - `decorationManager.ts` — Editor decorations (squiggles)
-  - `codeLensProvider.ts` — Inline metrics display
-  - `hoverProvider.ts` — Hover tooltips
+  - `analysisService.ts` — Wires language/* + LSP into AnalysisOrchestrator
+  - `configuration.ts` — VS Code settings reader
+  - `churn/` — Git churn adapter
+  - `ui/` — Presentation concerns:
+    - `riskTreeProvider.ts` — Sidebar tree view
+    - `decorationManager.ts` — Editor decorations (squiggles)
+    - `codeLensProvider.ts` — Inline metrics display
+    - `hoverProvider.ts` — Hover tooltips
 
 ### CLI Tool
 
-- `src/cli/` — Headless CLI implementation:
-  - `analyze.ts` — CLI entry point (argument parsing, orchestration)
-  - `adapters/` — Node.js implementations of ports:
-    - `nodeDocument.ts` — File discovery via glob
-    - `nodeSymbol.ts` — TypeScript Compiler API for symbol extraction
-    - `nodeCoverage.ts` — LCOV/JaCoCo file parsing
-  - `formatters/` — Output formatters (JSON, GitHub Actions markdown)
+- `src/adapter/cli/` — Headless CLI implementation:
+  - `nodeDocument.ts` — File discovery via glob
 
 ## Key Metrics Reference
 
@@ -199,11 +219,12 @@ npm run cli:dev             # Run CLI locally
 
 To add support for a new language:
 
-1. Implement `SymbolProvider` port (extract function/method symbols with line ranges)
-2. Implement `CyclomaticComplexityProvider` port (CC per symbol)
-3. Implement `CallGraphProvider` port (caller → callee edges)
-4. Register language ID in `ccRegistry.ts`
-5. Add BDD scenarios and tests
+1. Create `src/language/<lang>/` directory with `patterns.ts` (language IDs, file globs, test patterns)
+2. Implement `CyclomaticComplexityProvider` in `src/language/<lang>/cc/` (spawn tool, parse output)
+3. Register language in `CcProviderRegistry` via `analysisService.ts`
+4. Add file extensions to `src/language/patterns.ts` aggregate glob
+5. (Optional) Implement `SymbolProvider` in `src/language/<lang>/symbols.ts` for CLI support
+6. Add BDD scenarios and tests
 
 ## Questions for Claude
 

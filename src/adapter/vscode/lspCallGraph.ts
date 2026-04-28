@@ -1,0 +1,161 @@
+import * as vscode from "vscode";
+import type { CallEdge } from "../../core/rank";
+import { collectCallEdgesViaAdapter, type CallHierarchyAdapter } from "./lspCallGraphAdapter";
+import { flattenFunctionSymbols } from "./documentSymbols";
+import { symbolIdFromUriRange } from "./symbolId";
+import { parseSymbolIdParts, supportedSchemes } from "../../core/lspCallGraphParsing";
+import { SOURCE_FILE_GLOB, EXCLUDE_GLOB, isTestFileUri } from "./configuration";
+
+/** Call hierarchy exists at runtime from 1.52+; @types/vscode can omit it on older stubs. */
+type LanguagesWithCallHierarchy = {
+  prepareCallHierarchy(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    token: vscode.CancellationToken
+  ): Thenable<vscode.CallHierarchyItem[] | null | undefined>;
+  provideCallHierarchyOutgoingCalls(
+    item: vscode.CallHierarchyItem,
+    token: vscode.CancellationToken
+  ): Thenable<vscode.CallHierarchyOutgoingCall[] | null | undefined>;
+};
+
+function languagesCallHierarchy(): typeof vscode.languages & LanguagesWithCallHierarchy {
+  return vscode.languages as typeof vscode.languages & LanguagesWithCallHierarchy;
+}
+
+export type CallGraphCollectOptions = {
+  readonly token?: vscode.CancellationToken;
+  readonly maxFiles?: number;
+  /** When set, only scan files under this folder URI for call hierarchy roots. */
+  readonly rootUri?: string;
+  /** When true, exclude test files from call-graph root discovery. Defaults to true. */
+  readonly excludeTests?: boolean;
+};
+
+async function discoverFiles(maxFiles: number, rootUri: string | undefined, excludeTests: boolean): Promise<vscode.Uri[]> {
+  const pattern: string | vscode.RelativePattern = rootUri
+    ? new vscode.RelativePattern(vscode.Uri.parse(rootUri), SOURCE_FILE_GLOB)
+    : SOURCE_FILE_GLOB;
+  // Request extra files to compensate for test files that will be filtered out.
+  const limit = excludeTests ? maxFiles * 2 : maxFiles;
+  const allFiles = await vscode.workspace.findFiles(pattern, EXCLUDE_GLOB, limit);
+  // Programmatic filter — reliable across all platforms and pattern types.
+  return excludeTests
+    ? allFiles.filter((u) => !isTestFileUri(u.toString())).slice(0, maxFiles)
+    : allFiles;
+}
+
+async function collectSymbolsForFile(uri: vscode.Uri): Promise<{ id: string; uriStr: string }[]> {
+  try {
+    await vscode.workspace.openTextDocument(uri);
+  } catch (e) {
+    console.debug(`[DDP] Cannot open ${uri.toString()} for call graph:`, e);
+  }
+  let syms: vscode.DocumentSymbol[] | undefined;
+  try {
+    syms = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+      "vscode.executeDocumentSymbolProvider",
+      uri
+    );
+  } catch (e) {
+    console.debug(`[DDP] Symbol provider failed for ${uri.toString()}:`, e);
+  }
+  if (!syms?.length) {
+    return [];
+  }
+  return flattenFunctionSymbols(syms).map((fn) => ({
+    id: symbolIdFromUriRange(uri, fn.selectionRange),
+    uriStr: uri.toString(),
+  }));
+}
+
+async function prepareCallHierarchyItem(
+  symbolId: string,
+  token: vscode.CancellationToken
+): Promise<vscode.CallHierarchyItem | undefined> {
+  const parsed = parseSymbolIdParts(symbolId);
+  if (!parsed) {
+    return undefined;
+  }
+  const { uriStr, line, character } = parsed;
+  let doc: vscode.TextDocument;
+  try {
+    doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(uriStr));
+  } catch (e) {
+    console.debug(`[DDP] Cannot open ${uriStr} for outgoing calls:`, e);
+    return undefined;
+  }
+  const pos = new vscode.Position(line, character);
+  try {
+    const items = await languagesCallHierarchy().prepareCallHierarchy(doc, pos, token);
+    return items?.[0];
+  } catch (e) {
+    console.debug(`[DDP] prepareCallHierarchy failed for ${symbolId}:`, e);
+    return undefined;
+  }
+}
+
+async function resolveOutgoingCalls(
+  item: vscode.CallHierarchyItem,
+  token: vscode.CancellationToken
+): Promise<string[]> {
+  let outgoing: vscode.CallHierarchyOutgoingCall[];
+  try {
+    const raw = await languagesCallHierarchy().provideCallHierarchyOutgoingCalls(item, token);
+    outgoing = raw ?? [];
+  } catch (e) {
+    console.debug(`[DDP] provideCallHierarchyOutgoingCalls failed:`, e);
+    return [];
+  }
+  return outgoing.map((o) => {
+    const r = o.to.selectionRange ?? o.to.range;
+    return symbolIdFromUriRange(o.to.uri, r);
+  });
+}
+
+function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, rootUri: string | undefined, excludeTests: boolean): CallHierarchyAdapter {
+  return {
+    async findFunctionSymbols() {
+      const files = await discoverFiles(maxFiles, rootUri, excludeTests);
+      const result: { id: string; uriStr: string }[] = [];
+      for (const uri of files) {
+        if (!supportedSchemes.has(uri.scheme)) {
+          continue;
+        }
+        if (token.isCancellationRequested) {
+          break;
+        }
+        const symbols = await collectSymbolsForFile(uri);
+        result.push(...symbols);
+      }
+      return result;
+    },
+    async getOutgoingCalleeIds(symbolId: string) {
+      const item = await prepareCallHierarchyItem(symbolId, token);
+      if (!item) {
+        return [];
+      }
+      return resolveOutgoingCalls(item, token);
+    },
+    isCancelled() {
+      return token.isCancellationRequested;
+    },
+  };
+}
+
+/**
+ * Collect call edges using LSP call hierarchy (works for TS/JS, Java, Python with appropriate extensions).
+ */
+export async function collectCallEdgesFromWorkspace(
+  options: CallGraphCollectOptions = {}
+): Promise<CallEdge[]> {
+  const ownSource = options.token ? undefined : new vscode.CancellationTokenSource();
+  const token = options.token ?? ownSource!.token;
+  try {
+    const maxFiles = options.maxFiles ?? 500;
+    const adapter = buildVscodeAdapter(maxFiles, token, options.rootUri, options.excludeTests ?? true);
+    return await collectCallEdgesViaAdapter(adapter);
+  } finally {
+    ownSource?.dispose();
+  }
+}

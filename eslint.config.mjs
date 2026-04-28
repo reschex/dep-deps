@@ -19,7 +19,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/**/*.test.ts", "src/core/testFixtures.ts", "src/ddp/fakeProc.ts"],
+    files: ["src/**/*.test.ts", "src/core/testFixtures.ts", "src/shared/fakeProc.ts"],
     ...tseslint.configs.disableTypeChecked,
     rules: {
       ...tseslint.configs.disableTypeChecked.rules,

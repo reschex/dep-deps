@@ -12,5 +12,5 @@
     "sourceMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/**/__tests__/**", "src/core/testFixtures.ts", "src/ddp/fakeProc.ts"]
+  "exclude": ["src/**/*.test.ts", "src/**/__tests__/**", "src/core/testFixtures.ts", "src/shared/fakeProc.ts"]
 }

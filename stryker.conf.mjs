@@ -31,9 +31,9 @@ const config = {
     'src/**/*.ts',
     '!src/**/*.test.ts',
     '!src/core/testFixtures.ts',
-    '!src/ddp/fakeProc.ts',
+    '!src/shared/fakeProc.ts',
     '!src/extension.ts', // extension files are not tested directly
-    '!src/ddp/register.ts', // pure wiring
+    '!src/adapter/vscode/register.ts', // pure wiring
     '!src/core/ports.ts'
 
   ],
