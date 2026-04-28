@@ -32,21 +32,27 @@ export class NodeSymbolProvider implements SymbolProvider {
 
     const symbols: FunctionSymbolInfo[] = [];
 
-    // Traverse AST to find function declarations
-    function visit(node: ts.Node) {
-      if (ts.isFunctionDeclaration(node) && node.name) {
-        // Extract function information
-        const name = node.name.text;
-        const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
-        const end = sourceFile.getLineAndCharacterOfPosition(node.end);
+    // Extract symbol information from function or method declaration
+    function extractSymbol(node: ts.FunctionDeclaration | ts.MethodDeclaration): void {
+      if (!node.name) return;
+      
+      const name = ts.isIdentifier(node.name) ? node.name.text : node.name.getText(sourceFile);
+      const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+      const end = sourceFile.getLineAndCharacterOfPosition(node.end);
 
-        symbols.push({
-          name,
-          selectionStartLine: start.line,
-          selectionStartCharacter: start.character,
-          bodyStartLine: start.line,
-          bodyEndLine: end.line,
-        });
+      symbols.push({
+        name,
+        selectionStartLine: start.line,
+        selectionStartCharacter: start.character,
+        bodyStartLine: start.line,
+        bodyEndLine: end.line,
+      });
+    }
+
+    // Traverse AST to find function declarations and method declarations
+    function visit(node: ts.Node) {
+      if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) {
+        extractSymbol(node);
       }
 
       ts.forEachChild(node, visit);

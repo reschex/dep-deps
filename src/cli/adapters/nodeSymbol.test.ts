@@ -85,4 +85,52 @@ describe('NodeSymbolProvider - Function Extraction', () => {
       expect(symbols[0].bodyEndLine).toBe(5);
     });
   });
+
+  describe('Scenario: Extract method declarations from classes', () => {
+    it('should extract 2 symbols from class methods', async () => {
+      // Given a TypeScript file with content:
+      const content = `class DataProcessor {
+  process(data: string): void {
+    console.log(data);
+  }
+  
+  validate(input: string): boolean {
+    return input.length > 0;
+  }
+}`;
+      const filePath = join(tempDir, 'DataProcessor.ts');
+      await writeFile(filePath, content, 'utf-8');
+
+      // When I extract symbols from the file
+      const symbols = await provider.getFunctionSymbols(filePath);
+
+      // Then 2 symbols should be found
+      expect(symbols.length).toBe(2);
+    });
+
+    it('should extract method names "process" and "validate"', async () => {
+      // Given a TypeScript file with class containing process and validate methods
+      const content = `class DataProcessor {
+  process(data: string): void {
+    console.log(data);
+  }
+  
+  validate(input: string): boolean {
+    return input.length > 0;
+  }
+}`;
+      const filePath = join(tempDir, 'DataProcessor2.ts');
+      await writeFile(filePath, content, 'utf-8');
+
+      // When I extract symbols from the file
+      const symbols = await provider.getFunctionSymbols(filePath);
+
+      // Then symbol names should include "process"
+      const names = symbols.map(s => s.name);
+      expect(names).toContain('process');
+      
+      // And symbol names should include "validate"
+      expect(names).toContain('validate');
+    });
+  });
 });
