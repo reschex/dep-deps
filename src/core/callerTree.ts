@@ -70,10 +70,13 @@ export function impactSummary(tree: readonly CallerNode[]): ImpactSummary {
   };
 }
 
-function countNodes(nodes: readonly CallerNode[]): number {
+function countNodes(nodes: readonly CallerNode[], seen = new Set<string>()): number {
   let count = 0;
   for (const node of nodes) {
-    count += 1 + countNodes(node.children);
+    if (!seen.has(node.id)) {
+      seen.add(node.id);
+      count += 1 + countNodes(node.children, seen);
+    }
   }
   return count;
 }

@@ -10,11 +10,14 @@ export type ImpactTreeSummary = {
   readonly combinedF: number;
 };
 
-function collectAllIds(nodes: readonly CallerNode[]): string[] {
+function collectAllIds(nodes: readonly CallerNode[], seen = new Set<string>()): string[] {
   const ids: string[] = [];
   for (const node of nodes) {
-    ids.push(node.id);
-    ids.push(...collectAllIds(node.children));
+    if (!seen.has(node.id)) {
+      seen.add(node.id);
+      ids.push(node.id);
+      ids.push(...collectAllIds(node.children, seen));
+    }
   }
   return ids;
 }
