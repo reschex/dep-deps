@@ -59,6 +59,8 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     }
   );
 
+  const executeRefresh = () => analyzeCmd.execute(state.lastScope);
+
   context.subscriptions.push(
     vscode.commands.registerCommand("ddp.analyzeWorkspace", () => analyzeCmd.execute()),
     vscode.commands.registerCommand("ddp.analyzeFolder", async () => {
@@ -75,8 +77,8 @@ export function registerDdp(context: vscode.ExtensionContext): void {
       const scope: AnalysisScope = { rootUri: folders[0].toString() };
       return analyzeCmd.execute(scope);
     }),
-    vscode.commands.registerCommand("ddp.refresh", () => analyzeCmd.execute(state.lastScope)),
-    vscode.commands.registerCommand("ddp.riskView.refresh", () => analyzeCmd.execute(state.lastScope)),
+    vscode.commands.registerCommand("ddp.refresh", executeRefresh),
+    vscode.commands.registerCommand("ddp.riskView.refresh", executeRefresh),
     vscode.commands.registerCommand("ddp.revealSymbol", (id: string) => revealSymbolById(id)),
     vscode.commands.registerCommand("ddp.riskView.openFile", (uri: vscode.Uri) => openDocument(uri)),
     vscode.commands.registerCommand("ddp.riskView.sortByF", () => tree.setSortField("f")),
