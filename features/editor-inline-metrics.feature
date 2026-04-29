@@ -37,17 +37,32 @@ Feature: Editor Inline Metrics (Code Lens and Hover)
     Then no code lens should appear above the function
     But hover tooltips should still work
 
-  Scenario: Interpretation string explains risk level
-    Given a function with high F and low T
+  Scenario: Interpretation for high CC and low coverage
+    Given a function with CC=15 and T=10%
     When the user hovers over it
-    Then the interpretation should indicate "High risk: complex and untested"
+    Then the interpretation should explain "High CC, low coverage → high CRAP"
+    And suggest writing tests to reduce CRAP
 
-  Scenario: Interpretation string for well-tested code
-    Given a function with high CC but high T
+  Scenario: Interpretation for well-tested complex code
+    Given a function with CC=12 and T=95%
     When the user hovers over it
-    Then the interpretation should indicate "Complex but well-tested"
+    Then the interpretation should explain that high coverage mitigates complexity
+    And the tone should be reassuring, not alarming
 
-  Scenario: Interpretation string for widely-used code
-    Given a function with high R
+  Scenario: Interpretation for widely-depended-upon risky code
+    Given a function with R=8.5 and CRAP=120
     When the user hovers over it
-    Then the interpretation should indicate "Widely depended upon" or similar
+    Then the interpretation should explain that failures cascade through dependents
+    And suggest decoupling or adding tests to reduce blast radius
+
+  Scenario: Interpretation for frequently-changing risky code
+    Given a function with F=200 and G=3.2 (many recent commits)
+    When the user hovers over it
+    Then the interpretation should explain that frequent changes amplify risk
+    And flag this as the most urgent priority
+
+  Scenario: Interpretation for low-risk code
+    Given a function with CC=2, T=90%, R=1.0
+    When the user hovers over it
+    Then the interpretation should be minimal or absent
+    # the symbol poses little risk so no actionable insight is shown
