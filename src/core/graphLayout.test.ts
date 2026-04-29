@@ -132,6 +132,33 @@ describe("layoutCallerGraph", () => {
     expect(recursiveNode!.recursive).toBe(true);
   });
 
+  it("includes both visual occurrences of a symbol in nodeIds when a recursive node reintroduces it", () => {
+    // root appears at depth 0 AND depth 2 (recursive marker).
+    // Both are distinct visual nodes and share the same file, so nodeIds contains "root" twice.
+    const callers: CallerNode[] = [
+      {
+        id: "B",
+        depth: 1,
+        recursive: false,
+        children: [
+          { id: "root", depth: 2, recursive: true, children: [] },
+        ],
+      },
+    ];
+    const metrics = metricsMap(
+      sym({ id: "root", uri: "file:///src/core.ts" }),
+      sym({ id: "B", uri: "file:///src/core.ts" })
+    );
+
+    const layout = layoutCallerGraph("root", callers, metrics);
+
+    const group = layout.fileGroups.find((g) => g.file === "core.ts");
+    expect(group).toBeDefined();
+    expect(group!.nodeIds).toHaveLength(3); // root@depth0, B@depth1, root@depth2
+    expect(group!.nodeIds.filter((id) => id === "root")).toHaveLength(2);
+    expect(group!.nodeIds.filter((id) => id === "B")).toHaveLength(1);
+  });
+
   it("uses symbol ID as label when metrics are missing", () => {
     const callers: CallerNode[] = [
       { id: "unknown-sym", depth: 1, recursive: false, children: [] },
@@ -151,6 +178,38 @@ describe("layoutCallerGraph", () => {
     expect(layout.nodes).toHaveLength(1);
     expect(layout.nodes[0]!.id).toBe("root");
     expect(layout.edges).toHaveLength(0);
+  });
+
+  it("uses bare uri as file name when it contains no path separator", () => {
+    // Exercises the false branch of fileNameFromUri (lastSlash < 0)
+    const metrics = metricsMap(
+      sym({ id: "root", name: "fn", f: 5, uri: "main.ts" })
+    );
+
+    const layout = layoutCallerGraph("root", [], metrics);
+
+    expect(layout.nodes[0]!.file).toBe("main.ts");
+  });
+
+  it("produces empty file field when uri is an empty string", () => {
+    const metrics = metricsMap(
+      sym({ id: "root", name: "fn", f: 5, uri: "" })
+    );
+
+    const layout = layoutCallerGraph("root", [], metrics);
+
+    expect(layout.nodes[0]!.file).toBe("");
+  });
+
+  it("produces empty file field when uri ends with a trailing slash", () => {
+    // "file:///src/core/" — the segment after the last slash is ""
+    const metrics = metricsMap(
+      sym({ id: "root", name: "fn", f: 5, uri: "file:///src/core/" })
+    );
+
+    const layout = layoutCallerGraph("root", [], metrics);
+
+    expect(layout.nodes[0]!.file).toBe("");
   });
 
   it("includes file name on each graph node", () => {
@@ -198,6 +257,14 @@ describe("layoutCallerGraph", () => {
     expect(apiGroup!.y).toBe(210);       // 240 - 30
     expect(apiGroup!.width).toBe(280);   // (320-100) + 2*30
     expect(apiGroup!.height).toBe(60);   // 0 (same y) + 2*30
+
+    // main.ts group spans root@depth0 (x=320,y=100) and D@depth1 (x=540,y=240).
+    const mainGroup = layout.fileGroups.find((g) => g.file === "main.ts");
+    expect(mainGroup).toBeDefined();
+    expect(mainGroup!.x).toBe(290);      // 320 - 30
+    expect(mainGroup!.y).toBe(70);       // 100 - 30
+    expect(mainGroup!.width).toBe(280);  // (540-320) + 2*30
+    expect(mainGroup!.height).toBe(200); // (240-100) + 2*30
   });
 
   it("produces no file groups when every file contains only one node", () => {
@@ -236,5 +303,70 @@ describe("layoutCallerGraph", () => {
     // The root node itself should have an empty file field
     const rootNode = layout.nodes.find((n) => n.id === "root")!;
     expect(rootNode.file).toBe("");
+  });
+
+  it("computes width and height from layout constants for a single-caller tree", () => {
+    // maxLayerWidth=1 (1 node per layer), maxDepth=1
+    // width  = PADDING*2 + (1-1)*NODE_SPACING_X = 100*2 + 0        = 200
+    // height = PADDING*2 + 1*LAYER_SPACING_Y    = 100*2 + 1*140    = 340
+    const callers: CallerNode[] = [
+      { id: "B", depth: 1, recursive: false, children: [] },
+    ];
+    const metrics = metricsMap(sym({ id: "root" }), sym({ id: "B" }));
+
+    const layout = layoutCallerGraph("root", callers, metrics);
+
+    expect(layout.width).toBe(200);
+    expect(layout.height).toBe(340);
+  });
+
+  it("computes width and height for a root-only graph", () => {
+    // maxLayerWidth=1, maxDepth=0
+    // width  = 100*2 + 0 = 200
+    // height = 100*2 + 0 = 200
+    const metrics = metricsMap(sym({ id: "root" }));
+
+    const layout = layoutCallerGraph("root", [], metrics);
+
+    expect(layout.width).toBe(200);
+    expect(layout.height).toBe(200);
+  });
+
+  it("places a caller with depth 0 in the same layer as root and at a different x position", () => {
+    // CallerNode.depth drives layer assignment directly — depth:0 merges with the root layer.
+    const callers: CallerNode[] = [
+      { id: "B", depth: 0, recursive: false, children: [] },
+    ];
+    const metrics = metricsMap(sym({ id: "root" }), sym({ id: "B" }));
+
+    const layout = layoutCallerGraph("root", callers, metrics);
+
+    const rootNode = layout.nodes.find((n) => n.id === "root" && n.depth === 0)!;
+    const bNode = layout.nodes.find((n) => n.id === "B")!;
+    expect(bNode.depth).toBe(0);
+    expect(bNode.y).toBe(rootNode.y);   // same row
+    expect(bNode.x).not.toBe(rootNode.x); // different column
+  });
+
+  it("produces exactly one file group when all nodes share the same file", () => {
+    const callers: CallerNode[] = [
+      { id: "B", depth: 1, recursive: false, children: [] },
+      { id: "C", depth: 1, recursive: false, children: [] },
+    ];
+    const metrics = metricsMap(
+      sym({ id: "root", uri: "file:///src/app.ts" }),
+      sym({ id: "B", uri: "file:///src/app.ts" }),
+      sym({ id: "C", uri: "file:///src/app.ts" })
+    );
+
+    const layout = layoutCallerGraph("root", callers, metrics);
+
+    expect(layout.fileGroups).toHaveLength(1);
+    const group = layout.fileGroups[0]!;
+    expect(group.file).toBe("app.ts");
+    expect(group.nodeIds).toHaveLength(3);
+    expect(group.nodeIds).toContain("root");
+    expect(group.nodeIds).toContain("B");
+    expect(group.nodeIds).toContain("C");
   });
 });
