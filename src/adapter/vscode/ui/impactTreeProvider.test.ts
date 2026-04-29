@@ -289,6 +289,28 @@ describe("ImpactTreeProvider", () => {
         arguments: ["B"],
       });
     });
+
+    it("includes file name in caller node description", async () => {
+      const { ImpactTreeProvider } = await import("./impactTreeProvider");
+      const edges: CallEdge[] = [{ caller: "B", callee: "A" }];
+      state.setAnalysis(
+        fakeAnalysis(
+          [
+            sym({ id: "A", name: "processOrder", f: 100, uri: "file:///src/orders/processor.ts" }),
+            sym({ id: "B", name: "handleCheckout", f: 189.2, uri: "file:///src/checkout/handler.ts" }),
+          ],
+          edges
+        )
+      );
+      const provider = new ImpactTreeProvider(state);
+      provider.setRootSymbol("A");
+
+      const topLevel = await provider.getChildren();
+      const item = provider.getTreeItem(topLevel[0]!);
+
+      expect(item.description).toContain("handler.ts");
+      expect(item.description).toContain("F=189.2");
+    });
   });
 
   describe("re-root", () => {

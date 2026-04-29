@@ -9,6 +9,7 @@ export type GraphNode = {
   readonly id: string;
   readonly label: string;
   readonly f: number;
+  readonly file: string;
   readonly depth: number;
   readonly recursive: boolean;
   readonly x: number;
@@ -20,9 +21,19 @@ export type GraphEdge = {
   readonly to: string;
 };
 
+export type FileGroup = {
+  readonly file: string;
+  readonly nodeIds: readonly string[];
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+};
+
 export type GraphLayout = {
   readonly nodes: GraphNode[];
   readonly edges: GraphEdge[];
+  readonly fileGroups: FileGroup[];
   readonly width: number;
   readonly height: number;
 };
@@ -67,6 +78,7 @@ export function layoutCallerGraph(
         id,
         label: metrics?.name ?? id,
         f: metrics?.f ?? 0,
+        file: metrics ? fileNameFromUri(metrics.uri) : "",
         depth,
         recursive,
         x: startX + i * NODE_SPACING_X,
@@ -79,7 +91,52 @@ export function layoutCallerGraph(
   const width = PADDING * 2 + (maxLayerWidth - 1) * NODE_SPACING_X;
   const height = PADDING * 2 + maxDepth * LAYER_SPACING_Y;
 
-  return { nodes, edges, width, height };
+  const fileGroups = computeFileGroups(nodes);
+
+  return { nodes, edges, fileGroups, width, height };
+}
+
+/** Extract the file name from a URI string (e.g. "file:///src/foo/bar.ts" → "bar.ts"). */
+function fileNameFromUri(uri: string): string {
+  const lastSlash = Math.max(uri.lastIndexOf("/"), uri.lastIndexOf("\\"));
+  return lastSlash >= 0 ? uri.slice(lastSlash + 1) : uri;
+}
+
+const FILE_GROUP_PADDING = 30;
+
+// Groups by basename only; files with identical names in different directories
+// will be merged into the same group. Full-path grouping can be added when needed.
+function computeFileGroups(nodes: readonly GraphNode[]): FileGroup[] {
+  const byFile = new Map<string, GraphNode[]>();
+  for (const node of nodes) {
+    if (!node.file) continue;
+    let group = byFile.get(node.file);
+    if (!group) {
+      group = [];
+      byFile.set(node.file, group);
+    }
+    group.push(node);
+  }
+
+  const groups: FileGroup[] = [];
+  for (const [file, fileNodes] of byFile) {
+    if (fileNodes.length < 2) continue;
+    const xs = fileNodes.map((n) => n.x);
+    const ys = fileNodes.map((n) => n.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    groups.push({
+      file,
+      nodeIds: fileNodes.map((n) => n.id),
+      x: minX - FILE_GROUP_PADDING,
+      y: minY - FILE_GROUP_PADDING,
+      width: maxX - minX + FILE_GROUP_PADDING * 2,
+      height: maxY - minY + FILE_GROUP_PADDING * 2,
+    });
+  }
+  return groups;
 }
 
 function collectNodes(

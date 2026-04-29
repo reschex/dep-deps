@@ -250,6 +250,41 @@ function renderGraphHtml(layout: GraphLayout, rootName: string, summary: Summary
     color: var(--accent-amber);
   }
 
+  .node-file {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 9px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+    opacity: 0.7;
+    letter-spacing: 0.02em;
+  }
+
+  .file-group {
+    position: absolute;
+    border: 1px solid rgba(56, 189, 248, 0.08);
+    border-radius: 12px;
+    background: rgba(56, 189, 248, 0.02);
+    z-index: 1;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+
+  .file-group-label {
+    position: absolute;
+    top: 6px;
+    left: 10px;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--accent-cyan);
+    opacity: 0.5;
+    letter-spacing: 0.04em;
+    text-transform: none;
+  }
+
   .node.dimmed {
     opacity: 0.25;
     transition: opacity 0.2s;
@@ -322,6 +357,25 @@ function renderGraphHtml(layout: GraphLayout, rootName: string, summary: Summary
   const svg = document.getElementById('edges');
   const nodeEls = {};
 
+  // Render file group boundaries
+  if (data.fileGroups) {
+    data.fileGroups.forEach(function(group) {
+      var groupDiv = document.createElement('div');
+      groupDiv.className = 'file-group';
+      groupDiv.style.left = group.x + 'px';
+      groupDiv.style.top = group.y + 'px';
+      groupDiv.style.width = group.width + 'px';
+      groupDiv.style.height = group.height + 'px';
+
+      var label = document.createElement('span');
+      label.className = 'file-group-label';
+      label.textContent = group.file;
+      groupDiv.appendChild(label);
+
+      container.appendChild(groupDiv);
+    });
+  }
+
   // Render edges as bezier curves
   data.edges.forEach(function(edge, i) {
     var fromNode = data.nodes.find(function(n) { return n.id === edge.from; });
@@ -361,7 +415,10 @@ function renderGraphHtml(layout: GraphLayout, rootName: string, summary: Summary
     if (node.depth === 0) badge = '<span class="node-badge badge-root">target</span>';
     else if (node.recursive) badge = '<span class="node-badge badge-recursive">cycle</span>';
 
+    var fileLabel = node.file ? '<div class="node-file">' + escapeHtml(node.file) + '</div>' : '';
+
     div.innerHTML =
+      fileLabel +
       '<div class="node-name">' + escapeHtml(node.label) + '</div>' +
       '<div class="node-metrics">' +
         '<span class="metric metric-f">F <span class="metric-value">' + node.f.toFixed(1) + '</span></span>' +

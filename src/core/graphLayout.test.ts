@@ -152,4 +152,89 @@ describe("layoutCallerGraph", () => {
     expect(layout.nodes[0]!.id).toBe("root");
     expect(layout.edges).toHaveLength(0);
   });
+
+  it("includes file name on each graph node", () => {
+    const callers: CallerNode[] = [
+      { id: "B", depth: 1, recursive: false, children: [] },
+    ];
+    const metrics = metricsMap(
+      sym({ id: "root", name: "processOrder", f: 100, uri: "file:///src/orders/processor.ts" }),
+      sym({ id: "B", name: "handleCheckout", f: 50, uri: "file:///src/checkout/handler.ts" })
+    );
+
+    const layout = layoutCallerGraph("root", callers, metrics);
+
+    const root = layout.nodes.find((n) => n.id === "root" && n.depth === 0)!;
+    const caller = layout.nodes.find((n) => n.id === "B")!;
+    expect(root.file).toBe("processor.ts");
+    expect(caller.file).toBe("handler.ts");
+  });
+
+  it("computes file groups for nodes sharing the same file", () => {
+    const callers: CallerNode[] = [
+      { id: "B", depth: 1, recursive: false, children: [] },
+      { id: "C", depth: 1, recursive: false, children: [] },
+      { id: "D", depth: 1, recursive: false, children: [] },
+    ];
+    const metrics = metricsMap(
+      sym({ id: "root", name: "fn", f: 10, uri: "file:///src/core/main.ts" }),
+      sym({ id: "B", name: "fnB", f: 20, uri: "file:///src/handlers/api.ts" }),
+      sym({ id: "C", name: "fnC", f: 30, uri: "file:///src/handlers/api.ts" }),
+      sym({ id: "D", name: "fnD", f: 40, uri: "file:///src/core/main.ts" })
+    );
+
+    const layout = layoutCallerGraph("root", callers, metrics);
+
+    expect(layout.fileGroups).toHaveLength(2);
+
+    const apiGroup = layout.fileGroups.find((g) => g.file === "api.ts");
+    expect(apiGroup).toBeDefined();
+    expect(apiGroup!.nodeIds).toContain("B");
+    expect(apiGroup!.nodeIds).toContain("C");
+
+    // B is at x=100, C at x=320, both at y=240 (depth 1, 3-node layer).
+    // Bounding box = node positions ± FILE_GROUP_PADDING (30).
+    expect(apiGroup!.x).toBe(70);        // 100 - 30
+    expect(apiGroup!.y).toBe(210);       // 240 - 30
+    expect(apiGroup!.width).toBe(280);   // (320-100) + 2*30
+    expect(apiGroup!.height).toBe(60);   // 0 (same y) + 2*30
+  });
+
+  it("produces no file groups when every file contains only one node", () => {
+    const callers: CallerNode[] = [
+      { id: "B", depth: 1, recursive: false, children: [] },
+      { id: "C", depth: 1, recursive: false, children: [] },
+    ];
+    const metrics = metricsMap(
+      sym({ id: "root", name: "fn", f: 10, uri: "file:///src/a/alpha.ts" }),
+      sym({ id: "B", name: "fnB", f: 20, uri: "file:///src/b/beta.ts" }),
+      sym({ id: "C", name: "fnC", f: 30, uri: "file:///src/c/gamma.ts" })
+    );
+
+    const layout = layoutCallerGraph("root", callers, metrics);
+
+    expect(layout.fileGroups).toHaveLength(0);
+  });
+
+  it("ignores nodes with no metrics when computing file groups", () => {
+    const callers: CallerNode[] = [
+      { id: "B", depth: 1, recursive: false, children: [] },
+      { id: "C", depth: 1, recursive: false, children: [] },
+    ];
+    // "unknown" has no entry in the metrics map — its file will be ""
+    const metrics = metricsMap(
+      sym({ id: "B", name: "fnB", f: 20, uri: "file:///src/handlers/api.ts" }),
+      sym({ id: "C", name: "fnC", f: 30, uri: "file:///src/handlers/api.ts" })
+    );
+
+    const layout = layoutCallerGraph("root", callers, metrics);
+
+    // root has no metrics → file="" → skipped by computeFileGroups
+    // B and C share api.ts → one group
+    expect(layout.fileGroups).toHaveLength(1);
+    expect(layout.fileGroups[0]!.file).toBe("api.ts");
+    // The root node itself should have an empty file field
+    const rootNode = layout.nodes.find((n) => n.id === "root")!;
+    expect(rootNode.file).toBe("");
+  });
 });

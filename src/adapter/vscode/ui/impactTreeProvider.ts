@@ -74,12 +74,14 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
     const metrics = this.state.symbolById.get(element.symbolId);
     const name = metrics?.name ?? element.symbolId;
     const fStr = metrics ? `F=${metrics.f.toFixed(1)}` : "F=?";
+    const fileLabel = metrics ? fileNameFromUri(metrics.uri) : "";
+    const fileSuffix = fileLabel ? ` · ${fileLabel}` : "";
     const collapsible = element.recursive
       ? vscode.TreeItemCollapsibleState.None
       : vscode.TreeItemCollapsibleState.Collapsed;
 
     const item = new vscode.TreeItem(name, collapsible);
-    item.description = element.recursive ? `${fStr} \u{1F504} RECURSIVE` : fStr;
+    item.description = element.recursive ? `${fStr}${fileSuffix} \u{1F504} RECURSIVE` : `${fStr}${fileSuffix}`;
     item.iconPath = new vscode.ThemeIcon(element.recursive ? "sync" : "symbol-function");
     item.contextValue = "ddpImpactCaller";
     item.command = { command: "ddp.revealSymbol", title: "Reveal symbol", arguments: [element.symbolId] };
@@ -130,4 +132,10 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
 
     return [];
   }
+}
+
+/** Extract the file name from a URI string (e.g. "file:///src/foo/bar.ts" → "bar.ts"). */
+function fileNameFromUri(uri: string): string {
+  const lastSlash = Math.max(uri.lastIndexOf("/"), uri.lastIndexOf("\\"));
+  return lastSlash >= 0 ? uri.slice(lastSlash + 1) : uri;
 }

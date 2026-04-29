@@ -138,6 +138,51 @@ describe("ImpactGraphPanel", () => {
     expect(mockWebviewPanel.webview.html).toContain(">0</span> direct callers");
   });
 
+  it("shows file name on each graph node", async () => {
+    const { openImpactGraph } = await import("./impactGraphPanel");
+    const edges: CallEdge[] = [{ caller: "B", callee: "A" }];
+    state.setAnalysis(
+      fakeAnalysis(
+        [
+          sym({ id: "A", name: "processOrder", f: 100, uri: "file:///src/orders/processor.ts" }),
+          sym({ id: "B", name: "handleCheckout", f: 50, uri: "file:///src/checkout/handler.ts" }),
+        ],
+        edges
+      )
+    );
+
+    openImpactGraph(state, "A");
+
+    const html = mockWebviewPanel.webview.html;
+    expect(html).toContain("processor.ts");
+    expect(html).toContain("handler.ts");
+    expect(html).toContain("node-file");
+  });
+
+  it("renders file group boundaries for nodes sharing the same file", async () => {
+    const { openImpactGraph } = await import("./impactGraphPanel");
+    const edges: CallEdge[] = [
+      { caller: "B", callee: "A" },
+      { caller: "C", callee: "A" },
+    ];
+    state.setAnalysis(
+      fakeAnalysis(
+        [
+          sym({ id: "A", name: "fn", f: 10, uri: "file:///src/core/main.ts" }),
+          sym({ id: "B", name: "fnB", f: 20, uri: "file:///src/handlers/api.ts" }),
+          sym({ id: "C", name: "fnC", f: 30, uri: "file:///src/handlers/api.ts" }),
+        ],
+        edges
+      )
+    );
+
+    openImpactGraph(state, "A");
+
+    const html = mockWebviewPanel.webview.html;
+    expect(html).toContain("file-group");
+    expect(html).toContain("api.ts");
+  });
+
   it("renders multi-level tree with correct edge count", async () => {
     const { openImpactGraph } = await import("./impactGraphPanel");
     const edges: CallEdge[] = [
