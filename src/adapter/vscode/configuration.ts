@@ -35,6 +35,10 @@ export type ImpactTreeConfig = {
   readonly maxDepth: number;
 };
 
+export type GraphViewConfig = {
+  readonly enabled: boolean;
+};
+
 export type AnalysisConfig = {
   readonly defaultFolder: string;
 };
@@ -57,6 +61,7 @@ export type DdpConfiguration = {
   readonly decoration: DecorationConfig;
   readonly churn: ChurnConfig;
   readonly impactTree: ImpactTreeConfig;
+  readonly graphView: GraphViewConfig;
   readonly analysis: AnalysisConfig;
   readonly fileRollup: "max" | "sum";
   readonly codelensEnabled: boolean;
@@ -76,6 +81,7 @@ export const DEFAULT_CONFIGURATION: DdpConfiguration = {
   decoration: { warnThreshold: 50, errorThreshold: 150 },
   churn: { enabled: false, lookbackDays: 90 },
   impactTree: { maxDepth: 5 },
+  graphView: { enabled: false },
   analysis: { defaultFolder: "" },
   fileRollup: "max",
   codelensEnabled: true,
@@ -113,6 +119,9 @@ export function buildConfiguration(
     },
     impactTree: {
       maxDepth: get<number>("impactTree.maxDepth", DEFAULT_CONFIGURATION.impactTree.maxDepth),
+    },
+    graphView: {
+      enabled: get<boolean>("graphView.enabled", DEFAULT_CONFIGURATION.graphView.enabled),
     },
     analysis: {
       defaultFolder: get<string>("analysis.defaultFolder", DEFAULT_CONFIGURATION.analysis.defaultFolder),

@@ -94,6 +94,7 @@ describe("buildConfiguration", () => {
       decoration: { warnThreshold: 25, errorThreshold: 75 },
       churn: { enabled: false, lookbackDays: 90 },
       impactTree: { maxDepth: 5 },
+      graphView: { enabled: false },
       analysis: { defaultFolder: "" },
       fileRollup: "sum",
       codelensEnabled: false,
@@ -194,6 +195,7 @@ describe("DEFAULT_CONFIGURATION", () => {
       decoration: { warnThreshold: 50, errorThreshold: 150 },
       churn: { enabled: false, lookbackDays: 90 },
       impactTree: { maxDepth: 5 },
+      graphView: { enabled: false },
       analysis: { defaultFolder: "" },
       fileRollup: "max",
       codelensEnabled: true,
@@ -228,6 +230,7 @@ describe("DEFAULT_CONFIGURATION", () => {
       "decoration",
       "excludeTests",
       "fileRollup",
+      "graphView",
       "impactTree",
       "maxFiles",
       "rank",
@@ -531,6 +534,7 @@ describe("bugmagnet session 2026-04-16", () => {
         "decoration.warnThreshold",
         "excludeTests",
         "fileRollup",
+        "graphView.enabled",
         "impactTree.maxDepth",
         "maxFiles",
         "rank.epsilon",
@@ -559,6 +563,7 @@ describe("bugmagnet session 2026-04-16", () => {
         "churn.enabled": false,
         "churn.lookbackDays": 90,
         "impactTree.maxDepth": 5,
+        "graphView.enabled": false,
         "analysis.defaultFolder": "",
         "fileRollup": "max",
         "codelens.enabled": true,
@@ -635,6 +640,28 @@ describe("mutation-killing: DEFAULT_CONFIGURATION individual properties", () => 
 
   it("excludeTests defaults to true", () => {
     expect(DEFAULT_CONFIGURATION.excludeTests).toBe(true);
+  });
+});
+
+describe("graphView configuration", () => {
+  it("DEFAULT_CONFIGURATION has graphView.enabled set to false", () => {
+    expect(DEFAULT_CONFIGURATION.graphView.enabled).toBe(false);
+  });
+
+  it("buildConfiguration reads graphView.enabled override from getter", () => {
+    const config = buildConfiguration(<T>(key: string, defaultValue: T) =>
+      (key === "graphView.enabled" ? true : defaultValue) as T
+    );
+    expect(config.graphView.enabled).toBe(true);
+  });
+
+  it("buildConfiguration passes false as default for graphView.enabled", () => {
+    const defaults: Record<string, unknown> = {};
+    buildConfiguration(<T>(key: string, defaultValue: T) => {
+      defaults[key] = defaultValue;
+      return defaultValue;
+    });
+    expect(defaults["graphView.enabled"]).toBe(false);
   });
 });
 

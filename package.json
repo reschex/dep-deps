@@ -116,7 +116,7 @@
       "view/item/context": [
         {
           "command": "ddp.showImpactTree",
-          "when": "view == ddp.riskView && viewItem == ddpSymbol",
+          "when": "view == ddp.riskView && viewItem == ddpSymbol && config.ddp.graphView.enabled",
           "group": "navigation"
         },
         {
@@ -232,26 +232,20 @@
           "default": 400,
           "minimum": 1,
           "description": "Maximum number of source files to scan per analysis. Increase for large workspaces; decrease to speed up analysis."
+        },
+        "ddp.graphView.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "[Experimental] Enable the interactive graph view. When enabled, right-clicking a symbol in the risk view shows the 'Show Impact Tree' command which opens a visual call-graph panel."
         }
       }
-    },
-    "viewContainers": {
-      "panel": [
-        {
-          "id": "ddp-impact-panel",
-          "title": "DDP Impact Tree",
-          "icon": "$(type-hierarchy)"
-        }
-      ]
     },
     "views": {
       "explorer": [
         {
           "id": "ddp.riskView",
           "name": "DDP Risk"
-        }
-      ],
-      "ddp-impact-panel": [
+        },
         {
           "id": "ddp.impactView",
           "name": "DDP Impact Tree"

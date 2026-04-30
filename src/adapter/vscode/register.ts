@@ -11,6 +11,7 @@ import { AnalyzeCommand } from "./analyzeCommand";
 import { ImpactTreeProvider } from "./ui/impactTreeProvider";
 import { openImpactGraph } from "./ui/impactGraphPanel";
 import { buildConfiguration, type AnalysisScope } from "./configuration";
+import { handleRiskViewSelection } from "./ui/riskViewSelection";
 
 const selector: vscode.DocumentSelector = [
   { scheme: "file", language: "typescript" },
@@ -43,7 +44,15 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     treeDataProvider: impactTree,
     showCollapseAll: true,
   });
-  context.subscriptions.push(treeView, impactView);
+  context.subscriptions.push(
+    treeView,
+    impactView,
+    treeView.onDidChangeSelection((e) => {
+      handleRiskViewSelection(e.selection, (symbolId) => {
+        impactTree.setRootSymbol(symbolId, getConfig().impactTree.maxDepth);
+      });
+    })
+  );
 
   const analyzeCmd = new AnalyzeCommand(
     (token, scope) => analysisService.analyze(token, scope),
@@ -88,8 +97,6 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("ddp.riskView.sortByCRAP", () => tree.setSortField("crap")),
     vscode.commands.registerCommand("ddp.showImpactTree", (node?: { type: string; symbol?: { id: string } }) => {
       if (node?.type === "symbol" && node.symbol) {
-        impactTree.setRootSymbol(node.symbol.id);
-        vscode.commands.executeCommand("ddp.impactView.focus");
         openImpactGraph(state, node.symbol.id);
       }
     }),
