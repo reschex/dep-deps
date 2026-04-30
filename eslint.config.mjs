@@ -27,6 +27,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["out/", "coverage/", "vitest.config.ts", "eslint.config.mjs", "stryker.conf.mjs"],
+    ignores: ["out/", "coverage/", "vitest.config.ts", "eslint.config.mjs", "stryker.conf.mjs", "src/test/fixtures/**"],
   },
 );

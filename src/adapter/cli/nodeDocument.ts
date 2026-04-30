@@ -6,10 +6,17 @@
  */
 
 import { glob } from 'glob';
-import { pathToFileURL } from 'url';
+import { readFile } from 'node:fs/promises';
+import { extname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { SOURCE_FILE_GLOB } from '../../language/patterns';
 import type { DocumentProvider, DocumentInfo } from '../../core/ports';
 
-const SOURCE_FILE_PATTERN = '**/*.{ts,tsx,js,jsx}';
+/**
+ * Build-output and VCS directories to exclude from file discovery.
+ * Intentionally broader than the canonical EXCLUDE_GLOB (node_modules only)
+ * because the CLI runs across arbitrary projects that commonly have these directories.
+ */
 const EXCLUDE_PATTERNS = [
   '**/node_modules/**',
   '**/out/**',
@@ -17,53 +24,76 @@ const EXCLUDE_PATTERNS = [
   '**/.git/**',
 ];
 
-/** Patterns that identify test files */
-const TEST_FILE_PATTERNS = ['.test.', '.spec.', '/tests/', '\\tests\\'];
-
 /**
  * Node.js implementation of DocumentProvider for CLI analysis.
  * Uses glob for file discovery without VS Code dependencies.
+ *
+ * Test-file exclusion is deliberately NOT handled here — that concern belongs to
+ * AnalysisOrchestrator, which applies the canonical isTestFileUri filter when
+ * config.excludeTests is true. Keeping the provider neutral avoids double-filtering
+ * with two divergent implementations.
  */
 export class NodeDocumentProvider implements DocumentProvider {
-  constructor(
-    private readonly rootPath: string,
-    private readonly excludeTests: boolean = true
-  ) {}
+  constructor(private readonly rootPath: string) {}
 
   /**
-   * Find source files matching TypeScript/JavaScript patterns.
+   * Find source files matching all supported language extensions.
    * @param maxFiles Maximum files to return
    * @param rootUri Optional URI to scope the search
-   * @returns Array of file URIs
+   * @returns Array of file URIs (includes test files — caller filters if needed)
    */
   async findSourceFiles(maxFiles: number, rootUri?: string): Promise<string[]> {
     const searchRoot = rootUri ? new URL(rootUri).pathname : this.rootPath;
-    
-    const files = await glob(SOURCE_FILE_PATTERN, {
+
+    const files = await glob(SOURCE_FILE_GLOB, {
       cwd: searchRoot,
       ignore: EXCLUDE_PATTERNS,
       absolute: true,
       nodir: true,
     });
-    
-    let uris = files.map(f => pathToFileURL(f).toString());
-    
-    if (this.excludeTests) {
-      uris = uris.filter(uri => !this.isTestFile(uri));
-    }
-    
+
+    const uris = files.map(f => pathToFileURL(f).toString());
     return uris.slice(0, maxFiles);
   }
 
   /**
-   * Open a document by URI.
-   * @throws Not implemented in MVP - to be added when symbol extraction is needed
+   * Open a document by URI, reading its contents from disk.
+   * @param uri File URI (file:// scheme) or absolute file path
+   * @returns DocumentInfo with languageId, getText(), or undefined if unreadable
    */
-  async openDocument(_uri: string): Promise<DocumentInfo | undefined> {
-    throw new Error('openDocument not implemented in MVP');
-  }
+  async openDocument(uri: string): Promise<DocumentInfo | undefined> {
+    const filePath = uri.startsWith('file://') ? fileURLToPath(uri) : uri;
+    let content: string;
+    try {
+      content = await readFile(filePath, 'utf-8');
+    } catch {
+      return undefined;
+    }
+    const lines = content.split(/\r?\n/);
+    const languageId = languageIdFromExtension(extname(filePath));
 
-  private isTestFile(_uri: string): boolean {
-    return TEST_FILE_PATTERNS.some(pattern => _uri.includes(pattern));
+    return {
+      uri,
+      languageId,
+      getText(startLine: number, endLine: number): string {
+        return lines.slice(startLine, endLine + 1).join('\n');
+      },
+    };
   }
+}
+
+/** Map file extension to VS Code-compatible language identifier. */
+const EXTENSION_TO_LANGUAGE: Record<string, string> = {
+  '.ts': 'typescript',
+  '.tsx': 'typescriptreact',
+  '.js': 'javascript',
+  '.jsx': 'javascriptreact',
+  '.mjs': 'javascript',
+  '.cjs': 'javascript',
+  '.py': 'python',
+  '.java': 'java',
+};
+
+function languageIdFromExtension(ext: string): string {
+  return EXTENSION_TO_LANGUAGE[ext.toLowerCase()] ?? 'plaintext';
 }
