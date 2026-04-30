@@ -18,6 +18,9 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
+  "bin": {
+    "ddp-analyze": "./out/adapter/cli/bin.js"
+  },
   "contributes": {
     "commands": [
       {
@@ -262,6 +265,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:integration": "npm run compile && node out/test/runTest.js",
+    "cli:dev": "npx tsx src/adapter/cli/bin.ts",
     "mutation": "stryker run --ignoreStatic",
     "mutation:incremental": "stryker run --incremental"
   },
