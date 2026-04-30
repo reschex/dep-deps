@@ -239,7 +239,7 @@
       "panel": [
         {
           "id": "ddp-impact-panel",
-          "title": "DDP Impact",
+          "title": "DDP Impact Tree",
           "icon": "$(type-hierarchy)"
         }
       ]
@@ -254,7 +254,7 @@
       "ddp-impact-panel": [
         {
           "id": "ddp.impactView",
-          "name": "Impact Tree"
+          "name": "DDP Impact Tree"
         }
       ]
     }

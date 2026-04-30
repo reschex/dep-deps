@@ -89,6 +89,7 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("ddp.showImpactTree", (node?: { type: string; symbol?: { id: string } }) => {
       if (node?.type === "symbol" && node.symbol) {
         impactTree.setRootSymbol(node.symbol.id);
+        vscode.commands.executeCommand("ddp.impactView.focus");
         openImpactGraph(state, node.symbol.id);
       }
     }),
