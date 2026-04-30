@@ -13,21 +13,25 @@ The **Dependable Dependencies** extension analyzes your codebase to identify hig
 
 ### What it does
 
-#### Which files need attention, potentially?
+#### Which files are the most risky to change?
 
-I'm exploring a new (to me) codebase
+I'm exploring a new (to me) codebase, the DDP risk panel shows files and symbols ordered by risk. Click any file or symbol to jump to its definition in the editor. 
+
 
 ![alt example_risk_view](resources/example_ddp_risk_view.png)
 
 #### Is it safe to change the code I'm working on?
 
-<!-- insert picture of code lens -->
+The code lens and symbol tooltip show metrics in the editor, including common insights based on the metrics.
+
+![alt example_code_lens_view](resources/example_code_lens.png)
+![alt example_code_lens_view](resources/example_symbol_tooltip.png)
 
 #### If I change this code, what other code might be impacted?
 
-<!-- isert picture of impact tree -->
+Select a symbol in the DDP risk panel populates the impact tree panel with the complete caller tree.
 
-
+![alt example_code_lens_view](resources/example_ddp_impact_tree.png)
 
 
 ### Commands
@@ -38,15 +42,7 @@ Use **Shift+Ctrl+P** (or **Cmd+Shift+P** on macOS) to run these commands:
 - **`DDP: Analyse Folder...`** — Opens a dialog to select a specific folder/project to analyze
 - **`DDP: Refresh`** — Re-runs analysis on the last analyzed scope
 
-### Viewing Results
-
-Results appear in the **DDP Risks** sidebar panel (left side in the **Explorer** view). The tree displays:
-
-- **Files** — grouped by analyzed folder
-- **Functions/Methods** — under each file, sorted by failure risk (highest first)
-- **Metrics** — inline display of `CC`, `T`, `CRAP`, `R`, and `F` for each symbol
-
-Click any function to jump to its definition in the editor. Hover over function names for detailed metric tooltips.
+Generally, you probably want to analyse a folder (like `/src`)
 
 ### Understanding the Metrics
 
@@ -72,8 +68,8 @@ Each function is rated using these metrics from [Dependable Dependencies (Gorman
 
 Functions are highlighted in the editor based on their `F` (failure risk) score:
 
-- **Yellow squiggle** — Warning threshold (default F ≥ 50): moderate risk
-- **Red squiggle** — Error threshold (default F ≥ 150): high risk
+- **Yellow** — Warning threshold (default F ≥ 50): moderate risk
+- **Red** — Error threshold (default F ≥ 150): high risk
 - **Code Lens** — Inline metrics showing `CC: X, T: Y%, CRAP: Z, R: W, F: V` (configurable on/off)
 
 Thresholds and color intensity can be adjusted in VS Code settings (see [Configuration](#configuration)).

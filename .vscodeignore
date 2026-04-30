@@ -18,5 +18,10 @@ stryker.log
 eslint.config.mjs
 .claude/**
 out/test/**
+out/adapter/cli/**
+out/cli/**
+out/ddp/**
+docs/**
+features/**
 *.md
 !README.md
