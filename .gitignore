@@ -21,6 +21,10 @@ lib-cov
 # Coverage directory used by tools like istanbul
 coverage
 *.lcov
+# Allow committed test fixture data that resembles generated output.
+# The `coverage` rule above would otherwise exclude these intentional fixtures.
+!src/test/fixtures/cli/simple-project/coverage/
+!src/test/fixtures/cli/simple-project/coverage/lcov.info
 
 # nyc test coverage
 .nyc_output
