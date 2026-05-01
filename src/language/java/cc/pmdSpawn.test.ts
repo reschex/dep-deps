@@ -6,7 +6,7 @@ import { EventEmitter } from "node:events";
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 
 import * as cp from "node:child_process";
-import { runPmdCyclomaticComplexity } from "./pmdSpawn";
+import { runPmdCyclomaticComplexity, runPmdRaw } from "./pmdSpawn";
 import { fakeProc } from "../../../shared/fakeProc";
 
 beforeEach(() => {
@@ -353,5 +353,69 @@ describe("bugmagnet session 2026-04-16", () => {
       const result = await promise;
       expect(result.size).toBe(0);
     });
+  });
+});
+
+describe("runPmdRaw", () => {
+  it("returns the raw stdout string on successful close", async () => {
+    const proc = fakeProc();
+    vi.mocked(cp.spawn).mockReturnValue(proc);
+
+    const promise = runPmdRaw("/usr/bin/pmd", "/src/Foo.java", "/project", 5000);
+    proc.stdout!.emit("data", Buffer.from("<pmd>raw output</pmd>"));
+    proc.emit("close", 0);
+
+    const result = await promise;
+    expect(result).toBe("<pmd>raw output</pmd>");
+  });
+
+  it("returns empty string when PMD produces no output", async () => {
+    const proc = fakeProc();
+    vi.mocked(cp.spawn).mockReturnValue(proc);
+
+    const promise = runPmdRaw("/usr/bin/pmd", "/src/Foo.java", "/project", 5000);
+    proc.emit("close", 0);
+
+    const result = await promise;
+    expect(result).toBe("");
+  });
+
+  it("returns empty string when spawn emits an error", async () => {
+    const proc = fakeProc();
+    vi.mocked(cp.spawn).mockReturnValue(proc);
+
+    const promise = runPmdRaw("/invalid/pmd", "/src/Foo.java", "/project", 5000);
+    proc.emit("error", new Error("ENOENT"));
+
+    const result = await promise;
+    expect(result).toBe("");
+  });
+
+  it("passes correct spawn arguments", async () => {
+    const proc = fakeProc();
+    vi.mocked(cp.spawn).mockReturnValue(proc);
+
+    const promise = runPmdRaw("/opt/pmd/bin/pmd", "/src/Bar.java", ".", 5000);
+    proc.emit("close", 0);
+    await promise;
+
+    expect(cp.spawn).toHaveBeenCalledWith(
+      "/opt/pmd/bin/pmd",
+      ["check", "-d", "/src/Bar.java", "-R", "category/java/design.xml", "-f", "xml", "--no-cache"],
+      { cwd: ".", windowsHide: true }
+    );
+  });
+
+  it("concatenates multiple stdout chunks into a single string", async () => {
+    const proc = fakeProc();
+    vi.mocked(cp.spawn).mockReturnValue(proc);
+
+    const promise = runPmdRaw("/usr/bin/pmd", "/src/Foo.java", ".", 5000);
+    proc.stdout!.emit("data", Buffer.from("<pmd>"));
+    proc.stdout!.emit("data", Buffer.from("chunk</pmd>"));
+    proc.emit("close", 0);
+
+    const result = await promise;
+    expect(result).toBe("<pmd>chunk</pmd>");
   });
 });
