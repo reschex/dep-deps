@@ -43,22 +43,25 @@ Commands:
   callers             Show caller tree for a symbol
 
 Analyze Options:
-  --root <path>       Project root directory (default: current directory)
-  --output <file>     Write output to file instead of stdout
-  --format <type>     Output format: json (default: json)
-  --exclude-tests     Exclude test files from analysis (default)
-  --no-exclude-tests  Include test files in analysis
-  --verbose           Enable detailed logging to stderr
-  --help              Show this help message
-  --version           Show version number
+  --root <path>           Project root directory (default: current directory)
+  --output <file>         Write output to file instead of stdout
+  --format <type>         Output format: json (default: json)
+  --exclude-tests         Exclude test files from analysis (default)
+  --no-exclude-tests      Include test files in analysis
+  --respect-gitignore     Exclude files matched by .gitignore
+  --no-respect-gitignore  Include .gitignore-matched files (default)
+  --verbose               Enable detailed logging to stderr
+  --help                  Show this help message
+  --version               Show version number
 
 Callers Options:
-  --file <path>       Source file containing the target symbol (required)
-  --symbol <name>     Symbol name to look up callers for (required)
-  --depth <N>         Max depth for caller tree traversal (default: 5)
-  --format <type>     Output format: json, text (default: json)
-  --root <path>       Project root directory (default: current directory)
-  --verbose           Enable detailed logging to stderr
+  --file <path>           Source file containing the target symbol (required)
+  --symbol <name>         Symbol name to look up callers for (required)
+  --depth <N>             Max depth for caller tree traversal (default: 5)
+  --format <type>         Output format: json, text (default: json)
+  --root <path>           Project root directory (default: current directory)
+  --respect-gitignore     Exclude files matched by .gitignore
+  --verbose               Enable detailed logging to stderr
 
 Examples:
   ddp
@@ -106,6 +109,8 @@ async function runAnalyze(
     const result = await runCliAnalysis({
       rootPath,
       excludeTests: opts.excludeTests,
+      respectGitignore: opts.respectGitignore,
+      debugEnabled: opts.verbose,
       logger,
     });
     const json = formatAnalysisAsJson(result, rootPath);
@@ -145,7 +150,13 @@ async function runCallers(ctx: CliContext, opts: ReturnType<typeof parseCallersA
 
   try {
     // Run full analysis to get symbols, edges, and metrics
-    const result = await runCliAnalysis({ rootPath, excludeTests: opts.excludeTests, logger });
+    const result = await runCliAnalysis({
+      rootPath,
+      excludeTests: opts.excludeTests,
+      respectGitignore: opts.respectGitignore,
+      debugEnabled: opts.verbose,
+      logger,
+    });
 
     // Find the target symbol by name (matching against file path)
     const targetSymbol = findSymbol(result.symbols, opts.file, opts.symbol);
@@ -218,6 +229,7 @@ function makeLogger(ctx: CliContext, verbose: boolean): Logger {
         info(msg: string) { ctx.stderr.write(`[INFO] ${msg}\n`); },
         warn(msg: string) { ctx.stderr.write(`[WARN] ${msg}\n`); },
         error(msg: string) { ctx.stderr.write(`[ERROR] ${msg}\n`); },
+        debug(msg: string) { ctx.stderr.write(`[DEBUG] ${msg}\n`); },
       }
     : {
         info() {},

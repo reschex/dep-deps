@@ -72,7 +72,7 @@ function neverCancelledCtx(): AnalysisContext {
   return { isCancelled: () => false };
 }
 
-const nullLogger = { info() {}, warn() {}, error() {} };
+const nullLogger = { info() {}, warn() {}, error() {}, debug() {} };
 
 // Single-function workspace fixture shared by churn tests.
 const CHURN_FILE_URI = "file:///a.ts";
@@ -1613,9 +1613,10 @@ describe("bugmagnet session 2026-04-15", () => {
       });
 
       await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
-      expect(infos.length).toBe(1);
-      expect(infos[0]).toContain("2 symbols");
-      expect(infos[0]).toContain("1 edges");
+      expect(infos.length).toBe(2);
+      expect(infos[0]).toMatch(/analysis started/i);
+      expect(infos[1]).toContain("2 symbols");
+      expect(infos[1]).toContain("1 edges");
     });
   });
 });
@@ -1757,5 +1758,232 @@ describe("test-file exclusion", () => {
 
     expect(capturedDocMaxFiles).toBe(99);
     expect(capturedCallGraphMaxFiles).toBe(99);
+  });
+});
+
+// ─── Gitignore filtering ────────────────────────────────────────────────────
+
+describe("gitignore filtering", () => {
+  const prodUri = "file:///project/src/service.ts";
+  const ignoredUri = "file:///project/generated/api.ts";
+
+  function buildDocs() {
+    return new Map<string, DocumentInfo>([
+      [prodUri, fakeDoc(prodUri, "typescript")],
+      [ignoredUri, fakeDoc(ignoredUri, "typescript")],
+    ]);
+  }
+
+  function buildSymbols() {
+    return new Map<string, FunctionSymbolInfo[]>([
+      [prodUri, [{ name: "serve", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+      [ignoredUri, [{ name: "callApi", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+    ]);
+  }
+
+  it("excludes files matching the gitignore filter when respectGitignore is true", async () => {
+    // Given a gitignore filter that ignores URIs containing "/generated/"
+    const gitignoreFilter = (uri: string) => uri.includes("/generated/");
+
+    const config: DdpConfiguration = {
+      ...DEFAULT_CONFIGURATION,
+      excludeTests: false,
+      fileFilter: { respectGitignore: true },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(buildDocs()),
+      symbolProvider: fakeSymbolProvider(buildSymbols()),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+      gitignoreFilter,
+    });
+
+    const result = await orchestrator.analyze(config, neverCancelledCtx());
+    assert(result);
+    const uris = result.symbols.map((s) => s.uri);
+    expect(uris).toContain(prodUri);
+    expect(uris).not.toContain(ignoredUri);
+  });
+
+  it("does not filter when respectGitignore is false even if filter is provided", async () => {
+    const gitignoreFilter = (uri: string) => uri.includes("/generated/");
+
+    const config: DdpConfiguration = {
+      ...DEFAULT_CONFIGURATION,
+      excludeTests: false,
+      fileFilter: { respectGitignore: false },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(buildDocs()),
+      symbolProvider: fakeSymbolProvider(buildSymbols()),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+      gitignoreFilter,
+    });
+
+    const result = await orchestrator.analyze(config, neverCancelledCtx());
+    assert(result);
+    const uris = result.symbols.map((s) => s.uri);
+    expect(uris).toContain(prodUri);
+    expect(uris).toContain(ignoredUri);
+  });
+
+  it("works without a gitignoreFilter (default: no filtering)", async () => {
+    const config: DdpConfiguration = {
+      ...DEFAULT_CONFIGURATION,
+      excludeTests: false,
+      fileFilter: { respectGitignore: true },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(buildDocs()),
+      symbolProvider: fakeSymbolProvider(buildSymbols()),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+      // No gitignoreFilter provided
+    });
+
+    const result = await orchestrator.analyze(config, neverCancelledCtx());
+    assert(result);
+    // Without a filter, both files should be present
+    const uris = result.symbols.map((s) => s.uri);
+    expect(uris).toContain(prodUri);
+    expect(uris).toContain(ignoredUri);
+  });
+});
+
+// ─── Debug logging ─────────────────────────────────────────────────────────
+
+describe("debug logging", () => {
+  const debugConfig: DdpConfiguration = { ...DEFAULT_CONFIGURATION, debugEnabled: true };
+
+  it("logs each discovered file URI via debug when debugEnabled is true", async () => {
+    const uri1 = "file:///project/src/a.ts";
+    const uri2 = "file:///project/src/b.ts";
+    const docs = new Map([
+      [uri1, fakeDoc(uri1, "typescript", "return 1")],
+      [uri2, fakeDoc(uri2, "typescript", "return 2")],
+    ]);
+    const symbols = new Map([
+      [uri1, [{ name: "fn1", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+      [uri2, [{ name: "fn2", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+    ]);
+
+    const debugMessages: string[] = [];
+    const logger = { info() {}, warn() {}, error() {}, debug(msg: string) { debugMessages.push(msg); } };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger,
+    });
+
+    await orchestrator.analyze(debugConfig, neverCancelledCtx());
+
+    // Should log the total discovered file count in the canonical format
+    const countMsg = debugMessages.find((m) => /Discovered 2 source file/.test(m));
+    expect(countMsg).toBeDefined();
+
+    // Should log each individual file URI
+    const fileMessages = debugMessages.filter((m) => m.includes("file:///"));
+    expect(fileMessages.length).toBeGreaterThanOrEqual(2);
+    expect(fileMessages.some((m) => m.includes(uri1))).toBe(true);
+    expect(fileMessages.some((m) => m.includes(uri2))).toBe(true);
+  });
+
+  it("logs symbol extraction progress per file via debug", async () => {
+    const uri = "file:///project/src/a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [
+        { name: "fn1", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 },
+        { name: "fn2", selectionStartLine: 5, selectionStartCharacter: 0, bodyStartLine: 5, bodyEndLine: 8 },
+      ]],
+    ]);
+
+    const debugMessages: string[] = [];
+    const logger = { info() {}, warn() {}, error() {}, debug(msg: string) { debugMessages.push(msg); } };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger,
+    });
+
+    await orchestrator.analyze(debugConfig, neverCancelledCtx());
+
+    // Should log how many symbols were extracted from the file
+    const extractMsg = debugMessages.find((m) => m.includes(uri) && m.includes("2") && /symbol/i.test(m));
+    expect(extractMsg).toBeDefined();
+  });
+
+  it("logs an info message at the start of analysis before any long-running phase", async () => {
+    const uri = "file:///project/src/a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn1", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+    ]);
+
+    const infoMessages: string[] = [];
+    const logger = {
+      info(msg: string) { infoMessages.push(msg); },
+      warn() {}, error() {}, debug() {},
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger,
+    });
+
+    await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+
+    // The very first info message should indicate analysis has started
+    expect(infoMessages.length).toBeGreaterThanOrEqual(2);
+    expect(infoMessages[0]).toMatch(/analysis started/i);
+    // The last info message should indicate analysis complete
+    expect(infoMessages[infoMessages.length - 1]).toMatch(/analysis complete/i);
+  });
+
+  it("does NOT emit debug messages when debugEnabled is false", async () => {
+    const uri = "file:///project/src/a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn1", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+    ]);
+
+    const debugMessages: string[] = [];
+    const logger = { info() {}, warn() {}, error() {}, debug(msg: string) { debugMessages.push(msg); } };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger,
+    });
+
+    await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+
+    // debugEnabled defaults to false — no debug messages should be emitted
+    expect(debugMessages).toHaveLength(0);
   });
 });

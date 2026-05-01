@@ -240,6 +240,16 @@
           "type": "boolean",
           "default": false,
           "description": "[Experimental] Enable the interactive graph view. When enabled, right-clicking a symbol in the risk view shows the 'Show Impact Tree' command which opens a visual call-graph panel."
+        },
+        "ddp.fileFilter.respectGitignore": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, files matched by .gitignore patterns are excluded from analysis."
+        },
+        "ddp.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, detailed diagnostic information (discovered files, symbol counts, call graph size) is logged to the output channel during analysis."
         }
       }
     },
@@ -292,6 +302,7 @@
     "diff": "^8.0.3"
   },
   "dependencies": {
+    "ignore": "^7.0.5",
     "vsce": "^2.15.0"
   }
 }

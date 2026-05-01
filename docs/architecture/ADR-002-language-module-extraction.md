@@ -1,10 +1,11 @@
 # ADR-002: Language Module Extraction
 
-**Status:** Accepted (Implemented)  
+**Status:** Accepted (Implemented — Technical Decision 5 partially superseded)  
 **Date:** 2026-04-28  
 **Decision Makers:** Architect  
 **Supersedes:** None  
-**Related:** ADR-001 (CLI Analysis Architecture)
+**Partially superseded by:** ADR-005 (Technical Decision 5 only — see note below)  
+**Related:** ADR-001 (CLI Analysis Architecture), ADR-005 (Language-Native Analysis)
 
 ## Context
 
@@ -240,3 +241,13 @@ Organize by capability instead of by language.
 Define a `LanguagePlugin` interface with `getSymbols()`, `getCc()`, `getCallGraph()`, and use dynamic discovery.
 
 **Rejected because:** premature. The current `CcProviderRegistry` already handles CC dispatch. Symbol extraction and call graphs are tool-dependent, not language-dependent (LSP vs Compiler API). A unified plugin interface would force awkward abstractions for capabilities that don't vary the same way. Revisit if 5+ languages reveal a pattern.
+
+---
+
+## Note on Partial Supersession (ADR-005)
+
+Technical Decision 5 above ("Symbol extraction and call graphs are tool-dependent") was found to be incorrect after implementation. Post-implementation audit revealed that the VS Code extension's reliance on `vscode.executeDocumentSymbolProvider` (LSP) introduces an undocumented dependency on marketplace extensions (Pylance for Python, Language Support for Java for Java), produces non-deterministic results, and blocks CLI and future IDE ports.
+
+**ADR-005 supersedes Technical Decision 5 only.** All other decisions in this ADR (layer structure, dependency rule, CC provider placement, file patterns, test co-location) remain valid and in effect.
+
+The corrected rule (from ADR-005): *Language-specific implementations of all analysis capabilities — CC, symbol extraction, and call graph construction — belong in `src/language/<lang>/`. The presence of an IDE plugin or language server must never be a prerequisite for producing analysis output.*

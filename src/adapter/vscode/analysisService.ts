@@ -21,6 +21,7 @@ import {
   VsCodeLogger,
 } from "./adapters";
 import { GitChurnAdapter } from "./churn/gitChurnAdapter";
+import { loadGitignoreFilter, makeUriFilter, type UriFilter } from "../../core/gitignoreFilter";
 
 export type { AnalysisResult } from "./analysisOrchestrator";
 
@@ -53,21 +54,34 @@ export class AnalysisService {
       provider: new PmdCcProvider(config.cc.pmdPath),
     });
 
-    const workspaceRootUri = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    const workspaceRootUri = workspaceFolder?.uri.toString();
     const churnProvider = config.churn.enabled && workspaceRootUri
       ? new GitChurnAdapter(workspaceRootUri)
       : undefined;
 
+    let gitignoreFilter: UriFilter | undefined;
+    if (config.fileFilter.respectGitignore && workspaceFolder) {
+      const rawFilter = await loadGitignoreFilter(workspaceFolder.uri.fsPath);
+      gitignoreFilter = makeUriFilter(workspaceFolder.uri.toString(), rawFilter);
+    }
+
     const orchestrator = new AnalysisOrchestrator({
       documentProvider: new VsCodeDocumentProvider(config.excludeTests),
       symbolProvider: new VsCodeSymbolProvider(),
-      callGraphProvider: new VsCodeCallGraphProvider(token, config.excludeTests),
+      callGraphProvider: new VsCodeCallGraphProvider(token, config.excludeTests, config.debugEnabled ? this.logger : undefined, gitignoreFilter),
       coverageProvider: new VsCodeCoverageProvider(this.coverageStore, config.coverage.lcovGlob, config.coverage.jacocoGlob, token),
       ccRegistry,
       logger: this.logger,
       churnProvider,
+      gitignoreFilter,
     });
 
-    return orchestrator.analyze(config, { isCancelled: () => token.isCancellationRequested }, scope);
+    // Default scope to workspace root when no explicit scope is provided.
+    // This makes workspace analysis behave identically to folder analysis
+    // scoped to the project root, and ensures the log shows the actual path.
+    const effectiveScope = scope ?? (workspaceRootUri ? { rootUri: workspaceRootUri } : undefined);
+
+    return orchestrator.analyze(config, { isCancelled: () => token.isCancellationRequested }, effectiveScope);
   }
 }

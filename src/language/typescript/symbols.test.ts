@@ -191,6 +191,27 @@ describe('NodeSymbolProvider - Function Extraction', () => {
       expect(symbols.length).toBe(1);
       expect(symbols[0].name).toBe('greet');
     });
+
+    it('returns symbols when given a VS Code-style percent-encoded Windows URI (file:///c%3A/...)', async () => {
+      // Regression test for fileURLToPath fix.
+      // The old regex `uri.replace('file://', '').replace(/^\/([A-Z]:)/, '$1')` could not
+      // decode percent-encoded colons (%3A), producing an invalid path such as `/c%3A/path`.
+      // fileURLToPath() correctly decodes %3A → ':' before resolving the path.
+      const content = `function computeMetrics() { return 42; }`;
+      const filePath = join(tempDir, 'percentEncoded.ts');
+      await writeFile(filePath, content, 'utf-8');
+
+      // Build a URI where the drive-letter colon is percent-encoded, matching VS Code's toString() output.
+      const forwardSlash = filePath.replace(/\\/g, '/');
+      // Replace the first ':' (after the drive letter) with '%3A', e.g. 'C:/path' → 'C%3A/path'
+      const percentEncoded = forwardSlash.replace(/^([A-Za-z]):/, '$1%3A');
+      const uri = `file:///${percentEncoded}`;
+
+      const symbols = await provider.getFunctionSymbols(uri);
+
+      expect(symbols.length).toBe(1);
+      expect(symbols[0].name).toBe('computeMetrics');
+    });
   });
 
   describe('Scenario: Extract function expression assignments', () => {

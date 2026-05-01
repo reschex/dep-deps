@@ -19,6 +19,7 @@ import type {
 } from "../../core/ports";
 import type { StatementCover } from "../../core/coverageMap";
 import type { CallEdge } from "../../core/rank";
+import type { UriFilter } from "../../core/gitignoreFilter";
 import { flattenFunctionSymbols } from "./documentSymbols";
 import { collectCallEdgesFromWorkspace } from "./lspCallGraph";
 import { CoverageStore, loadLcovIntoStore } from "./coverageStore";
@@ -113,10 +114,12 @@ export class VsCodeCallGraphProvider implements CallGraphProvider {
   constructor(
     private readonly token: vscode.CancellationToken,
     private readonly excludeTests: boolean = true,
+    private readonly logger?: Logger,
+    private readonly uriFilter?: UriFilter,
   ) {}
 
   async collectCallEdges(maxFiles: number, rootUri?: string): Promise<CallEdge[]> {
-    return collectCallEdgesFromWorkspace({ token: this.token, maxFiles, rootUri, excludeTests: this.excludeTests });
+    return collectCallEdgesFromWorkspace({ token: this.token, maxFiles, rootUri, excludeTests: this.excludeTests, logger: this.logger, uriFilter: this.uriFilter });
   }
 }
 
@@ -212,5 +215,9 @@ export class VsCodeLogger implements Logger {
   error(message: string, err?: unknown): void {
     const suffix = err instanceof Error ? `: ${err.message}` : "";
     this.channel.appendLine(`[ERROR] ${message}${suffix}`);
+  }
+
+  debug(message: string): void {
+    this.channel.appendLine(`[DEBUG] ${message}`);
   }
 }

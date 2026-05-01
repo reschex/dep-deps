@@ -167,6 +167,24 @@ describe('CLI main()', () => {
       expect(stderr.output).toContain('[INFO]');
     });
 
+    it('should write DEBUG file discovery messages to stderr when --verbose is set', async () => {
+      const stdout = captureStream();
+      const stderr = captureStream();
+
+      const exitCode = await main({
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--verbose'],
+        stdout,
+        stderr,
+        cwd: FIXTURE_PATH,
+      });
+
+      expect(exitCode).toBe(0);
+      // Verbose mode should produce DEBUG messages listing discovered files
+      expect(stderr.output).toContain('[DEBUG]');
+      expect(stderr.output).toContain('Discovered');
+      expect(stderr.output).toContain('file:///');
+    });
+
     it('should NOT write log messages to stderr without --verbose', async () => {
       const stdout = captureStream();
       const stderr = captureStream();

@@ -13,6 +13,8 @@ import { NodeSymbolProvider } from '../../language/typescript/symbols';
 import { CcProviderRegistry } from '../../core/ccRegistry';
 import { nullLogger, type CallGraphProvider, type Logger } from '../../core/ports';
 import type { CallEdge } from '../../core/rank';
+import { loadGitignoreFilter, makeUriFilter, type UriFilter } from '../../core/gitignoreFilter';
+import { pathToFileURL } from 'node:url';
 
 /** Options for running CLI analysis. */
 export type CliAnalysisOptions = {
@@ -20,6 +22,8 @@ export type CliAnalysisOptions = {
   readonly lcovGlob?: string;
   readonly excludeTests?: boolean;
   readonly maxFiles?: number;
+  readonly respectGitignore?: boolean;
+  readonly debugEnabled?: boolean;
   readonly logger?: Logger;
 };
 
@@ -42,6 +46,8 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
     lcovGlob = DEFAULT_CONFIGURATION.coverage.lcovGlob,
     excludeTests = DEFAULT_CONFIGURATION.excludeTests,
     maxFiles = DEFAULT_CONFIGURATION.maxFiles,
+    respectGitignore = DEFAULT_CONFIGURATION.fileFilter.respectGitignore,
+    debugEnabled = DEFAULT_CONFIGURATION.debugEnabled,
     logger = nullLogger,
   } = options;
 
@@ -50,6 +56,13 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
   const coverageProvider = new NodeCoverageProvider(rootPath, lcovGlob);
   const ccRegistry = new CcProviderRegistry();
 
+  let gitignoreFilter: UriFilter | undefined;
+  if (respectGitignore) {
+    const rootUri = pathToFileURL(rootPath).toString();
+    const rawFilter = await loadGitignoreFilter(rootPath);
+    gitignoreFilter = makeUriFilter(rootUri, rawFilter);
+  }
+
   const orchestrator = new AnalysisOrchestrator({
     documentProvider,
     symbolProvider,
@@ -57,6 +70,7 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
     coverageProvider,
     ccRegistry,
     logger,
+    gitignoreFilter,
   });
 
   const config: DdpConfiguration = {
@@ -67,6 +81,11 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
       ...DEFAULT_CONFIGURATION.coverage,
       lcovGlob,
     },
+    fileFilter: {
+      ...DEFAULT_CONFIGURATION.fileFilter,
+      respectGitignore,
+    },
+    debugEnabled,
   };
 
   const ctx = { isCancelled: () => false };

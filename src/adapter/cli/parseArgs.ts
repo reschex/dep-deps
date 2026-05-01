@@ -20,6 +20,8 @@ export type CliOptions = {
   readonly format: string;
   /** Exclude test files from analysis (default: true). */
   readonly excludeTests: boolean;
+  /** Respect .gitignore patterns when discovering files (default: false). */
+  readonly respectGitignore: boolean;
   /** Enable verbose logging. */
   readonly verbose: boolean;
   /** Show help and exit. */
@@ -42,6 +44,8 @@ export type CallersOptions = {
   readonly format: string;
   /** Exclude test files from analysis (default: true). */
   readonly excludeTests: boolean;
+  /** Respect .gitignore patterns when discovering files (default: false). */
+  readonly respectGitignore: boolean;
   /** Enable verbose logging. */
   readonly verbose: boolean;
 };
@@ -52,6 +56,7 @@ type CommonFlagState = {
   root: string | undefined;
   format: string;
   excludeTests: boolean;
+  respectGitignore: boolean;
   verbose: boolean;
 };
 
@@ -78,6 +83,12 @@ function applyCommonFlag(
       break;
     case '--no-exclude-tests':
       state.excludeTests = false;
+      break;
+    case '--respect-gitignore':
+      state.respectGitignore = true;
+      break;
+    case '--no-respect-gitignore':
+      state.respectGitignore = false;
       break;
     case '--verbose':
       state.verbose = true;
@@ -106,7 +117,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
   let output: string | undefined;
   let help = false;
   let version = false;
-  const common: CommonFlagState = { root: undefined, format: 'json', excludeTests: true, verbose: false };
+  const common: CommonFlagState = { root: undefined, format: 'json', excludeTests: true, respectGitignore: false, verbose: false };
 
   for (let i = startIndex; i < args.length; i++) {
     const arg = args[i];
@@ -126,7 +137,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     }
   }
 
-  return { command, root: common.root, output, format: common.format, excludeTests: common.excludeTests, verbose: common.verbose, help, version };
+  return { command, root: common.root, output, format: common.format, excludeTests: common.excludeTests, respectGitignore: common.respectGitignore, verbose: common.verbose, help, version };
 }
 
 // ── parseCallersArgs ────────────────────────────────────────────────────────
@@ -144,7 +155,7 @@ export function parseCallersArgs(argv: readonly string[]): CallersOptions {
   let file: string | undefined;
   let symbol: string | undefined;
   let depth = 5;
-  const common: CommonFlagState = { root: undefined, format: 'json', excludeTests: true, verbose: false };
+  const common: CommonFlagState = { root: undefined, format: 'json', excludeTests: true, respectGitignore: false, verbose: false };
 
   for (let i = startIndex; i < args.length; i++) {
     const arg = args[i];
@@ -168,5 +179,5 @@ export function parseCallersArgs(argv: readonly string[]): CallersOptions {
     }
   }
 
-  return { root: common.root, file, symbol, depth, format: common.format, excludeTests: common.excludeTests, verbose: common.verbose };
+  return { root: common.root, file, symbol, depth, format: common.format, excludeTests: common.excludeTests, respectGitignore: common.respectGitignore, verbose: common.verbose };
 }

@@ -5,6 +5,7 @@
 
 import * as ts from 'typescript';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import type { SymbolProvider, FunctionSymbolInfo } from '../../core/ports';
 
 export class NodeSymbolProvider implements SymbolProvider {
@@ -15,9 +16,7 @@ export class NodeSymbolProvider implements SymbolProvider {
    */
   async getFunctionSymbols(uri: string): Promise<FunctionSymbolInfo[]> {
     // Convert URI to file path if needed
-    const filePath = uri.startsWith('file://') 
-      ? uri.replace('file://', '').replace(/^\/([A-Z]:)/, '$1')
-      : uri;
+    const filePath = uri.startsWith('file://') ? fileURLToPath(uri) : uri;
 
     // Read file content
     const content = await readFile(filePath, 'utf-8');

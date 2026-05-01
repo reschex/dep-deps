@@ -492,6 +492,56 @@ describe("VsCodeCallGraphProvider", () => {
       expect.objectContaining({ rootUri: undefined }),
     );
   });
+
+  it("passes logger to collectCallEdgesFromWorkspace when provided", async () => {
+    const token = fakeToken();
+    const logger = { info() {}, warn() {}, error() {}, debug() {} };
+    vi.mocked(collectCallEdgesFromWorkspace).mockResolvedValue([]);
+
+    const provider = new VsCodeCallGraphProvider(token, true, logger);
+    await provider.collectCallEdges(10);
+
+    expect(collectCallEdgesFromWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ logger }),
+    );
+  });
+
+  it("passes undefined logger when not provided", async () => {
+    const token = fakeToken();
+    vi.mocked(collectCallEdgesFromWorkspace).mockResolvedValue([]);
+
+    const provider = new VsCodeCallGraphProvider(token);
+    await provider.collectCallEdges(10);
+
+    expect(collectCallEdgesFromWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ logger: undefined }),
+    );
+  });
+
+  it("passes uriFilter to collectCallEdgesFromWorkspace when provided", async () => {
+    const token = fakeToken();
+    const uriFilter = (uri: string) => uri.includes(".stryker-tmp");
+    vi.mocked(collectCallEdgesFromWorkspace).mockResolvedValue([]);
+
+    const provider = new VsCodeCallGraphProvider(token, true, undefined, uriFilter);
+    await provider.collectCallEdges(10);
+
+    expect(collectCallEdgesFromWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ uriFilter }),
+    );
+  });
+
+  it("passes undefined uriFilter when not provided", async () => {
+    const token = fakeToken();
+    vi.mocked(collectCallEdgesFromWorkspace).mockResolvedValue([]);
+
+    const provider = new VsCodeCallGraphProvider(token);
+    await provider.collectCallEdges(10);
+
+    expect(collectCallEdgesFromWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ uriFilter: undefined }),
+    );
+  });
 });
 
 // ═════════════════════════════════════════════════════════════════════
@@ -780,6 +830,15 @@ describe("VsCodeLogger", () => {
     logger.error("oops", undefined);
 
     expect(channel.appendLine).toHaveBeenCalledWith("[ERROR] oops");
+  });
+
+  it("formats debug message as [DEBUG] prefix", () => {
+    const channel = fakeChannel();
+    const logger = new VsCodeLogger(channel);
+
+    logger.debug("file discovered: file:///project/src/main.ts");
+
+    expect(channel.appendLine).toHaveBeenCalledWith("[DEBUG] file discovered: file:///project/src/main.ts");
   });
 });
 

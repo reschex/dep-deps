@@ -96,10 +96,12 @@ describe("buildConfiguration", () => {
       impactTree: { maxDepth: 5 },
       graphView: { enabled: false },
       analysis: { defaultFolder: "" },
+      fileFilter: { respectGitignore: false },
       fileRollup: "sum",
       codelensEnabled: false,
       excludeTests: false,
       maxFiles: 400,
+      debugEnabled: false,
     });
   });
 
@@ -197,10 +199,12 @@ describe("DEFAULT_CONFIGURATION", () => {
       impactTree: { maxDepth: 5 },
       graphView: { enabled: false },
       analysis: { defaultFolder: "" },
+      fileFilter: { respectGitignore: false },
       fileRollup: "max",
       codelensEnabled: true,
       excludeTests: true,
       maxFiles: 400,
+      debugEnabled: false,
     });
   });
 
@@ -227,8 +231,10 @@ describe("DEFAULT_CONFIGURATION", () => {
       "churn",
       "codelensEnabled",
       "coverage",
+      "debugEnabled",
       "decoration",
       "excludeTests",
+      "fileFilter",
       "fileRollup",
       "graphView",
       "impactTree",
@@ -530,9 +536,11 @@ describe("bugmagnet session 2026-04-16", () => {
         "coverage.fallbackT",
         "coverage.jacocoGlob",
         "coverage.lcovGlob",
+        "debug",
         "decoration.errorThreshold",
         "decoration.warnThreshold",
         "excludeTests",
+        "fileFilter.respectGitignore",
         "fileRollup",
         "graphView.enabled",
         "impactTree.maxDepth",
@@ -565,10 +573,12 @@ describe("bugmagnet session 2026-04-16", () => {
         "impactTree.maxDepth": 5,
         "graphView.enabled": false,
         "analysis.defaultFolder": "",
+        "fileFilter.respectGitignore": false,
         "fileRollup": "max",
         "codelens.enabled": true,
         "excludeTests": true,
         "maxFiles": 400,
+        "debug": false,
       });
     });
 
@@ -640,6 +650,41 @@ describe("mutation-killing: DEFAULT_CONFIGURATION individual properties", () => 
 
   it("excludeTests defaults to true", () => {
     expect(DEFAULT_CONFIGURATION.excludeTests).toBe(true);
+  });
+});
+
+describe("fileFilter configuration", () => {
+  it("defaults fileFilter.respectGitignore to false", () => {
+    expect(DEFAULT_CONFIGURATION.fileFilter.respectGitignore).toBe(false);
+  });
+
+  it("buildConfiguration reads fileFilter.respectGitignore override from getter", () => {
+    const config = buildConfiguration(<T>(key: string, defaultValue: T) =>
+      (key === "fileFilter.respectGitignore" ? true : defaultValue) as T
+    );
+    expect(config.fileFilter.respectGitignore).toBe(true);
+  });
+});
+
+describe("debugEnabled configuration", () => {
+  it("defaults debugEnabled to false", () => {
+    expect(DEFAULT_CONFIGURATION.debugEnabled).toBe(false);
+  });
+
+  it("buildConfiguration reads debug override from getter", () => {
+    const config = buildConfiguration(<T>(key: string, defaultValue: T) =>
+      (key === "debug" ? true : defaultValue) as T
+    );
+    expect(config.debugEnabled).toBe(true);
+  });
+
+  it("buildConfiguration passes false as default for debug key", () => {
+    const defaults: Record<string, unknown> = {};
+    buildConfiguration(<T>(key: string, defaultValue: T) => {
+      defaults[key] = defaultValue;
+      return defaultValue;
+    });
+    expect(defaults["debug"]).toBe(false);
   });
 });
 

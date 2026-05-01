@@ -1449,4 +1449,113 @@ describe("collectCallEdgesFromWorkspace", () => {
       });
     });
   });
+
+  // ─── Debug logging ────────────────────────────────────────────────
+  describe("debug logging", () => {
+    it("logs each file URI via logger.debug as it processes files for call graph discovery", async () => {
+      const uris = [
+        fakeUri("file:///src/a.ts"),
+        fakeUri("file:///src/b.ts"),
+      ];
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
+      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
+
+      const debugMessages: string[] = [];
+      const logger = {
+        info() {}, warn() {}, error() {},
+        debug(msg: string) { debugMessages.push(msg); },
+      };
+
+      await collectCallEdgesFromWorkspace({ logger });
+
+      // Should log each file URI as it's processed
+      expect(debugMessages.some((m) => m.includes("file:///src/a.ts"))).toBe(true);
+      expect(debugMessages.some((m) => m.includes("file:///src/b.ts"))).toBe(true);
+    });
+
+    it("logs the file URI BEFORE processing symbols (not batched at the end)", async () => {
+      const uris = [
+        fakeUri("file:///src/slow.ts"),
+        fakeUri("file:///src/fast.ts"),
+      ];
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
+
+      const events: string[] = [];
+      vi.mocked(vscode.workspace.openTextDocument).mockImplementation(async (uri: any) => {
+        events.push(`open:${uri.toString()}`);
+        return {} as any;
+      });
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          events.push("symbols");
+          return [fnSymbol("fn", 0)] as any;
+        }
+        return undefined as any;
+      });
+
+      const logger = {
+        info() {}, warn() {}, error() {},
+        debug(msg: string) { events.push(`log:${msg}`); },
+      };
+
+      await collectCallEdgesFromWorkspace({ logger });
+
+      // Log for file a should appear BEFORE its document is opened
+      const logIdx = events.findIndex((e) => e.startsWith("log:") && e.includes("file:///src/slow.ts"));
+      const openIdx = events.findIndex((e) => e === "open:file:///src/slow.ts");
+      expect(logIdx).toBeGreaterThanOrEqual(0);
+      expect(openIdx).toBeGreaterThanOrEqual(0);
+      expect(logIdx).toBeLessThan(openIdx);
+    });
+
+    it("does not throw when no logger is provided", async () => {
+      const uris = [fakeUri("file:///src/a.ts")];
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
+      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
+
+      // No logger — should not throw
+      await expect(collectCallEdgesFromWorkspace()).resolves.not.toThrow();
+    });
+  });
+
+  // ─── URI filter ───────────────────────────────────────────────────
+  describe("URI filter", () => {
+    it("excludes files matched by uriFilter from call graph discovery", async () => {
+      const uris = [
+        fakeUri("file:///proj/src/app.ts"),
+        fakeUri("file:///proj/.stryker-tmp/sandbox123/src/app.ts"),
+        fakeUri("file:///proj/src/utils.ts"),
+      ];
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
+      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
+
+      const uriFilter = (uri: string) => uri.includes(".stryker-tmp");
+
+      await collectCallEdgesFromWorkspace({ uriFilter });
+
+      const openedUris = vi.mocked(vscode.workspace.openTextDocument).mock.calls.map(
+        (c) => (c[0] as any).toString(),
+      );
+      expect(openedUris).toContain("file:///proj/src/app.ts");
+      expect(openedUris).toContain("file:///proj/src/utils.ts");
+      expect(openedUris).not.toContain("file:///proj/.stryker-tmp/sandbox123/src/app.ts");
+    });
+
+    it("does not filter any files when uriFilter is not provided", async () => {
+      const uris = [
+        fakeUri("file:///proj/src/app.ts"),
+        fakeUri("file:///proj/.stryker-tmp/sandbox123/src/app.ts"),
+      ];
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
+      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
+
+      await collectCallEdgesFromWorkspace();
+
+      const openedUris = vi.mocked(vscode.workspace.openTextDocument).mock.calls.map(
+        (c) => (c[0] as any).toString(),
+      );
+      expect(openedUris).toContain("file:///proj/src/app.ts");
+      expect(openedUris).toContain("file:///proj/.stryker-tmp/sandbox123/src/app.ts");
+    });
+  });
 });

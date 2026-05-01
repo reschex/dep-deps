@@ -103,6 +103,71 @@ Three-layer architecture: CLI output → PreToolUse hook → MCP server.
 
 ---
 
+## Language-Native Analysis (ADR-005)
+
+**Status**: Planned (2026-05-01)  
+**Docs**: [ADR-005](../architecture/ADR-005-language-native-analysis.md), [Implementation Guide](../guides/IMPLEMENTATION_GUIDE_NATIVE_ANALYSIS.md)
+
+Eliminate the dependency on VS Code language server extensions for symbol extraction and call graph construction. Move all analysis capabilities into `src/language/<lang>/`, following the pattern already established for CC providers. Restores deterministic results, unblocks multi-language CLI, and enables future IntelliJ/PyCharm ports.
+
+**Background**: `VsCodeSymbolProvider` currently delegates to `vscode.executeDocumentSymbolProvider`, which relies on whatever language server extensions the user has installed. Python requires Pylance; Java requires Language Support for Java. Without them, all functions show F=0. The CLI has no call graph at all (R=1 always). ADR-005 corrects the architectural mistake in ADR-002 Technical Decision 5.
+
+### Phase 1: Language-Native Symbol Extraction (Priority: High)
+
+#### 1a. Python symbol extraction
+- [ ] New `src/language/python/symbolsSpawn.ts` — `runPythonSymbolExtraction(pythonPath, filePath, cwd, timeoutMs)` using `spawnAndCollect`
+- [ ] New `src/language/python/symbolsParse.ts` — `parsePythonSymbolsJson(jsonText)` → `FunctionSymbolInfo[]`
+- [ ] New `src/language/python/symbols.ts` — `PythonSymbolProvider` implementing `SymbolProvider` port
+- [ ] Unit tests: `symbolsParse.test.ts` covers valid JSON, empty, malformed, nested functions/class methods
+- [ ] Integration test: `simple.py` fixture → correct names and 0-based line numbers
+- [ ] Graceful degradation: syntax errors and missing Python return `[]`, never throw
+
+#### 1b. Java symbol extraction
+- [ ] Extract `runPmdRaw(pmdPath, filePath, cwd, timeoutMs): Promise<string>` from `pmdSpawn.ts` (shared raw XML access)
+- [ ] New `src/language/java/symbolsParse.ts` — `parsePmdSymbolsXml(xmlText)` → `FunctionSymbolInfo[]` from PMD violation attrs
+- [ ] New `src/language/java/symbols.ts` — `JavaSymbolProvider` implementing `SymbolProvider` port
+- [ ] Unit tests: PMD XML with/without method attributes, duplicate violation handling
+- [ ] Document CC=1 limitation in JSDoc (PMD may not report methods with minimal complexity)
+
+#### 1c. Replace VsCodeSymbolProvider
+- [ ] New `NativeSymbolProvider` in `src/adapter/vscode/adapters.ts` — dispatches by `languageId` to `NodeSymbolProvider` | `PythonSymbolProvider` | `JavaSymbolProvider`
+- [ ] `detectLanguageId(uri)` helper — maps file extension to language ID
+- [ ] Wire `NativeSymbolProvider` into `AnalysisService` (pass `pythonPath` and `pmdPath` from config)
+- [ ] Delete `VsCodeSymbolProvider` class (not just unused)
+- [ ] Regression: VS Code extension test suite passes; symbol counts unchanged for TypeScript workspaces
+
+### Phase 2: TypeScript Call Graph via Compiler API (Priority: High)
+
+#### 2a. Native TS call graph
+- [ ] New `src/language/typescript/callGraphBuild.ts` — `buildTypeScriptCallEdges(rootPath, fileUris)` using `ts.createProgram`
+  - [ ] Walk `CallExpression` and `NewExpression` nodes
+  - [ ] Resolve callee via `checker.getSymbolAtLocation()` + `checker.getAliasedSymbol()`
+  - [ ] Resolve caller by walking up AST to enclosing function/method
+  - [ ] Deduplicate edges; exclude self-calls; exclude `.d.ts` files
+  - [ ] Symbol IDs must match `NodeSymbolProvider` format (`uri#line:character`, 0-based)
+- [ ] New `src/language/typescript/callGraph.ts` — `NodeCallGraphProvider` wrapping `callGraphBuild.ts`
+- [ ] Unit tests: two-file fixture (`caller.ts` → `callee.ts`) produces correct `CallEdge`
+- [ ] Unit tests: recursive call excluded; duplicate calls deduplicated; declaration files skipped
+
+#### 2b. Wire call graph into CLI
+- [ ] Replace `nullCallGraphProvider` in `src/adapter/cli/cliAnalysis.ts` with `NodeCallGraphProvider`
+- [ ] Delete `nullCallGraphProvider` stub
+- [ ] Regression: `cliAnalysis.test.ts` passes; CLI analysis of a TypeScript project returns `edges.length > 0`
+- [ ] Verify R > 1 for at least some symbols in a real TypeScript project
+
+#### 2c. Hybrid VS Code call graph
+- [ ] New `HybridCallGraphProvider` in `src/adapter/vscode/adapters.ts` — prefers LSP, falls back to native on empty/error
+- [ ] Wire `HybridCallGraphProvider` into `AnalysisService` in place of `VsCodeCallGraphProvider`
+- [ ] Unit tests: LSP returns edges → LSP result used; LSP returns empty → native used; LSP throws → native used
+
+### Phase 3: Python and Java Call Graph (Deferred)
+
+- [ ] Python native call graph — `src/language/python/callGraph.ts` (ast-based, subprocess)
+- [ ] Java native call graph — `src/language/java/callGraph.ts` (PMD or tree-sitter)
+- [ ] Document clearly in README that Python/Java R=1 until Phase 3 is complete
+
+---
+
 ## Other Planned Features
 
 - [ ] ddp config file in repo (`.ddprc.json`) — including `agentIntegration` thresholds
@@ -111,3 +176,4 @@ Three-layer architecture: CLI output → PreToolUse hook → MCP server.
 - [ ] auto load/update symbol setting on code change
 - [ ] right click context menu on symbol with ddp view call graph option
 - [x] update formatHooverBreakdown to show dynamic analysis of the metric combination
+- [ ] a shared "discover and filter files" function used by both paths (call graph and symbol metric)

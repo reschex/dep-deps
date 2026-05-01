@@ -11,6 +11,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { join } from 'path';
+import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'url';
 import { runCliAnalysis } from './cliAnalysis';
 import { formatAnalysisAsJson, type JsonOutput } from './formatJson';
 
@@ -77,6 +80,84 @@ describe('CLI Analysis Pipeline', () => {
       // Then all symbols should have R = 1 (default rank without call graph)
       for (const sym of result.symbols) {
         expect(sym.r).toBe(1);
+      }
+    });
+  });
+
+  describe('Scenario: Respect .gitignore when configured', () => {
+    it('should exclude files matching .gitignore patterns when respectGitignore is true', async () => {
+      // Given a project with a .gitignore that ignores "generated/"
+      const dir = await mkdtemp(join(tmpdir(), 'ddp-cli-gitignore-'));
+      try {
+        await mkdir(join(dir, 'src'), { recursive: true });
+        await mkdir(join(dir, 'generated'), { recursive: true });
+        await writeFile(join(dir, '.gitignore'), 'generated/\n');
+        await writeFile(join(dir, 'src', 'main.ts'), 'export function main() { return 1; }\n');
+        await writeFile(join(dir, 'generated', 'api.ts'), 'export function callApi() { return 2; }\n');
+
+        // When I run CLI analysis with respectGitignore enabled
+        const result = await runCliAnalysis({
+          rootPath: dir,
+          excludeTests: false,
+          respectGitignore: true,
+        });
+
+        // Then the generated file should be excluded
+        const uris = result.symbols.map(s => s.uri);
+        const generatedUri = pathToFileURL(join(dir, 'generated', 'api.ts')).toString();
+        const mainUri = pathToFileURL(join(dir, 'src', 'main.ts')).toString();
+        expect(uris).toContain(mainUri);
+        expect(uris).not.toContain(generatedUri);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('should succeed and include all files when respectGitignore is true but no .gitignore exists', async () => {
+      // Given a project root with no .gitignore file
+      const dir = await mkdtemp(join(tmpdir(), 'ddp-cli-missing-gitignore-'));
+      try {
+        await mkdir(join(dir, 'src'), { recursive: true });
+        await writeFile(join(dir, 'src', 'main.ts'), 'export function main() { return 1; }\n');
+        // Intentionally no .gitignore file
+
+        // When I run CLI analysis with respectGitignore enabled
+        const result = await runCliAnalysis({
+          rootPath: dir,
+          excludeTests: false,
+          respectGitignore: true,
+        });
+
+        // Then analysis should complete successfully (nullFilter applied — no files excluded)
+        const names = result.symbols.map(s => s.name);
+        expect(names).toContain('main');
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('should include all files when respectGitignore is false', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'ddp-cli-no-gitignore-'));
+      try {
+        await mkdir(join(dir, 'src'), { recursive: true });
+        await mkdir(join(dir, 'generated'), { recursive: true });
+        await writeFile(join(dir, '.gitignore'), 'generated/\n');
+        await writeFile(join(dir, 'src', 'main.ts'), 'export function main() { return 1; }\n');
+        await writeFile(join(dir, 'generated', 'api.ts'), 'export function callApi() { return 2; }\n');
+
+        // When I run CLI analysis with respectGitignore disabled (default)
+        const result = await runCliAnalysis({
+          rootPath: dir,
+          excludeTests: false,
+          respectGitignore: false,
+        });
+
+        // Then both files should be included
+        const names = result.symbols.map(s => s.name);
+        expect(names).toContain('main');
+        expect(names).toContain('callApi');
+      } finally {
+        await rm(dir, { recursive: true, force: true });
       }
     });
   });

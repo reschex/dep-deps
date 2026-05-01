@@ -44,6 +44,17 @@ export type AnalysisConfig = {
 };
 
 /**
+ * File filtering configuration.
+ * Groups all file-inclusion / exclusion concerns to support future include/exclude globs.
+ *
+ * TODO: add `includeGlob` and `excludeGlob` fields here when glob-based filtering is implemented.
+ */
+export type FileFilterConfig = {
+  /** When true, files matched by .gitignore patterns are excluded from analysis. */
+  readonly respectGitignore: boolean;
+};
+
+/**
  * Optional scope constraint for analysis.
  * When set, only files under `rootUri` are fully analyzed.
  * Call edges to symbols outside this root are kept for rank propagation
@@ -63,10 +74,19 @@ export type DdpConfiguration = {
   readonly impactTree: ImpactTreeConfig;
   readonly graphView: GraphViewConfig;
   readonly analysis: AnalysisConfig;
+  readonly fileFilter: FileFilterConfig;
   readonly fileRollup: "max" | "sum";
   readonly codelensEnabled: boolean;
   readonly excludeTests: boolean;
   readonly maxFiles: number;
+  /**
+   * When true, emits debug-level log messages for file discovery and symbol extraction.
+   *
+   * TODO: consider grouping under `debug: { enabled: boolean }` once a second
+   * diagnostics field is needed (consistent with other grouped sub-configs).
+   * The VS Code setting key is "debug" (bare boolean) rather than "debug.enabled".
+   */
+  readonly debugEnabled: boolean;
 };
 
 export const DEFAULT_CONFIGURATION: DdpConfiguration = {
@@ -83,10 +103,12 @@ export const DEFAULT_CONFIGURATION: DdpConfiguration = {
   impactTree: { maxDepth: 5 },
   graphView: { enabled: false },
   analysis: { defaultFolder: "" },
+  fileFilter: { respectGitignore: false },
   fileRollup: "max",
   codelensEnabled: true,
   excludeTests: true,
   maxFiles: 400,
+  debugEnabled: false,
 };
 
 /** Build configuration from a key-value getter (abstracts away vscode.WorkspaceConfiguration). */
@@ -126,10 +148,14 @@ export function buildConfiguration(
     analysis: {
       defaultFolder: get<string>("analysis.defaultFolder", DEFAULT_CONFIGURATION.analysis.defaultFolder),
     },
+    fileFilter: {
+      respectGitignore: get<boolean>("fileFilter.respectGitignore", DEFAULT_CONFIGURATION.fileFilter.respectGitignore),
+    },
     fileRollup: get<"max" | "sum">("fileRollup", DEFAULT_CONFIGURATION.fileRollup),
     codelensEnabled: get<boolean>("codelens.enabled", DEFAULT_CONFIGURATION.codelensEnabled),
     excludeTests: get<boolean>("excludeTests", DEFAULT_CONFIGURATION.excludeTests),
     maxFiles: get<number>("maxFiles", DEFAULT_CONFIGURATION.maxFiles),
+    debugEnabled: get<boolean>("debug", DEFAULT_CONFIGURATION.debugEnabled),
   };
 }
 

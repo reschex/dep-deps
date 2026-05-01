@@ -9,7 +9,7 @@ vi.mock("vscode", () => ({
     getConfiguration: vi.fn(() => ({
       get: vi.fn((_key: string, def: unknown) => def),
     })),
-    workspaceFolders: [{ uri: { toString: () => "file:///c%3A/code/proj" } }],
+    workspaceFolders: [{ uri: { toString: () => "file:///c%3A/code/proj", fsPath: "c:\\code\\proj" } }],
   },
 }));
 
@@ -45,6 +45,11 @@ vi.mock("./churn/gitChurnAdapter", () => ({
   GitChurnAdapter: vi.fn(),
 }));
 
+vi.mock("../../core/gitignoreFilter", () => ({
+  loadGitignoreFilter: vi.fn(),
+  makeUriFilter: vi.fn(),
+}));
+
 // ── Imports (after mocks) ────────────────────────────────────────────
 import * as vscode from "vscode";
 import { AnalysisOrchestrator } from "./analysisOrchestrator";
@@ -62,6 +67,7 @@ import {
   VsCodeLogger,
 } from "./adapters";
 import { GitChurnAdapter } from "./churn/gitChurnAdapter";
+import { loadGitignoreFilter, makeUriFilter } from "../../core/gitignoreFilter";
 import { AnalysisService } from "./analysisService";
 import type { DdpConfiguration } from "./configuration";
 
@@ -78,9 +84,15 @@ const defaultTestConfig: DdpConfiguration = {
   },
   decoration: { warnThreshold: 50, errorThreshold: 150 },
   churn: { enabled: false, lookbackDays: 90 },
+  impactTree: { maxDepth: 5 },
+  graphView: { enabled: false },
+  analysis: { defaultFolder: "" },
+  fileFilter: { respectGitignore: false },
   fileRollup: "max",
   codelensEnabled: true,
   excludeTests: true,
+  maxFiles: 400,
+  debugEnabled: false,
 };
 
 function fakeToken(cancelled = false) {
@@ -295,13 +307,26 @@ describe("AnalysisService", () => {
       expect(VsCodeDocumentProvider).toHaveBeenCalledWith(false);
     });
 
-    it("passes token and excludeTests to VsCodeCallGraphProvider", async () => {
+    it("passes token, excludeTests, and undefined logger to VsCodeCallGraphProvider when debug is disabled", async () => {
       const token = fakeToken();
 
       const service = new AnalysisService();
       await service.analyze(token);
 
-      expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, true);
+      expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, true, undefined, undefined);
+    });
+
+    it("passes logger to VsCodeCallGraphProvider when debug is enabled", async () => {
+      vi.mocked(buildConfiguration).mockReturnValue({
+        ...defaultTestConfig,
+        debugEnabled: true,
+      });
+      const token = fakeToken();
+
+      const service = new AnalysisService();
+      await service.analyze(token);
+
+      expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, true, mockLoggerInstance, undefined);
     });
 
     it("passes coverageStore, lcovGlob, jacocoGlob, and token to VsCodeCoverageProvider", async () => {
@@ -342,15 +367,15 @@ describe("AnalysisService", () => {
   // ─── Scope Forwarding ───────────────────────────────────────────
 
   describe("scope forwarding", () => {
-    it("forwards undefined scope to orchestrator.analyze", async () => {
+    it("defaults scope to workspace folder URI when no scope is provided", async () => {
       const service = new AnalysisService();
       await service.analyze(fakeToken());
 
       const passedScope = mockOrchestratorAnalyze.mock.calls[0][2];
-      expect(passedScope).toBeUndefined();
+      expect(passedScope).toEqual({ rootUri: "file:///c%3A/code/proj" });
     });
 
-    it("forwards scope object to orchestrator.analyze", async () => {
+    it("forwards explicit scope object to orchestrator.analyze unchanged", async () => {
       const scope = { rootUri: "file:///my/project/src" };
 
       const service = new AnalysisService();
@@ -358,6 +383,22 @@ describe("AnalysisService", () => {
 
       const passedScope = mockOrchestratorAnalyze.mock.calls[0][2];
       expect(passedScope).toEqual({ rootUri: "file:///my/project/src" });
+    });
+
+    it("passes undefined scope when no workspace folders are open and no scope given", async () => {
+      const vscodeModule = await import("vscode");
+      const saved = (vscodeModule.workspace as any).workspaceFolders;
+      (vscodeModule.workspace as any).workspaceFolders = undefined;
+
+      try {
+        const service = new AnalysisService();
+        await service.analyze(fakeToken());
+
+        const passedScope = mockOrchestratorAnalyze.mock.calls[0][2];
+        expect(passedScope).toBeUndefined();
+      } finally {
+        (vscodeModule.workspace as any).workspaceFolders = saved;
+      }
     });
   });
 
@@ -481,8 +522,8 @@ describe("AnalysisService", () => {
         await service.analyze(token1);
         await service.analyze(token2);
 
-        expect(VsCodeCallGraphProvider).toHaveBeenNthCalledWith(1, token1, true);
-        expect(VsCodeCallGraphProvider).toHaveBeenNthCalledWith(2, token2, true);
+        expect(VsCodeCallGraphProvider).toHaveBeenNthCalledWith(1, token1, true, undefined, undefined);
+        expect(VsCodeCallGraphProvider).toHaveBeenNthCalledWith(2, token2, true, undefined, undefined);
       });
 
       it("passes different scopes on successive calls", async () => {
@@ -491,7 +532,8 @@ describe("AnalysisService", () => {
         await service.analyze(fakeToken());
 
         expect(mockOrchestratorAnalyze.mock.calls[0][2]).toEqual({ rootUri: "file:///a" });
-        expect(mockOrchestratorAnalyze.mock.calls[1][2]).toBeUndefined();
+        // Second call has no explicit scope — defaults to workspace folder URI
+        expect(mockOrchestratorAnalyze.mock.calls[1][2]).toEqual({ rootUri: "file:///c%3A/code/proj" });
       });
     });
 
@@ -692,7 +734,7 @@ describe("AnalysisService", () => {
         const service = new AnalysisService();
         await service.analyze(token);
 
-        expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, true);
+        expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, true, undefined, undefined);
       });
 
       it("passes already-cancelled token to VsCodeCoverageProvider", async () => {
@@ -713,13 +755,14 @@ describe("AnalysisService", () => {
 
   // ─── Churn adapter wiring ────────────────────────────────────────
   describe("churn adapter wiring", () => {
-    let savedWorkspaceFolders: unknown;
+    // null = "not captured"; undefined is a valid captured value (workspaceFolders can be undefined)
+    let savedWorkspaceFolders: unknown = null;
 
     afterEach(async () => {
-      if (savedWorkspaceFolders !== undefined) {
+      if (savedWorkspaceFolders !== null) {
         const vscodeModule = await import("vscode");
         (vscodeModule.workspace as any).workspaceFolders = savedWorkspaceFolders;
-        savedWorkspaceFolders = undefined;
+        savedWorkspaceFolders = null;
       }
     });
 
@@ -784,6 +827,81 @@ describe("AnalysisService", () => {
 
       const deps = vi.mocked(AnalysisOrchestrator).mock.calls[0][0] as any;
       expect(deps.churnProvider).toBeUndefined();
+    });
+  });
+
+  // ─── Gitignore filter wiring ──────────────────────────────────────
+  describe("gitignore filter wiring", () => {
+    // null = "not captured"; undefined is a valid captured value (workspaceFolders can be undefined)
+    let savedWorkspaceFolders: unknown = null;
+
+    afterEach(async () => {
+      if (savedWorkspaceFolders !== null) {
+        const vscodeModule = await import("vscode");
+        (vscodeModule.workspace as any).workspaceFolders = savedWorkspaceFolders;
+        savedWorkspaceFolders = null;
+      }
+    });
+
+    it("loads gitignore and passes composed URI filter to both orchestrator and call graph provider when respectGitignore is true", async () => {
+      const fakeRawFilter = vi.fn();
+      const fakeUriFilter = vi.fn();
+      vi.mocked(loadGitignoreFilter).mockResolvedValue(fakeRawFilter);
+      vi.mocked(makeUriFilter).mockReturnValue(fakeUriFilter);
+
+      vi.mocked(buildConfiguration).mockReturnValue({
+        ...defaultTestConfig,
+        fileFilter: { respectGitignore: true },
+      });
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      expect(loadGitignoreFilter).toHaveBeenCalledWith("c:\\code\\proj");
+      expect(makeUriFilter).toHaveBeenCalledWith("file:///c%3A/code/proj", fakeRawFilter);
+
+      // Filter passed to orchestrator deps
+      const deps = vi.mocked(AnalysisOrchestrator).mock.calls[0][0] as any;
+      expect(deps.gitignoreFilter).toBe(fakeUriFilter);
+
+      // Same filter passed to call graph provider (4th arg)
+      const callGraphArgs = vi.mocked(VsCodeCallGraphProvider).mock.calls[0];
+      expect(callGraphArgs[3]).toBe(fakeUriFilter);
+    });
+
+    it("does not load gitignore when respectGitignore is false", async () => {
+      vi.mocked(buildConfiguration).mockReturnValue({
+        ...defaultTestConfig,
+        fileFilter: { respectGitignore: false },
+      });
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      expect(loadGitignoreFilter).not.toHaveBeenCalled();
+      expect(makeUriFilter).not.toHaveBeenCalled();
+
+      const deps = vi.mocked(AnalysisOrchestrator).mock.calls[0][0] as any;
+      expect(deps.gitignoreFilter).toBeUndefined();
+    });
+
+    it("does not load gitignore when no workspace folders are open", async () => {
+      const vscodeModule = await import("vscode");
+      savedWorkspaceFolders = (vscodeModule.workspace as any).workspaceFolders;
+      (vscodeModule.workspace as any).workspaceFolders = undefined;
+
+      vi.mocked(buildConfiguration).mockReturnValue({
+        ...defaultTestConfig,
+        fileFilter: { respectGitignore: true },
+      });
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      expect(loadGitignoreFilter).not.toHaveBeenCalled();
+
+      const deps = vi.mocked(AnalysisOrchestrator).mock.calls[0][0] as any;
+      expect(deps.gitignoreFilter).toBeUndefined();
     });
   });
 });

@@ -22,6 +22,7 @@ import type {
   DocumentInfo,
 } from "../../core/ports";
 import type { CcProviderRegistry } from "../../core/ccRegistry";
+import type { UriFilter } from "../../core/gitignoreFilter";
 import type { DdpConfiguration, AnalysisScope } from "./configuration";
 import { isTestFileUri } from "./configuration";
 import { estimateCyclomaticComplexity } from "../../language/estimateCc";
@@ -51,6 +52,15 @@ export type OrchestratorDeps = {
   readonly logger: Logger;
   readonly churnProvider?: ChurnProvider;
   readonly clock?: () => Date;
+  /**
+   * Optional URI-based file exclusion filter.
+   * Returns `true` when a file URI should be excluded from analysis.
+   *
+   * Adapters compose this from gitignore rules (and, in future,
+   * include/exclude globs) together with the workspace root URI.
+   * The orchestrator applies it when `config.fileFilter.respectGitignore` is true.
+   */
+  readonly gitignoreFilter?: UriFilter;
 };
 
 export class AnalysisOrchestrator {
@@ -60,6 +70,8 @@ export class AnalysisOrchestrator {
     const { callGraphProvider, coverageProvider, logger } = this.deps;
     const rootUri = scope?.rootUri;
 
+    logger.info(`Analysis started (maxFiles=${config.maxFiles}, rootUri=${rootUri ?? "(workspace)"})`);
+
     // 1. Load coverage data
     await coverageProvider.loadCoverage();
     if (ctx.isCancelled()) {
@@ -67,13 +79,20 @@ export class AnalysisOrchestrator {
     }
 
     // 2. Build call graph (scope-aware: only expands roots under rootUri)
+    const logDebug = config.debugEnabled ? (msg: string) => logger.debug?.(msg) : undefined;
+    logDebug?.(`Building call graph (maxFiles=${config.maxFiles}, rootUri=${rootUri ?? "(workspace)"})`);
     const edges = await callGraphProvider.collectCallEdges(config.maxFiles, rootUri);
+    logDebug?.(`Call graph: ${edges.length} edge(s)`);
     if (ctx.isCancelled()) {
       return undefined;
     }
 
     // 3. Discover source files and extract symbols
     const fileUris = await this.discoverSourceFiles(config, rootUri);
+    logDebug?.(`Discovered ${fileUris.length} source file(s) for analysis`);
+    for (const uri of fileUris) {
+      logDebug?.(`  file: ${uri}`);
+    }
     const symbolInputs = await this.collectAllSymbolInputs(fileUris, config, ctx);
 
     // 4. Compute metrics
@@ -113,8 +132,15 @@ export class AnalysisOrchestrator {
   }
 
   private async discoverSourceFiles(config: DdpConfiguration, rootUri?: string): Promise<string[]> {
-    const rawUris = await this.deps.documentProvider.findSourceFiles(config.maxFiles, rootUri);
-    return config.excludeTests ? rawUris.filter((u) => !isTestFileUri(u)) : rawUris;
+    let uris = await this.deps.documentProvider.findSourceFiles(config.maxFiles, rootUri);
+    if (config.excludeTests) {
+      uris = uris.filter((u) => !isTestFileUri(u));
+    }
+    const gitignoreFilter = this.deps.gitignoreFilter;
+    if (config.fileFilter.respectGitignore && gitignoreFilter) {
+      uris = uris.filter((u) => !gitignoreFilter(u));
+    }
+    return uris;
   }
 
   private async collectAllSymbolInputs(
@@ -144,6 +170,9 @@ export class AnalysisOrchestrator {
     }
 
     const functions = await symbolProvider.getFunctionSymbols(uri);
+    if (config.debugEnabled) {
+      logger.debug?.(`${uri}: ${functions.length} symbol(s)`);
+    }
     if (!functions.length) {
       return [];
     }

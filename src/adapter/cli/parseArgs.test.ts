@@ -169,6 +169,26 @@ describe('parseArgs', () => {
     });
   });
 
+  describe('Scenario: Respect gitignore flag', () => {
+    it('should default respectGitignore to false', () => {
+      const result = parseArgs(['node', 'ddp-analyze']);
+
+      expect(result.respectGitignore).toBe(false);
+    });
+
+    it('should parse --respect-gitignore flag', () => {
+      const result = parseArgs(['node', 'ddp-analyze', '--respect-gitignore']);
+
+      expect(result.respectGitignore).toBe(true);
+    });
+
+    it('should parse --no-respect-gitignore flag', () => {
+      const result = parseArgs(['node', 'ddp-analyze', '--no-respect-gitignore']);
+
+      expect(result.respectGitignore).toBe(false);
+    });
+  });
+
   describe('Scenario: Detect callers subcommand', () => {
     it('should set command to "callers" when first user arg is "callers"', () => {
       const result = parseArgs(['node', 'ddp', 'callers', '--file', 'src/foo.ts', '--symbol', 'doStuff']);
@@ -258,6 +278,18 @@ describe('parseCallersArgs', () => {
       const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn', '--depth', '-1']);
 
       expect(result.depth).toBe(5);
+    });
+
+    it('should parse --respect-gitignore flag', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn', '--respect-gitignore']);
+
+      expect(result.respectGitignore).toBe(true);
+    });
+
+    it('should default respectGitignore to false', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn']);
+
+      expect(result.respectGitignore).toBe(false);
     });
   });
 });

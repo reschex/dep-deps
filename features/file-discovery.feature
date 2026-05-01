@@ -55,3 +55,43 @@ Feature: Source File Discovery
     When I run "ddp-analyze --root src/services"
     Then only files under "src/services" should be analyzed
     And files outside "src/services" should be ignored
+
+  Scenario: Respect .gitignore patterns when configured
+    Given the project has a .gitignore file containing:
+      """
+      generated/
+      *.generated.ts
+      """
+    And "ddp.fileFilter.respectGitignore" is set to true
+    When I run analysis on the project
+    Then files in "generated/" should NOT be analyzed
+    And files matching "*.generated.ts" should NOT be analyzed
+    But "src/utils.ts" should still be analyzed
+
+  Scenario: Do not filter by .gitignore when setting is disabled
+    Given the project has a .gitignore file containing:
+      """
+      generated/
+      """
+    And "ddp.fileFilter.respectGitignore" is set to false (default)
+    When I run analysis on the project
+    Then files in "generated/" should be analyzed normally
+
+  Scenario: Missing .gitignore handled gracefully
+    Given the project does not have a .gitignore file
+    And "ddp.fileFilter.respectGitignore" is set to true
+    When I run analysis on the project
+    Then the analysis should complete successfully
+    And no files should be excluded by gitignore filtering
+
+  Scenario: Debug logging shows discovered files
+    Given "ddp.debug" is set to true
+    When I run analysis on the project
+    Then the logger should emit a debug message listing each discovered file URI
+    And the logger should emit the total file count before symbol extraction begins
+    And the logger should emit per-file symbol counts
+
+  Scenario: No debug logging when disabled
+    Given "ddp.debug" is set to false (default)
+    When I run analysis on the project
+    Then the logger should NOT emit any debug messages

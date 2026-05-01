@@ -87,6 +87,8 @@ export interface Logger {
   info(message: string): void;
   warn(message: string): void;
   error(message: string, err?: unknown): void;
+  /** Optional debug-level log — emitted for detailed diagnostic output (file discovery, symbol extraction). */
+  debug?(message: string): void;
 }
 
 /** No-op logger for tests and contexts where logging isn't needed. */

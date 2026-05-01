@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import type { CallEdge } from "../../core/rank";
+import type { Logger } from "../../core/ports";
+import type { UriFilter } from "../../core/gitignoreFilter";
 import { collectCallEdgesViaAdapter, type CallHierarchyAdapter } from "./lspCallGraphAdapter";
 import { flattenFunctionSymbols } from "./documentSymbols";
 import { symbolIdFromUriRange } from "./symbolId";
@@ -13,6 +15,10 @@ export type CallGraphCollectOptions = {
   readonly rootUri?: string;
   /** When true, exclude test files from call-graph root discovery. Defaults to true. */
   readonly excludeTests?: boolean;
+  /** Optional logger for per-file progress during call graph construction. */
+  readonly logger?: Logger;
+  /** Optional URI-based file exclusion filter (e.g. gitignore). Files returning true are excluded. */
+  readonly uriFilter?: UriFilter;
 };
 
 async function discoverFiles(maxFiles: number, rootUri: string | undefined, excludeTests: boolean): Promise<vscode.Uri[]> {
@@ -102,10 +108,24 @@ async function resolveOutgoingCalls(
   }
 }
 
-function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, rootUri: string | undefined, excludeTests: boolean): CallHierarchyAdapter {
+type BuildAdapterOptions = {
+  readonly maxFiles: number;
+  readonly token: vscode.CancellationToken;
+  readonly rootUri: string | undefined;
+  readonly excludeTests: boolean;
+  readonly logger?: Logger;
+  readonly uriFilter?: UriFilter;
+};
+
+function buildVscodeAdapter(opts: BuildAdapterOptions): CallHierarchyAdapter {
+  const { maxFiles, token, rootUri, excludeTests, logger, uriFilter } = opts;
   return {
     async findFunctionSymbols() {
-      const files = await discoverFiles(maxFiles, rootUri, excludeTests);
+      let files = await discoverFiles(maxFiles, rootUri, excludeTests);
+      if (uriFilter) {
+        files = files.filter((u) => !uriFilter(u.toString()));
+      }
+      logger?.debug?.(`Call graph: scanning ${files.length} file(s) for symbols`);
       const result: { id: string; uriStr: string }[] = [];
       for (const uri of files) {
         if (!supportedSchemes.has(uri.scheme)) {
@@ -114,6 +134,7 @@ function buildVscodeAdapter(maxFiles: number, token: vscode.CancellationToken, r
         if (token.isCancellationRequested) {
           break;
         }
+        logger?.debug?.(`  call graph: ${uri.toString()}`);
         const symbols = await collectSymbolsForFile(uri);
         result.push(...symbols);
       }
@@ -141,8 +162,14 @@ export async function collectCallEdgesFromWorkspace(
   const ownSource = options.token ? undefined : new vscode.CancellationTokenSource();
   const token = options.token ?? ownSource!.token;
   try {
-    const maxFiles = options.maxFiles ?? 500;
-    const adapter = buildVscodeAdapter(maxFiles, token, options.rootUri, options.excludeTests ?? true);
+    const adapter = buildVscodeAdapter({
+      maxFiles: options.maxFiles ?? 500,
+      token,
+      rootUri: options.rootUri,
+      excludeTests: options.excludeTests ?? true,
+      logger: options.logger,
+      uriFilter: options.uriFilter,
+    });
     return await collectCallEdgesViaAdapter(adapter);
   } finally {
     ownSource?.dispose();
