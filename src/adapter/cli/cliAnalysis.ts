@@ -9,7 +9,7 @@ import { AnalysisOrchestrator, type AnalysisResult } from '../../adapter/vscode/
 import { DEFAULT_CONFIGURATION, type DdpConfiguration } from '../../adapter/vscode/configuration';
 import { NodeDocumentProvider } from './nodeDocument';
 import { NodeCoverageProvider } from './nodeCoverage';
-import { NodeSymbolProvider } from '../../language/typescript/symbols';
+import { NativeSymbolProvider } from '../../language/nativeSymbolProvider';
 import { CcProviderRegistry } from '../../core/ccRegistry';
 import { nullLogger, type CallGraphProvider, type Logger } from '../../core/ports';
 import type { CallEdge } from '../../core/rank';
@@ -52,7 +52,7 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
   } = options;
 
   const documentProvider = new NodeDocumentProvider(rootPath);
-  const symbolProvider = new NodeSymbolProvider();
+  const symbolProvider = new NativeSymbolProvider();
   const coverageProvider = new NodeCoverageProvider(rootPath, lcovGlob);
   const ccRegistry = new CcProviderRegistry();
 

@@ -9,8 +9,6 @@ import * as vscode from "vscode";
 import type {
   DocumentProvider,
   DocumentInfo,
-  SymbolProvider,
-  FunctionSymbolInfo,
   CallGraphProvider,
   CoverageProvider,
   CyclomaticComplexityProvider,
@@ -20,7 +18,6 @@ import type {
 import type { StatementCover } from "../../core/coverageMap";
 import type { CallEdge } from "../../core/rank";
 import type { UriFilter } from "../../core/gitignoreFilter";
-import { flattenFunctionSymbols } from "./documentSymbols";
 import { collectCallEdgesFromWorkspace } from "./lspCallGraph";
 import { CoverageStore, loadLcovIntoStore } from "./coverageStore";
 import { loadJacocoIntoStore } from "./loadJacocoIntoStore";
@@ -77,34 +74,6 @@ export class VsCodeDocumentProvider implements DocumentProvider {
       console.debug(`[DDP] Failed to open document ${uri}:`, e);
       return undefined;
     }
-  }
-}
-
-// ─── SymbolProvider ──────────────────────────────────────────────────────────
-
-export class VsCodeSymbolProvider implements SymbolProvider {
-  async getFunctionSymbols(uri: string): Promise<FunctionSymbolInfo[]> {
-    const vscUri = vscode.Uri.parse(uri);
-    let syms: vscode.DocumentSymbol[] | undefined;
-    try {
-      syms = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
-        "vscode.executeDocumentSymbolProvider",
-        vscUri
-      );
-    } catch (e) {
-      console.debug(`[DDP] Symbol provider failed for ${uri}:`, e);
-      return [];
-    }
-    if (!syms?.length) {
-      return [];
-    }
-    return flattenFunctionSymbols(syms).map((fn) => ({
-      name: fn.name,
-      selectionStartLine: fn.selectionRange.start.line,
-      selectionStartCharacter: fn.selectionRange.start.character,
-      bodyStartLine: fn.range.start.line,
-      bodyEndLine: fn.range.end.line,
-    }));
   }
 }
 

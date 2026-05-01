@@ -27,3 +27,28 @@ const TEST_DIR_RE = /(?:^|[/\\])(?:__tests__|tests?|test_[^/\\]+)(?:[/\\]|$)/i;
 export function isTestFileUri(uri: string): boolean {
   return TEST_FILE_RE.test(uri) || JAVA_TEST_RE.test(uri) || TEST_DIR_RE.test(uri);
 }
+
+// ─── Language ID detection ──────────────────────────────────────────────────
+
+/** Map file extension (lowercase, with dot) to VS Code-compatible language ID. */
+const EXTENSION_TO_LANGUAGE: Record<string, string> = {
+  '.ts': 'typescript',
+  '.tsx': 'typescriptreact',
+  '.js': 'javascript',
+  '.jsx': 'javascriptreact',
+  '.mjs': 'javascript',
+  '.cjs': 'javascript',
+  '.py': 'python',
+  '.java': 'java',
+};
+
+/**
+ * Detect language ID from a file URI or path based on its extension.
+ * Returns 'unknown' for unrecognized extensions.
+ */
+export function detectLanguageId(uriOrPath: string): string {
+  const match = /\.([a-z]+)$/i.exec(uriOrPath);
+  if (!match) return 'unknown';
+  const ext = `.${match[1].toLowerCase()}`;
+  return EXTENSION_TO_LANGUAGE[ext] ?? 'unknown';
+}

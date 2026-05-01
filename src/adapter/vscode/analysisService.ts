@@ -12,7 +12,6 @@ import { CcProviderRegistry } from "../../core/ccRegistry";
 import { CoverageStore } from "./coverageStore";
 import {
   VsCodeDocumentProvider,
-  VsCodeSymbolProvider,
   VsCodeCallGraphProvider,
   VsCodeCoverageProvider,
   EslintCcProvider,
@@ -20,6 +19,7 @@ import {
   PmdCcProvider,
   VsCodeLogger,
 } from "./adapters";
+import { NativeSymbolProvider } from "../../language/nativeSymbolProvider";
 import { GitChurnAdapter } from "./churn/gitChurnAdapter";
 import { loadGitignoreFilter, makeUriFilter, type UriFilter } from "../../core/gitignoreFilter";
 
@@ -68,7 +68,7 @@ export class AnalysisService {
 
     const orchestrator = new AnalysisOrchestrator({
       documentProvider: new VsCodeDocumentProvider(config.excludeTests),
-      symbolProvider: new VsCodeSymbolProvider(),
+      symbolProvider: new NativeSymbolProvider({ pythonPath: config.cc.pythonPath, pmdPath: config.cc.pmdPath }),
       callGraphProvider: new VsCodeCallGraphProvider(token, config.excludeTests, config.debugEnabled ? this.logger : undefined, gitignoreFilter),
       coverageProvider: new VsCodeCoverageProvider(this.coverageStore, config.coverage.lcovGlob, config.coverage.jacocoGlob, token),
       ccRegistry,

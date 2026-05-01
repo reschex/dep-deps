@@ -32,13 +32,16 @@ vi.mock("./coverageStore", () => ({
 
 vi.mock("./adapters", () => ({
   VsCodeDocumentProvider: vi.fn(),
-  VsCodeSymbolProvider: vi.fn(),
   VsCodeCallGraphProvider: vi.fn(),
   VsCodeCoverageProvider: vi.fn(),
   EslintCcProvider: vi.fn(),
   RadonCcProvider: vi.fn(),
   PmdCcProvider: vi.fn(),
   VsCodeLogger: vi.fn(),
+}));
+
+vi.mock("../../language/nativeSymbolProvider", () => ({
+  NativeSymbolProvider: vi.fn(),
 }));
 
 vi.mock("./churn/gitChurnAdapter", () => ({
@@ -58,7 +61,6 @@ import { CcProviderRegistry } from "../../core/ccRegistry";
 import { CoverageStore } from "./coverageStore";
 import {
   VsCodeDocumentProvider,
-  VsCodeSymbolProvider,
   VsCodeCallGraphProvider,
   VsCodeCoverageProvider,
   EslintCcProvider,
@@ -66,6 +68,7 @@ import {
   PmdCcProvider,
   VsCodeLogger,
 } from "./adapters";
+import { NativeSymbolProvider } from "../../language/nativeSymbolProvider";
 import { GitChurnAdapter } from "./churn/gitChurnAdapter";
 import { loadGitignoreFilter, makeUriFilter } from "../../core/gitignoreFilter";
 import { AnalysisService } from "./analysisService";
@@ -619,7 +622,7 @@ describe("AnalysisService", () => {
         await service.analyze(fakeToken());
 
         expect(VsCodeDocumentProvider).toHaveBeenCalledTimes(2);
-        expect(VsCodeSymbolProvider).toHaveBeenCalledTimes(2);
+        expect(NativeSymbolProvider).toHaveBeenCalledTimes(2);
         expect(VsCodeCallGraphProvider).toHaveBeenCalledTimes(2);
         expect(VsCodeCoverageProvider).toHaveBeenCalledTimes(2);
       });

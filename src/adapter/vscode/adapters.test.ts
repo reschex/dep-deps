@@ -72,10 +72,6 @@ vi.mock("vscode", () => {
 });
 
 // ── Mock dependency modules ──────────────────────────────────────────
-vi.mock("./documentSymbols", () => ({
-  flattenFunctionSymbols: vi.fn(() => []),
-}));
-
 vi.mock("./lspCallGraph", () => ({
   collectCallEdgesFromWorkspace: vi.fn(async () => []),
 }));
@@ -111,7 +107,6 @@ vi.mock("./configuration", () => ({
 import * as vscode from "vscode";
 import {
   VsCodeDocumentProvider,
-  VsCodeSymbolProvider,
   VsCodeCallGraphProvider,
   VsCodeCoverageProvider,
   EslintCcProvider,
@@ -119,7 +114,6 @@ import {
   PmdCcProvider,
   VsCodeLogger,
 } from "./adapters";
-import { flattenFunctionSymbols } from "./documentSymbols";
 import { collectCallEdgesFromWorkspace } from "./lspCallGraph";
 import { loadLcovIntoStore } from "./coverageStore";
 import { loadJacocoIntoStore } from "./loadJacocoIntoStore";
@@ -348,99 +342,6 @@ describe("VsCodeDocumentProvider", () => {
 
       expect(result).toBeUndefined();
     });
-  });
-});
-
-// ═════════════════════════════════════════════════════════════════════
-// VsCodeSymbolProvider
-// ═════════════════════════════════════════════════════════════════════
-describe("VsCodeSymbolProvider", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("returns mapped FunctionSymbolInfo array from flattenFunctionSymbols output", async () => {
-    const fakeSymbol = {
-      name: "doWork",
-      selectionRange: { start: { line: 10, character: 5 } },
-      range: { start: { line: 9 }, end: { line: 25 } },
-    };
-    vi.mocked(vscode.commands.executeCommand).mockResolvedValue([{}] as any);
-    vi.mocked(flattenFunctionSymbols).mockReturnValue([fakeSymbol as any]);
-
-    const provider = new VsCodeSymbolProvider();
-    const result = await provider.getFunctionSymbols("file:///src/a.ts");
-
-    expect(result).toEqual([{
-      name: "doWork",
-      selectionStartLine: 10,
-      selectionStartCharacter: 5,
-      bodyStartLine: 9,
-      bodyEndLine: 25,
-    }]);
-  });
-
-  it("returns multiple symbols when flattenFunctionSymbols returns multiple", async () => {
-    const syms = [
-      {
-        name: "fn1",
-        selectionRange: { start: { line: 1, character: 0 } },
-        range: { start: { line: 0 }, end: { line: 5 } },
-      },
-      {
-        name: "fn2",
-        selectionRange: { start: { line: 10, character: 2 } },
-        range: { start: { line: 9 }, end: { line: 15 } },
-      },
-    ];
-    vi.mocked(vscode.commands.executeCommand).mockResolvedValue([{}, {}] as any);
-    vi.mocked(flattenFunctionSymbols).mockReturnValue(syms as any);
-
-    const provider = new VsCodeSymbolProvider();
-    const result = await provider.getFunctionSymbols("file:///src/a.ts");
-
-    expect(result).toHaveLength(2);
-    expect(result[0].name).toBe("fn1");
-    expect(result[1].name).toBe("fn2");
-  });
-
-  it("returns empty array when executeCommand throws", async () => {
-    vi.mocked(vscode.commands.executeCommand).mockRejectedValue(new Error("no provider"));
-
-    const provider = new VsCodeSymbolProvider();
-    const result = await provider.getFunctionSymbols("file:///src/a.ts");
-
-    expect(result).toEqual([]);
-  });
-
-  it("returns empty array when executeCommand returns undefined", async () => {
-    vi.mocked(vscode.commands.executeCommand).mockResolvedValue(undefined as any);
-
-    const provider = new VsCodeSymbolProvider();
-    const result = await provider.getFunctionSymbols("file:///src/a.ts");
-
-    expect(result).toEqual([]);
-  });
-
-  it("returns empty array when executeCommand returns empty array", async () => {
-    vi.mocked(vscode.commands.executeCommand).mockResolvedValue([] as any);
-
-    const provider = new VsCodeSymbolProvider();
-    const result = await provider.getFunctionSymbols("file:///src/a.ts");
-
-    expect(result).toEqual([]);
-  });
-
-  it("calls executeCommand with 'vscode.executeDocumentSymbolProvider' and parsed URI", async () => {
-    vi.mocked(vscode.commands.executeCommand).mockResolvedValue(undefined as any);
-
-    const provider = new VsCodeSymbolProvider();
-    await provider.getFunctionSymbols("file:///src/a.ts");
-
-    expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
-      "vscode.executeDocumentSymbolProvider",
-      expect.objectContaining({ scheme: "file" }),
-    );
   });
 });
 
@@ -1010,49 +911,6 @@ describe("bugmagnet session 2026-04-16", () => {
       const result = await provider.openDocument("file:///bad.ts");
 
       expect(result).toBeUndefined();
-    });
-  });
-
-  // ─── VsCodeSymbolProvider: flattenFunctionSymbols returns empty ──
-  describe("VsCodeSymbolProvider edge cases", () => {
-    it("returns empty array when executeCommand returns symbols but flatten returns empty", async () => {
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([{ kind: 4 }] as any);
-      vi.mocked(flattenFunctionSymbols).mockReturnValue([]);
-
-      const provider = new VsCodeSymbolProvider();
-      const result = await provider.getFunctionSymbols("file:///src/a.ts");
-
-      expect(result).toEqual([]);
-    });
-
-    it("returns empty array when executeCommand throws a non-Error value", async () => {
-      vi.mocked(vscode.commands.executeCommand).mockRejectedValue(42);
-
-      const provider = new VsCodeSymbolProvider();
-      const result = await provider.getFunctionSymbols("file:///src/a.ts");
-
-      expect(result).toEqual([]);
-    });
-
-    it("maps symbols with zero-based line numbers correctly", async () => {
-      const sym = {
-        name: "topLevel",
-        selectionRange: { start: { line: 0, character: 0 } },
-        range: { start: { line: 0 }, end: { line: 0 } },
-      };
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([{}] as any);
-      vi.mocked(flattenFunctionSymbols).mockReturnValue([sym as any]);
-
-      const provider = new VsCodeSymbolProvider();
-      const result = await provider.getFunctionSymbols("file:///src/a.ts");
-
-      expect(result).toEqual([{
-        name: "topLevel",
-        selectionStartLine: 0,
-        selectionStartCharacter: 0,
-        bodyStartLine: 0,
-        bodyEndLine: 0,
-      }]);
     });
   });
 
