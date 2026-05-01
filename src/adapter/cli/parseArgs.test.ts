@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseArgs } from './parseArgs';
+import { parseArgs, parseCallersArgs } from './parseArgs';
 
 describe('parseArgs', () => {
   describe('Scenario: default options when no flags provided', () => {
@@ -166,6 +166,98 @@ describe('parseArgs', () => {
       expect(result.format).toBe('json');
       expect(result.excludeTests).toBe(false);
       expect(result.verbose).toBe(true);
+    });
+  });
+
+  describe('Scenario: Detect callers subcommand', () => {
+    it('should set command to "callers" when first user arg is "callers"', () => {
+      const result = parseArgs(['node', 'ddp', 'callers', '--file', 'src/foo.ts', '--symbol', 'doStuff']);
+
+      expect(result.command).toBe('callers');
+    });
+
+    it('should default command to "analyze" when no subcommand given', () => {
+      const result = parseArgs(['node', 'ddp']);
+
+      expect(result.command).toBe('analyze');
+    });
+
+    it('should default command to "analyze" when first user arg is a flag', () => {
+      const result = parseArgs(['node', 'ddp', '--root', '/foo']);
+
+      expect(result.command).toBe('analyze');
+    });
+  });
+});
+
+describe('parseCallersArgs', () => {
+  describe('Scenario: Parse callers subcommand flags', () => {
+    it('should parse --file and --symbol flags', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'src/orders.ts', '--symbol', 'processOrder']);
+
+      expect(result.file).toBe('src/orders.ts');
+      expect(result.symbol).toBe('processOrder');
+    });
+
+    it('should parse --depth flag with numeric value', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'src/a.ts', '--symbol', 'fn', '--depth', '3']);
+
+      expect(result.depth).toBe(3);
+    });
+
+    it('should default depth to 5 when not specified', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'src/a.ts', '--symbol', 'fn']);
+
+      expect(result.depth).toBe(5);
+    });
+
+    it('should parse --format flag (json or text)', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn', '--format', 'text']);
+
+      expect(result.format).toBe('text');
+    });
+
+    it('should default format to json', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn']);
+
+      expect(result.format).toBe('json');
+    });
+
+    it('should parse --root flag', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--root', '/proj', '--file', 'f.ts', '--symbol', 'fn']);
+
+      expect(result.root).toBe('/proj');
+    });
+
+    it('should parse --verbose flag', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn', '--verbose']);
+
+      expect(result.verbose).toBe(true);
+    });
+
+    it('should leave file and symbol undefined when not specified', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers']);
+
+      expect(result.file).toBeUndefined();
+      expect(result.symbol).toBeUndefined();
+    });
+
+    it('should default depth to 5 when --depth value is non-numeric', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn', '--depth', 'foo']);
+
+      expect(result.depth).toBe(5);
+    });
+
+    it('should default depth to 5 when --depth value is zero', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn', '--depth', '0']);
+
+      expect(result.depth).toBe(5);
+    });
+
+    it('should default depth to 5 when --depth value is negative', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn', '--depth', '-1']);
+
+      expect(result.depth).toBe(5);
     });
   });
 });

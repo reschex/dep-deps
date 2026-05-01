@@ -91,29 +91,32 @@ Feature: Impact Tree Visualization (Caller Dependency Tree)
   Scenario: CLI text-based impact tree output
     Given a CLI analysis has been run
     And a symbol "processOrder" exists with a multi-level caller tree
-    When I run "ddp-cli --show-impact processOrder"
+    When I run "ddp callers --file src/orders.ts --symbol processOrder --format text"
     Then the output should be an ASCII tree:
       """
-      IMPACT TREE (who calls this):
-      └─ handleCheckout [F=189.2] (depth 1)
-         ├─ POST /api/checkout [F=50.1] (depth 2)
-         │  └─ apiRouter [F=35.0] (depth 3)
-         └─ submitOrderForm [F=120.5] (depth 2)
+      IMPACT TREE: processOrder
+      File: src/orders.ts
+      Risk: MEDIUM (F=95.0)
+
+      └─ handleCheckout [F=189.2]
+         ├─ POST /api/checkout [F=50.1]
+         │  └─ apiRouter [F=35.0]
+         └─ submitOrderForm [F=120.5]
 
       IMPACT SUMMARY:
-      - Direct callers: 1
-      - Total affected symbols: 4
-      - Highest risk caller: submitOrderForm (F=120.5)
+        Direct callers: 1
+        Total affected: 4
       """
 
   Scenario: CLI JSON output for impact tree
     Given a CLI analysis has been run
-    When I run "ddp-cli --show-impact processOrder --format json"
+    When I run "ddp callers --file src/orders.ts --symbol processOrder --format json"
     Then the output should be valid JSON
     And it should include "impactSummary" with directCallers and totalAffected counts
-    And it should include "callers" array with nested structure
-    And each node should include "id", "name", "depth", and "metrics"
+    And it should include "callerTree" array with nested structure
+    And each node should include "id", "name", "depth", "recursive", and "metrics"
     And there should be no "callees" field
+    And it should include "riskLevel" with value "LOW", "MEDIUM", "HIGH", or "CRITICAL"
 
   Scenario: Export impact tree to Graphviz DOT format
     Given analysis results exist

@@ -42,16 +42,16 @@
 - Improved test quality: removed unsafe non-null assertions, fixed magic index access patterns
 
 ### Phase 3: CLI Output
-- [ ] Create `src/core/formatImpactTree.ts` for text/ASCII tree formatting (LLM-optimised)
-  - [ ] Tests for empty caller trees (entry points)
-  - [ ] Tests for single/multi-level formatting with depth indicators
-  - [ ] Tests for recursive caller markers
-  - [ ] Tests for impact summary formatting
-- [ ] Add `ddp callers` sub-command: `--file`, `--symbol`, `--depth`, `--format json|text|markdown`
-- [ ] `CallersResult` JSON schema: `{ symbol, file, metrics, riskLevel, impactSummary, callerTree }`
-- [ ] Risk level classification: LOW (F≤50) / MEDIUM (50–200) / HIGH (200–500) / CRITICAL (F>500)
-- [ ] Text serialiser — indented plaintext optimised for LLM context windows
-- [ ] JSON serialiser — structured output for MCP server and programmatic consumers
+- [x] Create `src/core/formatImpactTree.ts` for text/ASCII tree formatting (LLM-optimised)
+  - [x] Tests for empty caller trees (entry points)
+  - [x] Tests for single/multi-level formatting with depth indicators
+  - [x] Tests for recursive caller markers
+  - [x] Tests for impact summary formatting
+- [x] Add `ddp callers` sub-command: `--file`, `--symbol`, `--depth`, `--format json|text`
+- [x] `CallersResult` JSON schema: `{ symbol, file, metrics, riskLevel, impactSummary, callerTree }`
+- [x] Risk level classification: LOW (F≤50) / MEDIUM (50–200) / HIGH (200–500) / CRITICAL (F>500)
+- [x] Text serialiser — indented plaintext optimised for LLM context windows
+- [x] JSON serialiser — structured output for MCP server and programmatic consumers
 - [ ] Markdown serialiser — for GitHub PR comment integration
 
 ### Phase 4: Advanced Features (Future)
@@ -73,13 +73,13 @@
 Surface DDP risk data to AI coding agents at the point of code modification.  
 Three-layer architecture: CLI output → PreToolUse hook → MCP server.
 
-### Phase 1: CLI Caller-Tree Output ← *prerequisite for all other phases*
-- [ ] `ddp callers` sub-command (overlaps with Impact Tree Phase 3 above)
-- [ ] `riskLevel` field: LOW / MEDIUM / HIGH / CRITICAL mapped from F ranges
-- [ ] `CallersResult` JSON schema with `impactSummary` and nested `callerTree`
-- [ ] `--format text` serialiser — risk header + indented tree + impact summary
-- [ ] `--format json` serialiser — structured, MCP-ready output
-- [ ] TDD: unit tests for serialisers, risk classification, depth limiting, recursive markers
+### Phase 1: CLI Caller-Tree Output ← *prerequisite for all other phases* ✅
+- [x] `ddp callers` sub-command (overlaps with Impact Tree Phase 3 above)
+- [x] `riskLevel` field: LOW / MEDIUM / HIGH / CRITICAL mapped from F ranges
+- [x] `CallersResult` JSON schema with `impactSummary` and nested `callerTree`
+- [x] `--format text` serialiser — risk header + indented tree + impact summary
+- [x] `--format json` serialiser — structured, MCP-ready output
+- [x] TDD: unit tests for serialisers, risk classification, depth limiting, recursive markers
 
 ### Phase 2: PreToolUse Hook (passive enforcement)
 - [ ] `.claude/hooks/ddp-pre-edit-check.js` — fires before Edit / Write / MultiEdit
