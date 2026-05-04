@@ -189,6 +189,153 @@ describe('parseArgs', () => {
     });
   });
 
+  describe('Scenario: Value flag where next arg looks like a flag', () => {
+    it('consumes --verbose as the root value when --root --verbose is given', () => {
+      const result = parseArgs(['node', 'ddp', '--root', '--verbose']);
+
+      // --verbose is consumed as the value of --root (no look-ahead for "--" prefix)
+      expect(result.root).toBe('--verbose');
+      expect(result.verbose).toBe(false);
+    });
+
+    it('consumes --help as the output value when --output --help is given', () => {
+      const result = parseArgs(['node', 'ddp', '--output', '--help']);
+
+      expect(result.output).toBe('--help');
+      expect(result.help).toBe(false);
+    });
+
+    it('consumes --version as the format value when --format --version is given', () => {
+      const result = parseArgs(['node', 'ddp', '--format', '--version']);
+
+      expect(result.format).toBe('--version');
+      expect(result.version).toBe(false);
+    });
+  });
+
+  describe('Scenario: Empty string as flag value', () => {
+    it('accepts empty string as --root value', () => {
+      const result = parseArgs(['node', 'ddp', '--root', '']);
+
+      expect(result.root).toBe('');
+    });
+
+    it('accepts empty string as --output value', () => {
+      const result = parseArgs(['node', 'ddp', '--output', '']);
+
+      expect(result.output).toBe('');
+    });
+
+    it('accepts empty string as --format value', () => {
+      const result = parseArgs(['node', 'ddp', '--format', '']);
+
+      expect(result.format).toBe('');
+    });
+  });
+
+  describe('Scenario: Flag values with special characters', () => {
+    it('accepts path with spaces as --root value', () => {
+      const result = parseArgs(['node', 'ddp', '--root', '/path/to/my project']);
+
+      expect(result.root).toBe('/path/to/my project');
+    });
+
+    it('accepts unicode path as --root value', () => {
+      const result = parseArgs(['node', 'ddp', '--root', '/home/用户/проект']);
+
+      expect(result.root).toBe('/home/用户/проект');
+    });
+
+    it('accepts Windows path with backslashes as --root value', () => {
+      const result = parseArgs(['node', 'ddp', '--root', 'C:\\Users\\dev\\project']);
+
+      expect(result.root).toBe('C:\\Users\\dev\\project');
+    });
+
+    it('accepts path with special chars as --output value', () => {
+      const result = parseArgs(['node', 'ddp', '--output', './out put (1).json']);
+
+      expect(result.output).toBe('./out put (1).json');
+    });
+  });
+
+  describe('Scenario: Conflicting boolean flags (last wins)', () => {
+    it('returns excludeTests=false when --exclude-tests followed by --no-exclude-tests', () => {
+      const result = parseArgs(['node', 'ddp', '--exclude-tests', '--no-exclude-tests']);
+
+      expect(result.excludeTests).toBe(false);
+    });
+
+    it('returns excludeTests=true when --no-exclude-tests followed by --exclude-tests', () => {
+      const result = parseArgs(['node', 'ddp', '--no-exclude-tests', '--exclude-tests']);
+
+      expect(result.excludeTests).toBe(true);
+    });
+
+    it('returns respectGitignore=false when --respect-gitignore followed by --no-respect-gitignore', () => {
+      const result = parseArgs(['node', 'ddp', '--respect-gitignore', '--no-respect-gitignore']);
+
+      expect(result.respectGitignore).toBe(false);
+    });
+  });
+
+  describe('Scenario: Positional/non-flag tokens are silently ignored', () => {
+    it('ignores bare words that are not subcommands', () => {
+      const result = parseArgs(['node', 'ddp', 'analyze', 'extra-positional']);
+
+      expect(result.command).toBe('analyze');
+      expect(result.root).toBeUndefined();
+      expect(result.format).toBe('json');
+    });
+
+    it('ignores positional args between flags', () => {
+      const result = parseArgs(['node', 'ddp', '--verbose', 'stray-arg', '--root', '/foo']);
+
+      expect(result.verbose).toBe(true);
+      expect(result.root).toBe('/foo');
+    });
+
+    it('does not treat "analyze" as subcommand (only "callers" is checked)', () => {
+      const result = parseArgs(['node', 'ddp', 'analyze', '--verbose']);
+
+      // "analyze" is not consumed as a subcommand — it's silently ignored as unknown
+      expect(result.command).toBe('analyze');
+      expect(result.verbose).toBe(true);
+    });
+  });
+
+  describe('Scenario: Equals-sign syntax is not supported', () => {
+    it('does not parse --root=/path (treated as unrecognised flag)', () => {
+      const result = parseArgs(['node', 'ddp', '--root=/path/to/project']);
+
+      // The entire "--root=/path/to/project" is matched against switch cases — none match
+      expect(result.root).toBeUndefined();
+    });
+
+    it('does not parse --format=json (treated as unrecognised flag)', () => {
+      const result = parseArgs(['node', 'ddp', '--format=json']);
+
+      expect(result.format).toBe('json'); // stays as default, not parsed
+    });
+  });
+
+  describe('Scenario: Very long argv arrays', () => {
+    it('handles 100 unknown flags without error', () => {
+      const manyFlags = Array.from({ length: 100 }, (_, i) => `--flag-${i}`);
+      const result = parseArgs(['node', 'ddp', ...manyFlags]);
+
+      expect(result.command).toBe('analyze');
+      expect(result.format).toBe('json');
+    });
+
+    it('picks up last --root among many repeated flags', () => {
+      const repeated = Array.from({ length: 50 }, () => ['--root', '/overwritten']).flat();
+      const result = parseArgs(['node', 'ddp', ...repeated, '--root', '/final']);
+
+      expect(result.root).toBe('/final');
+    });
+  });
+
   describe('Scenario: Detect callers subcommand', () => {
     it('should set command to "callers" when first user arg is "callers"', () => {
       const result = parseArgs(['node', 'ddp', 'callers', '--file', 'src/foo.ts', '--symbol', 'doStuff']);
@@ -290,6 +437,88 @@ describe('parseCallersArgs', () => {
       const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn']);
 
       expect(result.respectGitignore).toBe(false);
+    });
+
+    it('should parse --exclude-tests flag', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--exclude-tests']);
+
+      expect(result.excludeTests).toBe(true);
+    });
+
+    it('should parse --no-exclude-tests flag', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--no-exclude-tests']);
+
+      expect(result.excludeTests).toBe(false);
+    });
+
+    it('should default excludeTests to true', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers']);
+
+      expect(result.excludeTests).toBe(true);
+    });
+
+    it('should parse --no-respect-gitignore flag', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--no-respect-gitignore']);
+
+      expect(result.respectGitignore).toBe(false);
+    });
+  });
+
+  describe('Scenario: Missing values for callers value flags (last arg)', () => {
+    it('leaves file undefined when --file is last arg with no value', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--file']);
+
+      expect(result.file).toBeUndefined();
+    });
+
+    it('leaves symbol undefined when --symbol is last arg with no value', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--symbol']);
+
+      expect(result.symbol).toBeUndefined();
+    });
+
+    it('keeps default depth when --depth is last arg with no value', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--depth']);
+
+      expect(result.depth).toBe(5);
+    });
+  });
+
+  describe('Scenario: --depth numeric edge cases', () => {
+    it('truncates float to integer when --depth is 3.7', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--depth', '3.7']);
+
+      expect(result.depth).toBe(3);
+    });
+
+    it('accepts very large depth value', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--depth', '999999999']);
+
+      expect(result.depth).toBe(999999999);
+    });
+
+    it('keeps default depth when --depth is NaN string', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--depth', 'NaN']);
+
+      expect(result.depth).toBe(5);
+    });
+
+    it('keeps default depth when --depth is Infinity string', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--depth', 'Infinity']);
+
+      expect(result.depth).toBe(5);
+    });
+
+    it('keeps default depth when --depth is -0', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--depth', '-0']);
+
+      expect(result.depth).toBe(5);
+    });
+
+    it('accepts depth of 1 (minimum valid)', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers', '--depth', '1']);
+
+      expect(result.depth).toBe(1);
     });
   });
 });
