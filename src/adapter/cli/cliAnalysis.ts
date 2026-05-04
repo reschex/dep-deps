@@ -10,9 +10,9 @@ import { DEFAULT_CONFIGURATION, type DdpConfiguration } from '../../adapter/vsco
 import { NodeDocumentProvider } from './nodeDocument';
 import { NodeCoverageProvider } from './nodeCoverage';
 import { NativeSymbolProvider } from '../../language/nativeSymbolProvider';
+import { NodeCallGraphProvider } from '../../language/typescript/callGraph';
 import { CcProviderRegistry } from '../../core/ccRegistry';
-import { nullLogger, type CallGraphProvider, type Logger } from '../../core/ports';
-import type { CallEdge } from '../../core/rank';
+import { nullLogger, type Logger } from '../../core/ports';
 import { loadGitignoreFilter, makeUriFilter, type UriFilter } from '../../core/gitignoreFilter';
 import { pathToFileURL } from 'node:url';
 
@@ -25,13 +25,6 @@ export type CliAnalysisOptions = {
   readonly respectGitignore?: boolean;
   readonly debugEnabled?: boolean;
   readonly logger?: Logger;
-};
-
-/** Null call graph provider — returns empty edges (R=1 for all symbols). */
-const nullCallGraphProvider: CallGraphProvider = {
-  async collectCallEdges(): Promise<CallEdge[]> {
-    return [];
-  },
 };
 
 /**
@@ -66,7 +59,7 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
   const orchestrator = new AnalysisOrchestrator({
     documentProvider,
     symbolProvider,
-    callGraphProvider: nullCallGraphProvider,
+    callGraphProvider: new NodeCallGraphProvider(rootPath),
     coverageProvider,
     ccRegistry,
     logger,

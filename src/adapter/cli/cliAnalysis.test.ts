@@ -9,7 +9,7 @@
  * orchestrated together — without any VS Code dependency.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { join } from 'path';
 import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -21,40 +21,34 @@ const FIXTURE_PATH = join(__dirname, '../../test/fixtures/cli/simple-project');
 
 describe('CLI Analysis Pipeline', () => {
   describe('Scenario: Run analysis with default options', () => {
-    it('should produce an AnalysisResult with symbols', async () => {
-      // Given a TypeScript project with source files and coverage data
-      // When I run CLI analysis on the fixture project
-      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
+    // Run the pipeline once for the whole scenario — TypeScript compilation is expensive.
+    let result: Awaited<ReturnType<typeof runCliAnalysis>>;
+    beforeAll(async () => {
+      result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
+    });
 
+    it('should produce an AnalysisResult with symbols', () => {
+      // Given a TypeScript project with source files and coverage data
       // Then the analysis should complete successfully with symbols
       expect(result).toBeDefined();
       expect(result.symbols.length).toBeGreaterThan(0);
     });
 
-    it('should extract the "add" function from utils.ts', async () => {
+    it('should extract the "add" function from utils.ts', () => {
       // Given src/utils.ts contains function add(a, b)
-      // When I run CLI analysis
-      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
-
       // Then a symbol named "add" should be present
       const addSymbol = result.symbols.find(s => s.name === 'add');
       expect(addSymbol).toBeDefined();
     });
 
-    it('should compute CC >= 1 for every symbol', async () => {
-      // When I run CLI analysis
-      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
-
+    it('should compute CC >= 1 for every symbol', () => {
       // Then every symbol should have CC >= 1 (minimum cyclomatic complexity)
       for (const sym of result.symbols) {
         expect(sym.cc).toBeGreaterThanOrEqual(1);
       }
     });
 
-    it('should compute CRAP and F for every symbol', async () => {
-      // When I run CLI analysis
-      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
-
+    it('should compute CRAP and F for every symbol', () => {
       // Then every symbol should have finite CRAP and F values
       for (const sym of result.symbols) {
         expect(Number.isFinite(sym.crap)).toBe(true);
@@ -62,25 +56,25 @@ describe('CLI Analysis Pipeline', () => {
       }
     });
 
-    it('should include coverage data from LCOV', async () => {
+    it('should include coverage data from LCOV', () => {
       // Given coverage/lcov.info exists in the fixture project with hits for utils.ts
-      // When I run CLI analysis
-      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
-
       // Then the "add" function should have coverage > 0
       const addSymbol = result.symbols.find(s => s.name === 'add');
       expect(addSymbol).toBeDefined();
       expect(addSymbol!.t).toBeGreaterThan(0);
     });
 
-    it('should have R = 1 for all symbols (no call graph in CLI MVP)', async () => {
-      // When I run CLI analysis (call graph not yet implemented)
-      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
+    it('should build an active call graph: a specific edge to "add" exists and its R > 1', () => {
+      // Given main.ts calls add() from utils.ts (verified by NodeCallGraphProvider)
+      // Then the "add" function should have R > 1 (it has at least one caller)
+      const addSymbol = result.symbols.find(s => s.name === 'add');
+      expect(addSymbol).toBeDefined();
+      expect(addSymbol!.r).toBeGreaterThan(1);
 
-      // Then all symbols should have R = 1 (default rank without call graph)
-      for (const sym of result.symbols) {
-        expect(sym.r).toBe(1);
-      }
+      // And a concrete edge pointing to "add" by its symbol ID must exist
+      // (guards against edge-format drift between callGraphBuild and NativeSymbolProvider)
+      const edgeToAdd = result.edges.find(e => e.callee === addSymbol!.id);
+      expect(edgeToAdd).toBeDefined();
     });
   });
 

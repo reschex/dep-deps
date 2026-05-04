@@ -1,4 +1,6 @@
 // Test fixture file
 import { add } from './utils';
 
-console.log(add(1, 2));
+export function main() {
+  return add(1, 2);
+}
