@@ -14,12 +14,14 @@ import {
   VsCodeDocumentProvider,
   VsCodeCallGraphProvider,
   VsCodeCoverageProvider,
+  HybridCallGraphProvider,
   EslintCcProvider,
   RadonCcProvider,
   PmdCcProvider,
   VsCodeLogger,
 } from "./adapters";
 import { NativeSymbolProvider } from "../../language/nativeSymbolProvider";
+import { NodeCallGraphProvider } from "../../language/typescript/callGraph";
 import { GitChurnAdapter } from "./churn/gitChurnAdapter";
 import { loadGitignoreFilter, makeUriFilter, type UriFilter } from "../../core/gitignoreFilter";
 
@@ -66,10 +68,16 @@ export class AnalysisService {
       gitignoreFilter = makeUriFilter(workspaceFolder.uri.toString(), rawFilter);
     }
 
+    const lspCallGraph = new VsCodeCallGraphProvider(token, config.excludeTests, config.debugEnabled ? this.logger : undefined, gitignoreFilter);
+    const logger = config.debugEnabled ? this.logger : undefined;
+    const callGraphProvider = workspaceFolder
+      ? new HybridCallGraphProvider(lspCallGraph, new NodeCallGraphProvider(workspaceFolder.uri.fsPath), logger)
+      : lspCallGraph;
+
     const orchestrator = new AnalysisOrchestrator({
       documentProvider: new VsCodeDocumentProvider(config.excludeTests),
       symbolProvider: new NativeSymbolProvider({ pythonPath: config.cc.pythonPath, pmdPath: config.cc.pmdPath }),
-      callGraphProvider: new VsCodeCallGraphProvider(token, config.excludeTests, config.debugEnabled ? this.logger : undefined, gitignoreFilter),
+      callGraphProvider,
       coverageProvider: new VsCodeCoverageProvider(this.coverageStore, config.coverage.lcovGlob, config.coverage.jacocoGlob, token),
       ccRegistry,
       logger: this.logger,

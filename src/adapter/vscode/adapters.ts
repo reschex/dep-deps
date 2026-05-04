@@ -92,6 +92,27 @@ export class VsCodeCallGraphProvider implements CallGraphProvider {
   }
 }
 
+export class HybridCallGraphProvider implements CallGraphProvider {
+  constructor(
+    private readonly lsp: CallGraphProvider,
+    private readonly native: CallGraphProvider,
+    private readonly logger?: Logger,
+  ) {}
+
+  async collectCallEdges(maxFiles: number, rootUri?: string): Promise<CallEdge[]> {
+    try {
+      const lspEdges = await this.lsp.collectCallEdges(maxFiles, rootUri);
+      if (lspEdges.length > 0) {
+        return lspEdges;
+      }
+    } catch (error) {
+      // LSP unavailable — fall through to native
+      this.logger?.debug?.(`LSP call graph failed, using native: ${error}`);
+    }
+    return this.native.collectCallEdges(maxFiles, rootUri);
+  }
+}
+
 // ─── CoverageProvider ────────────────────────────────────────────────────────
 
 export class VsCodeCoverageProvider implements CoverageProvider {

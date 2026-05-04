@@ -1,4 +1,5 @@
 name: Mutation Testing
+run-name: "Mutation testing: ${{ github.ref}}"
 
 on:
   workflow_run:

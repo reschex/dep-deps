@@ -34,10 +34,15 @@ vi.mock("./adapters", () => ({
   VsCodeDocumentProvider: vi.fn(),
   VsCodeCallGraphProvider: vi.fn(),
   VsCodeCoverageProvider: vi.fn(),
+  HybridCallGraphProvider: vi.fn(),
   EslintCcProvider: vi.fn(),
   RadonCcProvider: vi.fn(),
   PmdCcProvider: vi.fn(),
   VsCodeLogger: vi.fn(),
+}));
+
+vi.mock("../../language/typescript/callGraph", () => ({
+  NodeCallGraphProvider: vi.fn(),
 }));
 
 vi.mock("../../language/nativeSymbolProvider", () => ({
@@ -63,11 +68,13 @@ import {
   VsCodeDocumentProvider,
   VsCodeCallGraphProvider,
   VsCodeCoverageProvider,
+  HybridCallGraphProvider,
   EslintCcProvider,
   RadonCcProvider,
   PmdCcProvider,
   VsCodeLogger,
 } from "./adapters";
+import { NodeCallGraphProvider } from "../../language/typescript/callGraph";
 import { NativeSymbolProvider } from "../../language/nativeSymbolProvider";
 import { GitChurnAdapter } from "./churn/gitChurnAdapter";
 import { loadGitignoreFilter, makeUriFilter } from "../../core/gitignoreFilter";
@@ -310,13 +317,15 @@ describe("AnalysisService", () => {
       expect(VsCodeDocumentProvider).toHaveBeenCalledWith(false);
     });
 
-    it("passes token, excludeTests, and undefined logger to VsCodeCallGraphProvider when debug is disabled", async () => {
+    it("constructs HybridCallGraphProvider with VsCodeCallGraphProvider and NodeCallGraphProvider", async () => {
       const token = fakeToken();
 
       const service = new AnalysisService();
       await service.analyze(token);
 
       expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, true, undefined, undefined);
+      expect(NodeCallGraphProvider).toHaveBeenCalledWith("c:\\code\\proj");
+      expect(HybridCallGraphProvider).toHaveBeenCalledTimes(1);
     });
 
     it("passes logger to VsCodeCallGraphProvider when debug is enabled", async () => {

@@ -109,6 +109,7 @@ import {
   VsCodeDocumentProvider,
   VsCodeCallGraphProvider,
   VsCodeCoverageProvider,
+  HybridCallGraphProvider,
   EslintCcProvider,
   RadonCcProvider,
   PmdCcProvider,
@@ -1154,5 +1155,83 @@ describe("bugmagnet session 2026-04-16", () => {
 
       expect(store.get).toHaveBeenCalledWith("file:///C%3A/Code/SRC/a.ts");
     });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// HybridCallGraphProvider
+// ═════════════════════════════════════════════════════════════════════
+describe("HybridCallGraphProvider", () => {
+  function fakeCgProvider(edges: { caller: string; callee: string }[]) {
+    return { collectCallEdges: vi.fn(async () => edges) };
+  }
+
+  function throwingCgProvider(error: Error) {
+    return { collectCallEdges: vi.fn(async () => { throw error; }) };
+  }
+
+  it("returns LSP edges when LSP returns non-empty result", async () => {
+    const lspEdges = [{ caller: "a#0:0", callee: "b#1:0" }];
+    const nativeEdges = [{ caller: "c#0:0", callee: "d#1:0" }];
+
+    const provider = new HybridCallGraphProvider(
+      fakeCgProvider(lspEdges),
+      fakeCgProvider(nativeEdges),
+      undefined,
+    );
+    const result = await provider.collectCallEdges(100);
+
+    expect(result).toEqual(lspEdges);
+  });
+
+  it("falls back to native when LSP returns empty", async () => {
+    const nativeEdges = [{ caller: "c#0:0", callee: "d#1:0" }];
+
+    const provider = new HybridCallGraphProvider(
+      fakeCgProvider([]),
+      fakeCgProvider(nativeEdges),
+      undefined,
+    );
+    const result = await provider.collectCallEdges(100);
+
+    expect(result).toEqual(nativeEdges);
+  });
+
+  it("falls back to native when LSP throws", async () => {
+    const nativeEdges = [{ caller: "c#0:0", callee: "d#1:0" }];
+
+    const provider = new HybridCallGraphProvider(
+      throwingCgProvider(new Error("LSP timeout")),
+      fakeCgProvider(nativeEdges),
+      undefined,
+    );
+    const result = await provider.collectCallEdges(100);
+
+    expect(result).toEqual(nativeEdges);
+  });
+
+  it("passes maxFiles and rootUri to both providers", async () => {
+    const lsp = fakeCgProvider([]);
+    const native = fakeCgProvider([]);
+
+    const provider = new HybridCallGraphProvider(lsp, native, undefined);
+    await provider.collectCallEdges(42, "file:///root");
+
+    expect(lsp.collectCallEdges).toHaveBeenCalledWith(42, "file:///root");
+    expect(native.collectCallEdges).toHaveBeenCalledWith(42, "file:///root");
+  });
+
+  it("does not call native when LSP returns edges", async () => {
+    const lspEdges = [{ caller: "a#0:0", callee: "b#1:0" }];
+    const native = fakeCgProvider([]);
+
+    const provider = new HybridCallGraphProvider(
+      fakeCgProvider(lspEdges),
+      native,
+      undefined,
+    );
+    await provider.collectCallEdges(100);
+
+    expect(native.collectCallEdges).not.toHaveBeenCalled();
   });
 });
