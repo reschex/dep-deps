@@ -304,18 +304,17 @@ describe('parseArgs', () => {
     });
   });
 
-  describe('Scenario: Equals-sign syntax is not supported', () => {
-    it('does not parse --root=/path (treated as unrecognised flag)', () => {
+  describe('Scenario: Equals-sign syntax is supported', () => {
+    it('parses --root=/path correctly', () => {
       const result = parseArgs(['node', 'ddp', '--root=/path/to/project']);
 
-      // The entire "--root=/path/to/project" is matched against switch cases — none match
-      expect(result.root).toBeUndefined();
+      expect(result.root).toBe('/path/to/project');
     });
 
-    it('does not parse --format=json (treated as unrecognised flag)', () => {
-      const result = parseArgs(['node', 'ddp', '--format=json']);
+    it('parses --format=github-summary correctly', () => {
+      const result = parseArgs(['node', 'ddp', '--format=github-summary']);
 
-      expect(result.format).toBe('json'); // stays as default, not parsed
+      expect(result.format).toBe('github-summary');
     });
   });
 

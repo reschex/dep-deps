@@ -1,9 +1,11 @@
 /**
  * CLI argument parser.
  *
- * Minimal hand-rolled parser — no external dependency needed for the MVP flag set.
+ * Uses Node.js built-in `node:util parseArgs` for robust flag parsing.
  * Returns a typed options object consumed by the CLI main function.
  */
+
+import { parseArgs as nodeParseArgs } from 'node:util';
 
 /** Supported subcommands. */
 export type CliCommand = 'analyze' | 'callers';
@@ -50,52 +52,15 @@ export type CallersOptions = {
   readonly verbose: boolean;
 };
 
-// ── Shared flag state ───────────────────────────────────────────────────────
+// ── Shared option config for node:util parseArgs ────────────────────────────
 
-type CommonFlagState = {
-  root: string | undefined;
-  format: string;
-  excludeTests: boolean;
-  respectGitignore: boolean;
-  verbose: boolean;
+const commonOptions = {
+  root: { type: 'string' as const },
+  format: { type: 'string' as const },
+  'exclude-tests': { type: 'boolean' as const },
+  'respect-gitignore': { type: 'boolean' as const },
+  verbose: { type: 'boolean' as const },
 };
-
-/**
- * Attempt to consume a common flag (shared by all subcommands).
- * Mutates `state` in place and returns the potentially-advanced index.
- * Returns the original index if the flag was not recognised.
- */
-function applyCommonFlag(
-  arg: string,
-  args: readonly string[],
-  i: number,
-  state: CommonFlagState,
-): number {
-  switch (arg) {
-    case '--root':
-      if (i + 1 < args.length) { state.root = args[i + 1]; return i + 1; }
-      break;
-    case '--format':
-      if (i + 1 < args.length) { state.format = args[i + 1]; return i + 1; }
-      break;
-    case '--exclude-tests':
-      state.excludeTests = true;
-      break;
-    case '--no-exclude-tests':
-      state.excludeTests = false;
-      break;
-    case '--respect-gitignore':
-      state.respectGitignore = true;
-      break;
-    case '--no-respect-gitignore':
-      state.respectGitignore = false;
-      break;
-    case '--verbose':
-      state.verbose = true;
-      break;
-  }
-  return i;
-}
 
 // ── parseArgs ───────────────────────────────────────────────────────────────
 
@@ -114,30 +79,30 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     startIndex = 1;
   }
 
-  let output: string | undefined;
-  let help = false;
-  let version = false;
-  const common: CommonFlagState = { root: undefined, format: 'json', excludeTests: true, respectGitignore: false, verbose: false };
+  const { values, tokens } = nodeParseArgs({
+    args: args.slice(startIndex) as string[],
+    options: {
+      ...commonOptions,
+      output: { type: 'string' },
+      help: { type: 'boolean' },
+      version: { type: 'boolean' },
+    },
+    strict: false,
+    allowPositionals: true,
+    tokens: true,
+  });
 
-  for (let i = startIndex; i < args.length; i++) {
-    const arg = args[i];
-    const advanced = applyCommonFlag(arg, args, i, common);
-    if (advanced !== i) { i = advanced; continue; }
-
-    switch (arg) {
-      case '--output':
-        if (i + 1 < args.length) output = args[++i];
-        break;
-      case '--help':
-        help = true;
-        break;
-      case '--version':
-        version = true;
-        break;
-    }
-  }
-
-  return { command, root: common.root, output, format: common.format, excludeTests: common.excludeTests, respectGitignore: common.respectGitignore, verbose: common.verbose, help, version };
+  return {
+    command,
+    root: stringOrUndefined(values.root),
+    output: stringOrUndefined(values.output),
+    format: stringOrUndefined(values.format) ?? 'json',
+    excludeTests: lastWinsNegatable(tokens, 'exclude-tests', true),
+    respectGitignore: lastWinsNegatable(tokens, 'respect-gitignore', false),
+    verbose: Boolean(values.verbose),
+    help: Boolean(values.help),
+    version: Boolean(values.version),
+  };
 }
 
 // ── parseCallersArgs ────────────────────────────────────────────────────────
@@ -152,32 +117,58 @@ export function parseCallersArgs(argv: readonly string[]): CallersOptions {
   // Skip the "callers" subcommand token
   const startIndex = args[0] === 'callers' ? 1 : 0;
 
-  let file: string | undefined;
-  let symbol: string | undefined;
+  const { values, tokens } = nodeParseArgs({
+    args: args.slice(startIndex) as string[],
+    options: {
+      ...commonOptions,
+      file: { type: 'string' },
+      symbol: { type: 'string' },
+      depth: { type: 'string' }, // parsed as string, validated below
+    },
+    strict: false,
+    allowPositionals: true,
+    tokens: true,
+  });
+
   let depth = 5;
-  const common: CommonFlagState = { root: undefined, format: 'json', excludeTests: true, respectGitignore: false, verbose: false };
-
-  for (let i = startIndex; i < args.length; i++) {
-    const arg = args[i];
-    const advanced = applyCommonFlag(arg, args, i, common);
-    if (advanced !== i) { i = advanced; continue; }
-
-    switch (arg) {
-      case '--file':
-        if (i + 1 < args.length) file = args[++i];
-        break;
-      case '--symbol':
-        if (i + 1 < args.length) symbol = args[++i];
-        break;
-      case '--depth': {
-        if (i + 1 < args.length) {
-          const parsed = parseInt(args[++i], 10);
-          if (Number.isFinite(parsed) && parsed > 0) depth = parsed;
-        }
-        break;
-      }
-    }
+  if (values.depth !== undefined) {
+    const parsed = parseInt(values.depth as string, 10);
+    if (Number.isFinite(parsed) && parsed > 0) depth = parsed;
   }
 
-  return { root: common.root, file, symbol, depth, format: common.format, excludeTests: common.excludeTests, respectGitignore: common.respectGitignore, verbose: common.verbose };
+  return {
+    root: stringOrUndefined(values.root),
+    file: stringOrUndefined(values.file),
+    symbol: stringOrUndefined(values.symbol),
+    depth,
+    format: stringOrUndefined(values.format) ?? 'json',
+    excludeTests: lastWinsNegatable(tokens, 'exclude-tests', true),
+    respectGitignore: lastWinsNegatable(tokens, 'respect-gitignore', false),
+    verbose: Boolean(values.verbose),
+  };
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Extract string value, returning undefined if node:util set it to boolean (missing value case). */
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+type Token = { kind: string; name?: string };
+
+/**
+ * Resolve a negatable boolean flag from tokens (last occurrence wins).
+ * Looks for `--<name>` (true) and `--no-<name>` (false) in parse order.
+ */
+function lastWinsNegatable(tokens: Token[], name: string, defaultValue: boolean): boolean {
+  const negName = `no-${name}`;
+  let result = defaultValue;
+  for (const token of tokens) {
+    if (token.kind === 'option') {
+      if (token.name === name) result = true;
+      else if (token.name === negName) result = false;
+    }
+  }
+  return result;
 }
