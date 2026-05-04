@@ -24,6 +24,8 @@ export type CliOptions = {
   readonly excludeTests: boolean;
   /** Respect .gitignore patterns when discovering files (default: false). */
   readonly respectGitignore: boolean;
+  /** Skip call graph computation (default: false). When true, all R=1. */
+  readonly skipCallGraph: boolean;
   /** Enable verbose logging. */
   readonly verbose: boolean;
   /** Show help and exit. */
@@ -59,6 +61,7 @@ const commonOptions = {
   format: { type: 'string' as const },
   'exclude-tests': { type: 'boolean' as const },
   'respect-gitignore': { type: 'boolean' as const },
+  'call-graph': { type: 'boolean' as const },
   verbose: { type: 'boolean' as const },
 };
 
@@ -99,6 +102,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     format: stringOrUndefined(values.format) ?? 'json',
     excludeTests: lastWinsNegatable(tokens, 'exclude-tests', true),
     respectGitignore: lastWinsNegatable(tokens, 'respect-gitignore', false),
+    skipCallGraph: !lastWinsNegatable(tokens, 'call-graph', true),
     verbose: Boolean(values.verbose),
     help: Boolean(values.help),
     version: Boolean(values.version),

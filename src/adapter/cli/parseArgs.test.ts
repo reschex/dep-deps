@@ -107,6 +107,26 @@ describe('parseArgs', () => {
     });
   });
 
+  describe('Scenario: Skip call graph computation', () => {
+    it('should default skipCallGraph to false', () => {
+      const result = parseArgs(['node', 'ddp-analyze']);
+
+      expect(result.skipCallGraph).toBe(false);
+    });
+
+    it('should parse --no-call-graph flag', () => {
+      const result = parseArgs(['node', 'ddp-analyze', '--no-call-graph']);
+
+      expect(result.skipCallGraph).toBe(true);
+    });
+
+    it('should parse --call-graph flag (explicit enable)', () => {
+      const result = parseArgs(['node', 'ddp-analyze', '--call-graph']);
+
+      expect(result.skipCallGraph).toBe(false);
+    });
+  });
+
   describe('Scenario: Value flags with missing value (no argument follows the flag)', () => {
     it('should keep default format when --format has no following value', () => {
       // Given --format is the last argument with nothing after it

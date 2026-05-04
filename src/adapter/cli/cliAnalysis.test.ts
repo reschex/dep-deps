@@ -20,6 +20,26 @@ import { formatAnalysisAsJson, type JsonOutput } from './formatJson';
 const FIXTURE_PATH = join(__dirname, '../../test/fixtures/cli/simple-project');
 
 describe('CLI Analysis Pipeline', () => {
+  describe('Scenario: Skip call graph for faster analysis', () => {
+    it('should produce R=1 for all symbols and no edges when skipCallGraph is true', async () => {
+      // Given a project where "add" normally has R > 1 (callers exist)
+      // When I run CLI analysis with skipCallGraph: true
+      const result = await runCliAnalysis({
+        rootPath: FIXTURE_PATH,
+        excludeTests: false,
+        skipCallGraph: true,
+      });
+
+      // Then all symbols should have R=1 (no graph-based ranking)
+      expect(result.symbols.length).toBeGreaterThan(0);
+      for (const sym of result.symbols) {
+        expect(sym.r).toBe(1);
+      }
+      // And no call edges should be produced
+      expect(result.edges).toHaveLength(0);
+    });
+  });
+
   describe('Scenario: Run analysis with default options', () => {
     // Run the pipeline once for the whole scenario — TypeScript compilation is expensive.
     let result: Awaited<ReturnType<typeof runCliAnalysis>>;
@@ -94,6 +114,7 @@ describe('CLI Analysis Pipeline', () => {
           rootPath: dir,
           excludeTests: false,
           respectGitignore: true,
+          skipCallGraph: true,
         });
 
         // Then the generated file should be excluded
@@ -120,6 +141,7 @@ describe('CLI Analysis Pipeline', () => {
           rootPath: dir,
           excludeTests: false,
           respectGitignore: true,
+          skipCallGraph: true,
         });
 
         // Then analysis should complete successfully (nullFilter applied — no files excluded)
@@ -144,6 +166,7 @@ describe('CLI Analysis Pipeline', () => {
           rootPath: dir,
           excludeTests: false,
           respectGitignore: false,
+          skipCallGraph: true,
         });
 
         // Then both files should be included
@@ -160,7 +183,7 @@ describe('CLI Analysis Pipeline', () => {
     // Run the pipeline once for the whole scenario — TypeScript compilation is expensive.
     let jsonResult: ReturnType<typeof formatAnalysisAsJson>;
     beforeAll(async () => {
-      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
+      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false, skipCallGraph: true });
       jsonResult = formatAnalysisAsJson(result, FIXTURE_PATH);
     });
 

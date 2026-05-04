@@ -50,6 +50,7 @@ Analyze Options:
   --no-exclude-tests      Include test files in analysis
   --respect-gitignore     Exclude files matched by .gitignore
   --no-respect-gitignore  Include .gitignore-matched files (default)
+  --no-call-graph         Skip call graph computation (all R=1, faster)
   --verbose               Enable detailed logging to stderr
   --help                  Show this help message
   --version               Show version number
@@ -110,6 +111,7 @@ async function runAnalyze(
       rootPath,
       excludeTests: opts.excludeTests,
       respectGitignore: opts.respectGitignore,
+      skipCallGraph: opts.skipCallGraph,
       debugEnabled: opts.verbose,
       logger,
     });

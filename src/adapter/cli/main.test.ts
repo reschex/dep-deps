@@ -36,7 +36,7 @@ describe('CLI main()', () => {
       const stdout = captureStream();
       const stderr = captureStream();
       exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests'],
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--no-call-graph'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -141,7 +141,7 @@ describe('CLI main()', () => {
       const stdout = captureStream();
       const stderr = captureStream();
       verboseExitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--verbose'],
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--no-call-graph', '--verbose'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -168,7 +168,7 @@ describe('CLI main()', () => {
       const stderr = captureStream();
 
       const exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests'],
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--no-call-graph'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -189,7 +189,7 @@ describe('CLI main()', () => {
 
       // When I run the CLI targeting that path
       const exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--output', badOutputPath],
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--no-call-graph', '--output', badOutputPath],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -218,7 +218,7 @@ describe('CLI main()', () => {
 
       // When I run ddp-analyze --output <file>
       const exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--output', outputFile],
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--no-call-graph', '--output', outputFile],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,

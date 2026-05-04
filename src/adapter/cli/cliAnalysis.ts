@@ -12,7 +12,7 @@ import { NodeCoverageProvider } from './nodeCoverage';
 import { NativeSymbolProvider } from '../../language/nativeSymbolProvider';
 import { NodeCallGraphProvider } from '../../language/typescript/callGraph';
 import { CcProviderRegistry } from '../../core/ccRegistry';
-import { nullLogger, type Logger } from '../../core/ports';
+import { nullLogger, type CallGraphProvider, type Logger } from '../../core/ports';
 import { loadGitignoreFilter, makeUriFilter, type UriFilter } from '../../core/gitignoreFilter';
 import { pathToFileURL } from 'node:url';
 
@@ -23,6 +23,7 @@ export type CliAnalysisOptions = {
   readonly excludeTests?: boolean;
   readonly maxFiles?: number;
   readonly respectGitignore?: boolean;
+  readonly skipCallGraph?: boolean;
   readonly debugEnabled?: boolean;
   readonly logger?: Logger;
 };
@@ -40,6 +41,7 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
     excludeTests = DEFAULT_CONFIGURATION.excludeTests,
     maxFiles = DEFAULT_CONFIGURATION.maxFiles,
     respectGitignore = DEFAULT_CONFIGURATION.fileFilter.respectGitignore,
+    skipCallGraph = false,
     debugEnabled = DEFAULT_CONFIGURATION.debugEnabled,
     logger = nullLogger,
   } = options;
@@ -56,10 +58,13 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
     gitignoreFilter = makeUriFilter(rootUri, rawFilter);
   }
 
+  const nullCallGraph: CallGraphProvider = { collectCallEdges: async () => [] };
+  const callGraphProvider = skipCallGraph ? nullCallGraph : new NodeCallGraphProvider(rootPath);
+
   const orchestrator = new AnalysisOrchestrator({
     documentProvider,
     symbolProvider,
-    callGraphProvider: new NodeCallGraphProvider(rootPath),
+    callGraphProvider,
     coverageProvider,
     ccRegistry,
     logger,
