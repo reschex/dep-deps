@@ -157,13 +157,17 @@ describe('CLI Analysis Pipeline', () => {
   });
 
   describe('Scenario: Format analysis result as JSON', () => {
-    it('should produce valid JSON with timestamp, summary, and files', async () => {
-      // Given analysis has completed
+    // Run the pipeline once for the whole scenario — TypeScript compilation is expensive.
+    let jsonResult: ReturnType<typeof formatAnalysisAsJson>;
+    beforeAll(async () => {
       const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
+      jsonResult = formatAnalysisAsJson(result, FIXTURE_PATH);
+    });
 
+    it('should produce valid JSON with timestamp, summary, and files', () => {
+      // Given analysis has completed
       // When I format output as JSON
-      const jsonStr = formatAnalysisAsJson(result, FIXTURE_PATH);
-      const parsed: JsonOutput = JSON.parse(jsonStr);
+      const parsed: JsonOutput = JSON.parse(jsonResult);
 
       // Then the output should have all required top-level fields
       expect(parsed.timestamp).toBeDefined();
@@ -172,13 +176,10 @@ describe('CLI Analysis Pipeline', () => {
       expect(parsed.files.length).toBeGreaterThan(0);
     });
 
-    it('should include the "add" symbol in the JSON output with metrics', async () => {
+    it('should include the "add" symbol in the JSON output with metrics', () => {
       // Given analysis has completed on the fixture project
-      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
-
       // When I format output as JSON
-      const jsonStr = formatAnalysisAsJson(result, FIXTURE_PATH);
-      const parsed: JsonOutput = JSON.parse(jsonStr);
+      const parsed: JsonOutput = JSON.parse(jsonResult);
 
       // Then the "add" function should appear in a file entry with valid metrics
       const allSymbols = parsed.files.flatMap(f => f.symbols);

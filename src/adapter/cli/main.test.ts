@@ -8,7 +8,7 @@
  * so we use real code without spawning subprocesses.
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll } from 'vitest';
 import { join } from 'path';
 import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -29,57 +29,40 @@ function captureStream(): { write(s: string): void; output: string } {
 
 describe('CLI main()', () => {
   describe('Scenario: Run analysis with default options', () => {
-    it('should return exit code 0 on success', async () => {
-      // Given a TypeScript project with source files and coverage data
+    // Run the CLI once for the whole scenario — TypeScript compilation is expensive.
+    let exitCode: number;
+    let stdoutOutput: string;
+    beforeAll(async () => {
       const stdout = captureStream();
       const stderr = captureStream();
-
-      // When I run the CLI with --root pointing to the fixture
-      const exitCode = await main({
+      exitCode = await main({
         argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
       });
+      stdoutOutput = stdout.output;
+    });
 
+    it('should return exit code 0 on success', () => {
+      // Given a TypeScript project with source files and coverage data
+      // When I run the CLI with --root pointing to the fixture
       // Then the exit code should be 0
       expect(exitCode).toBe(0);
     });
 
-    it('should write valid JSON to stdout', async () => {
-      // Given a TypeScript project with source files
-      const stdout = captureStream();
-      const stderr = captureStream();
-
-      // When I run the CLI
-      const exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests'],
-        stdout,
-        stderr,
-        cwd: FIXTURE_PATH,
-      });
-
+    it('should write valid JSON to stdout', () => {
       // Then JSON output should be written to stdout
       expect(exitCode).toBe(0);
-      const parsed: JsonOutput = JSON.parse(stdout.output);
+      const parsed: JsonOutput = JSON.parse(stdoutOutput);
       expect(parsed.timestamp).toBeDefined();
       expect(parsed.summary).toBeDefined();
       expect(parsed.files).toBeDefined();
     });
 
-    it('should include symbols in the JSON output', async () => {
-      const stdout = captureStream();
-      const stderr = captureStream();
-
-      const exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests'],
-        stdout,
-        stderr,
-        cwd: FIXTURE_PATH,
-      });
-
+    it('should include symbols in the JSON output', () => {
       expect(exitCode).toBe(0);
-      const parsed: JsonOutput = JSON.parse(stdout.output);
+      const parsed: JsonOutput = JSON.parse(stdoutOutput);
       expect(parsed.summary.symbolsAnalyzed).toBeGreaterThan(0);
 
       // The "add" function from utils.ts should appear
@@ -151,38 +134,33 @@ describe('CLI main()', () => {
   });
 
   describe('Scenario: Enable verbose logging', () => {
-    it('should write log messages to stderr when --verbose is set', async () => {
+    // Run the CLI once with --verbose for the two positive assertions.
+    let verboseExitCode: number;
+    let verboseStderr: string;
+    beforeAll(async () => {
       const stdout = captureStream();
       const stderr = captureStream();
-
-      const exitCode = await main({
+      verboseExitCode = await main({
         argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--verbose'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
       });
-
-      expect(exitCode).toBe(0);
-      // Verbose mode should produce INFO messages on stderr
-      expect(stderr.output).toContain('[INFO]');
+      verboseStderr = stderr.output;
     });
 
-    it('should write DEBUG file discovery messages to stderr when --verbose is set', async () => {
-      const stdout = captureStream();
-      const stderr = captureStream();
+    it('should write log messages to stderr when --verbose is set', () => {
+      expect(verboseExitCode).toBe(0);
+      // Verbose mode should produce INFO messages on stderr
+      expect(verboseStderr).toContain('[INFO]');
+    });
 
-      const exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--verbose'],
-        stdout,
-        stderr,
-        cwd: FIXTURE_PATH,
-      });
-
-      expect(exitCode).toBe(0);
+    it('should write DEBUG file discovery messages to stderr when --verbose is set', () => {
+      expect(verboseExitCode).toBe(0);
       // Verbose mode should produce DEBUG messages listing discovered files
-      expect(stderr.output).toContain('[DEBUG]');
-      expect(stderr.output).toContain('Discovered');
-      expect(stderr.output).toContain('file:///');
+      expect(verboseStderr).toContain('[DEBUG]');
+      expect(verboseStderr).toContain('Discovered');
+      expect(verboseStderr).toContain('file:///');
     });
 
     it('should NOT write log messages to stderr without --verbose', async () => {

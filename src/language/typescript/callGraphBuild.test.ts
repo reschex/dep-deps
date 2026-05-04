@@ -5,7 +5,7 @@
  * From: features/typescript-call-graph.feature
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildTypeScriptCallEdges } from './callGraphBuild';
@@ -19,24 +19,25 @@ function fixtureUri(name: string): string {
 
 describe('buildTypeScriptCallEdges', () => {
   describe('Scenario: Extract cross-file call edge', () => {
-    it('should produce exactly 1 call edge from caller.ts → callee.ts', async () => {
-      const callerUri = fixtureUri('caller.ts');
-      const calleeUri = fixtureUri('callee.ts');
+    // Build the call graph once for the whole scenario — TypeScript compilation is expensive.
+    let callerUri: string;
+    let calleeUri: string;
+    let edges: Awaited<ReturnType<typeof buildTypeScriptCallEdges>>;
+    beforeAll(async () => {
+      callerUri = fixtureUri('caller.ts');
+      calleeUri = fixtureUri('callee.ts');
+      edges = await buildTypeScriptCallEdges(FIXTURES, [callerUri, calleeUri]);
+    });
 
-      const edges = await buildTypeScriptCallEdges(FIXTURES, [callerUri, calleeUri]);
-
+    it('should produce exactly 1 call edge from caller.ts → callee.ts', () => {
       expect(edges).toHaveLength(1);
       // caller: run() at line 2, callee: greet() at line 0 — symbol IDs are uri#line:character
       expect(edges[0].caller).toContain('caller.ts#');
       expect(edges[0].callee).toContain('callee.ts#');
     });
 
-    it('should produce symbol IDs in uri#line:character format (0-based)', async () => {
-      const callerUri = fixtureUri('caller.ts');
-      const calleeUri = fixtureUri('callee.ts');
-
-      const edges = await buildTypeScriptCallEdges(FIXTURES, [callerUri, calleeUri]);
-
+    it('should produce symbol IDs in uri#line:character format (0-based)', () => {
+      expect(edges).toHaveLength(1);
       // run() is "export function run()" at line 2, char 0 (declaration start, matching NodeSymbolProvider)
       expect(edges[0].caller).toBe(`${callerUri}#2:0`);
       // greet() is "export function greet(..." at line 0, char 0 (declaration start)
