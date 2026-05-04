@@ -1987,3 +1987,322 @@ describe("debug logging", () => {
     expect(debugMessages).toHaveLength(0);
   });
 });
+
+// ─── bugmagnet session 2026-05-04 ─────────────────────────────────────────
+
+describe("bugmagnet session 2026-05-04", () => {
+
+  describe("excludeTests patterns", () => {
+    it("excludes .spec.ts files when excludeTests is true", async () => {
+      const prodUri = "file:///project/src/service.ts";
+      const specUri = "file:///project/src/service.spec.ts";
+      const docs = new Map([
+        [prodUri, fakeDoc(prodUri, "typescript", "return 1")],
+        [specUri, fakeDoc(specUri, "typescript", "return 2")],
+      ]);
+      const symbols = new Map([
+        [prodUri, [{ name: "serve", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+        [specUri, [{ name: "itServes", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+      ]);
+
+      const orchestrator = new AnalysisOrchestrator({
+        documentProvider: fakeDocProvider(docs),
+        symbolProvider: fakeSymbolProvider(symbols),
+        callGraphProvider: fakeCallGraphProvider([]),
+        coverageProvider: fakeCoverageProvider(new Map()),
+        ccRegistry: new CcProviderRegistry(),
+        logger: nullLogger,
+      });
+
+      const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+      assert(result !== undefined);
+      const uris = result.symbols.map(s => s.uri);
+      expect(uris).toContain(prodUri);
+      expect(uris).not.toContain(specUri);
+    });
+
+    it("excludes files in __tests__/ directory when excludeTests is true", async () => {
+      const prodUri = "file:///project/src/service.ts";
+      const testDirUri = "file:///project/src/__tests__/service.ts";
+      const docs = new Map([
+        [prodUri, fakeDoc(prodUri, "typescript", "return 1")],
+        [testDirUri, fakeDoc(testDirUri, "typescript", "return 2")],
+      ]);
+      const symbols = new Map([
+        [prodUri, [{ name: "serve", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+        [testDirUri, [{ name: "testFn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+      ]);
+
+      const orchestrator = new AnalysisOrchestrator({
+        documentProvider: fakeDocProvider(docs),
+        symbolProvider: fakeSymbolProvider(symbols),
+        callGraphProvider: fakeCallGraphProvider([]),
+        coverageProvider: fakeCoverageProvider(new Map()),
+        ccRegistry: new CcProviderRegistry(),
+        logger: nullLogger,
+      });
+
+      const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+      assert(result !== undefined);
+      const uris = result.symbols.map(s => s.uri);
+      expect(uris).toContain(prodUri);
+      expect(uris).not.toContain(testDirUri);
+    });
+  });
+
+  describe("churn edge cases", () => {
+    it("returns g=1 when churn count is zero for the file", async () => {
+      const churnProvider: ChurnProvider = {
+        async getChurnCounts(_since) {
+          return new Map([[CHURN_FILE_URI, 0]]);
+        },
+      };
+      const orchestrator = singleFnOrchestrator({ churnProvider });
+      const result = await orchestrator.analyze(CHURN_CONFIG, neverCancelledCtx());
+      assert(result !== undefined);
+      // G = 1 + ln(1 + 0) = 1 + 0 = 1
+      expect(result.symbols[0].g).toBeCloseTo(1, 5);
+      expect(result.symbols[0].fPrime).toBeCloseTo(result.symbols[0].f, 5);
+    });
+
+    it("passes since=now when lookbackDays is 0", async () => {
+      const fixedNow = new Date("2026-05-04T10:00:00.000Z");
+      let capturedSince: Date | undefined;
+      const churnProvider: ChurnProvider = {
+        async getChurnCounts(since) {
+          capturedSince = since;
+          return new Map();
+        },
+      };
+      const config = { ...DEFAULT_CONFIGURATION, churn: { enabled: true, lookbackDays: 0 } };
+      const orchestrator = singleFnOrchestrator({ churnProvider, clock: () => fixedNow });
+      await orchestrator.analyze(config, neverCancelledCtx());
+      assert(capturedSince !== undefined);
+      // lookbackDays=0 means since = now - 0 days = now
+      expect(capturedSince.getTime()).toBe(fixedNow.getTime());
+    });
+  });
+
+  describe("per-symbol coverage differentiation", () => {
+    it("assigns different T values to symbols based on their line ranges", async () => {
+      const uri = "file:///a.ts";
+      const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+      // fn1 spans lines 0-4, fn2 spans lines 5-9
+      const symbols = new Map([
+        [uri, [
+          { name: "fn1", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 4 },
+          { name: "fn2", selectionStartLine: 5, selectionStartCharacter: 0, bodyStartLine: 5, bodyEndLine: 9 },
+        ]],
+      ]);
+      // fn1 range: 5 lines, 4 executed = 0.8 coverage
+      // fn2 range: 5 lines, 1 executed = 0.2 coverage
+      const coverage = new Map([
+        [uri, [
+          { executed: true, startLine: 0, endLine: 0 },
+          { executed: true, startLine: 1, endLine: 1 },
+          { executed: true, startLine: 2, endLine: 2 },
+          { executed: true, startLine: 3, endLine: 3 },
+          { executed: false, startLine: 4, endLine: 4 },
+          { executed: true, startLine: 5, endLine: 5 },
+          { executed: false, startLine: 6, endLine: 6 },
+          { executed: false, startLine: 7, endLine: 7 },
+          { executed: false, startLine: 8, endLine: 8 },
+          { executed: false, startLine: 9, endLine: 9 },
+        ]],
+      ]);
+
+      const orchestrator = new AnalysisOrchestrator({
+        documentProvider: fakeDocProvider(docs),
+        symbolProvider: fakeSymbolProvider(symbols),
+        callGraphProvider: fakeCallGraphProvider([]),
+        coverageProvider: fakeCoverageProvider(coverage),
+        ccRegistry: new CcProviderRegistry(),
+        logger: nullLogger,
+      });
+
+      const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+      assert(result !== undefined);
+      const fn1 = result.symbols.find(s => s.name === "fn1");
+      const fn2 = result.symbols.find(s => s.name === "fn2");
+      assert(fn1 !== undefined);
+      assert(fn2 !== undefined);
+      expect(fn1.t).toBeCloseTo(0.8, 2);
+      expect(fn2.t).toBeCloseTo(0.2, 2);
+      // fn2 with lower coverage should have higher CRAP (same CC)
+      expect(fn2.crap).toBeGreaterThan(fn1.crap);
+    });
+  });
+
+  describe("scope forwarding", () => {
+    it("forwards scope rootUri to collectCallEdges", async () => {
+      const uri = "file:///project/src/a.ts";
+      const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+      const symbols = new Map([
+        [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+      ]);
+
+      let capturedRootUri: string | undefined;
+      const capturingCallGraphProvider: CallGraphProvider = {
+        async collectCallEdges(_maxFiles, rootUri?) {
+          capturedRootUri = rootUri;
+          return [];
+        },
+      };
+
+      const orchestrator = new AnalysisOrchestrator({
+        documentProvider: fakeDocProvider(docs),
+        symbolProvider: fakeSymbolProvider(symbols),
+        callGraphProvider: capturingCallGraphProvider,
+        coverageProvider: fakeCoverageProvider(new Map()),
+        ccRegistry: new CcProviderRegistry(),
+        logger: nullLogger,
+      });
+
+      const scope: AnalysisScope = { rootUri: "file:///project/src" };
+      await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx(), scope);
+      expect(capturedRootUri).toBe("file:///project/src");
+    });
+
+    it("passes undefined rootUri to collectCallEdges when no scope given", async () => {
+      const uri = "file:///a.ts";
+      const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+      const symbols = new Map([
+        [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+      ]);
+
+      let capturedRootUri: string | undefined = "sentinel";
+      const capturingCallGraphProvider: CallGraphProvider = {
+        async collectCallEdges(_maxFiles, rootUri?) {
+          capturedRootUri = rootUri;
+          return [];
+        },
+      };
+
+      const orchestrator = new AnalysisOrchestrator({
+        documentProvider: fakeDocProvider(docs),
+        symbolProvider: fakeSymbolProvider(symbols),
+        callGraphProvider: capturingCallGraphProvider,
+        coverageProvider: fakeCoverageProvider(new Map()),
+        ccRegistry: new CcProviderRegistry(),
+        logger: nullLogger,
+      });
+
+      await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+      expect(capturedRootUri).toBeUndefined();
+    });
+  });
+
+  describe("debug logging with scope", () => {
+    it("includes rootUri in the analysis start info message when scope is provided", async () => {
+      const uri = "file:///project/src/a.ts";
+      const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+      const symbols = new Map([
+        [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+      ]);
+
+      const infos: string[] = [];
+      const logger = { info(msg: string) { infos.push(msg); }, warn() {}, error() {}, debug() {} };
+
+      const orchestrator = new AnalysisOrchestrator({
+        documentProvider: fakeDocProvider(docs),
+        symbolProvider: fakeSymbolProvider(symbols),
+        callGraphProvider: fakeCallGraphProvider([]),
+        coverageProvider: fakeCoverageProvider(new Map()),
+        ccRegistry: new CcProviderRegistry(),
+        logger,
+      });
+
+      const scope: AnalysisScope = { rootUri: "file:///project/src" };
+      await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx(), scope);
+
+      expect(infos[0]).toContain("file:///project/src");
+    });
+
+    it("shows (workspace) in start message when no scope provided", async () => {
+      const uri = "file:///a.ts";
+      const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+      const symbols = new Map([
+        [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+      ]);
+
+      const infos: string[] = [];
+      const logger = { info(msg: string) { infos.push(msg); }, warn() {}, error() {}, debug() {} };
+
+      const orchestrator = new AnalysisOrchestrator({
+        documentProvider: fakeDocProvider(docs),
+        symbolProvider: fakeSymbolProvider(symbols),
+        callGraphProvider: fakeCallGraphProvider([]),
+        coverageProvider: fakeCoverageProvider(new Map()),
+        ccRegistry: new CcProviderRegistry(),
+        logger,
+      });
+
+      await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+
+      expect(infos[0]).toContain("(workspace)");
+    });
+  });
+
+  describe("large symbol sets", () => {
+    it("processes 50 symbols in a single file without truncation", async () => {
+      const uri = "file:///a.ts";
+      const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+      const fns: FunctionSymbolInfo[] = Array.from({ length: 50 }, (_, i) => ({
+        name: `fn${i}`,
+        selectionStartLine: i * 10,
+        selectionStartCharacter: 0,
+        bodyStartLine: i * 10,
+        bodyEndLine: i * 10 + 5,
+      }));
+      const symbols = new Map([[uri, fns]]);
+
+      const orchestrator = new AnalysisOrchestrator({
+        documentProvider: fakeDocProvider(docs),
+        symbolProvider: fakeSymbolProvider(symbols),
+        callGraphProvider: fakeCallGraphProvider([]),
+        coverageProvider: fakeCoverageProvider(new Map()),
+        ccRegistry: new CcProviderRegistry(),
+        logger: nullLogger,
+      });
+
+      const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+      assert(result !== undefined);
+      expect(result.symbols).toHaveLength(50);
+      expect(result.symbols[0].name).toBe("fn0");
+      expect(result.symbols[49].name).toBe("fn49");
+    });
+  });
+
+  describe("maxFiles edge case", () => {
+    it("returns empty symbols when maxFiles is 0 and provider respects it", async () => {
+      const uri = "file:///a.ts";
+      const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+      const symbols = new Map([
+        [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+      ]);
+
+      // Provider that respects maxFiles limit
+      const limitingDocProvider: DocumentProvider = {
+        async findSourceFiles(maxFiles) {
+          const all = [...docs.keys()];
+          return all.slice(0, maxFiles);
+        },
+        async openDocument(u) { return docs.get(u); },
+      };
+
+      const config: DdpConfiguration = { ...DEFAULT_CONFIGURATION, maxFiles: 0 };
+      const orchestrator = new AnalysisOrchestrator({
+        documentProvider: limitingDocProvider,
+        symbolProvider: fakeSymbolProvider(symbols),
+        callGraphProvider: fakeCallGraphProvider([]),
+        coverageProvider: fakeCoverageProvider(new Map()),
+        ccRegistry: new CcProviderRegistry(),
+        logger: nullLogger,
+      });
+
+      const result = await orchestrator.analyze(config, neverCancelledCtx());
+      assert(result !== undefined);
+      expect(result.symbols).toHaveLength(0);
+    });
+  });
+});
