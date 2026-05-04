@@ -30,6 +30,7 @@ const config = {
     'src/**/*.ts',
     '!src/**/*.test.ts',
     '!src/test/**',
+    '!src/**/fixtures/**',
     '!src/core/testFixtures.ts',
     '!src/shared/fakeProc.ts',
     '!src/extension.ts', // extension files are not tested directly

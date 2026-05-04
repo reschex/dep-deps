@@ -1,11 +1,13 @@
 import * as vscode from "vscode";
-import { getFlatFunctionSymbols } from "../documentSymbols";
-import { symbolIdFromUriRange } from "../symbolId";
+import type { SymbolProvider } from "../../../core/ports";
 import { formatHoverBreakdown } from "../../../core/viewModel";
 import type { ExtensionState } from "../extensionState";
 
 export class DdpHoverProvider implements vscode.HoverProvider {
-  constructor(private readonly state: ExtensionState) {}
+  constructor(
+    private readonly state: ExtensionState,
+    private readonly symbolProvider: SymbolProvider,
+  ) {}
 
   async provideHover(
     document: vscode.TextDocument,
@@ -16,19 +18,28 @@ export class DdpHoverProvider implements vscode.HoverProvider {
     if (!byId.size) {
       return undefined;
     }
-    const functions = await getFlatFunctionSymbols(document.uri);
+    const functions = await this.symbolProvider.getFunctionSymbols(document.uri.toString());
     for (const fn of functions) {
-      if (!fn.selectionRange.contains(position) && !fn.range.contains(position)) {
+      // Line-based containment: position must be within [selectionStartLine, bodyEndLine].
+      // FunctionSymbolInfo does not expose bodyEndCharacter, so character-level precision
+      // at the end of the closing line is not available — line-level is sufficient in practice.
+      if (position.line < fn.selectionStartLine || position.line > fn.bodyEndLine) {
         continue;
       }
-      const id = symbolIdFromUriRange(document.uri, fn.selectionRange);
+      // Build ID the same way makeSymbolId does in analysisOrchestrator:
+      // `${uri}#${selectionStartLine}:${selectionStartCharacter}` — declaration-start position.
+      const id = `${document.uri.toString()}#${fn.selectionStartLine}:${fn.selectionStartCharacter}`;
       const m = byId.get(id);
       if (!m) {
         continue;
       }
+      const hoverRange = new vscode.Range(
+        new vscode.Position(fn.selectionStartLine, fn.selectionStartCharacter),
+        new vscode.Position(fn.bodyEndLine, 0),
+      );
       const md = new vscode.MarkdownString(formatHoverBreakdown(m));
       md.isTrusted = true;
-      return new vscode.Hover(md, fn.range);
+      return new vscode.Hover(md, hoverRange);
     }
     return undefined;
   }

@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
-import { getFlatFunctionSymbols } from "../documentSymbols";
-import { symbolIdFromUriRange } from "../symbolId";
+import type { SymbolProvider } from "../../../core/ports";
 import { formatCodeLensTitle } from "../../../core/viewModel";
 import type { ExtensionState } from "../extensionState";
 import type { DdpConfiguration } from "../configuration";
@@ -11,7 +10,8 @@ export class DdpCodeLensProvider implements vscode.CodeLensProvider {
 
   constructor(
     private readonly state: ExtensionState,
-    private readonly getConfig: () => DdpConfiguration
+    private readonly getConfig: () => DdpConfiguration,
+    private readonly symbolProvider: SymbolProvider,
   ) {}
 
   invalidate(): void {
@@ -29,15 +29,21 @@ export class DdpCodeLensProvider implements vscode.CodeLensProvider {
     if (!byId.size) {
       return [];
     }
-    const functions = await getFlatFunctionSymbols(document.uri);
+    const functions = await this.symbolProvider.getFunctionSymbols(document.uri.toString());
     const lenses: vscode.CodeLens[] = [];
     for (const fn of functions) {
-      const id = symbolIdFromUriRange(document.uri, fn.selectionRange);
+      // Build ID the same way makeSymbolId does in analysisOrchestrator:
+      // `${uri}#${selectionStartLine}:${selectionStartCharacter}` — declaration-start position
+      // from NativeSymbolProvider (node.getStart), not LSP selectionRange (name position).
+      const id = `${document.uri.toString()}#${fn.selectionStartLine}:${fn.selectionStartCharacter}`;
       const m = byId.get(id);
       if (!m) {
         continue;
       }
-      const range = fn.selectionRange;
+      const range = new vscode.Range(
+        new vscode.Position(fn.selectionStartLine, fn.selectionStartCharacter),
+        new vscode.Position(fn.selectionStartLine, fn.selectionStartCharacter),
+      );
       lenses.push(
         new vscode.CodeLens(range, {
           title: formatCodeLensTitle(m),

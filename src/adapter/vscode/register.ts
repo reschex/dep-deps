@@ -12,6 +12,7 @@ import { ImpactTreeProvider } from "./ui/impactTreeProvider";
 import { openImpactGraph } from "./ui/impactGraphPanel";
 import { buildConfiguration, type AnalysisScope } from "./configuration";
 import { handleRiskViewSelection } from "./ui/riskViewSelection";
+import { NativeSymbolProvider } from "../../language/nativeSymbolProvider";
 
 const selector: vscode.DocumentSelector = [
   { scheme: "file", language: "typescript" },
@@ -31,8 +32,9 @@ export function registerDdp(context: vscode.ExtensionContext): void {
     return buildConfiguration(<T>(key: string, def: T) => raw.get<T>(key, def));
   };
   const deco = new DecorationManager(state, () => getConfig().decoration);
-  const codeLens = new DdpCodeLensProvider(state, getConfig);
-  const hover = new DdpHoverProvider(state);
+  const nativeSymbols = new NativeSymbolProvider();
+  const codeLens = new DdpCodeLensProvider(state, getConfig, nativeSymbols);
+  const hover = new DdpHoverProvider(state, nativeSymbols);
 
   const impactTree = new ImpactTreeProvider(state);
 
