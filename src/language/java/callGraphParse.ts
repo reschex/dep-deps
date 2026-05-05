@@ -50,9 +50,17 @@ export function parseJavaSource(source: string): JavaSourceInfo {
 
 const CLASS_RE = /\bclass\s+(\w+)/;
 
+/**
+ * Extract the first class name found in the source lines.
+ * Strips `//` line comments before matching to avoid false positives from
+ * commented-out class declarations. Block comments (`/* ... *\/`) are not
+ * stripped — a `class` keyword inside a block comment would be a false match,
+ * but this is rare enough to be an acceptable limitation of the regex approach.
+ */
 function extractClassName(lines: string[]): string {
   for (const line of lines) {
-    const m = CLASS_RE.exec(line);
+    const stripped = line.replace(/\/\/.*$/, '');
+    const m = CLASS_RE.exec(stripped);
     if (m) return m[1];
   }
   return '';
@@ -61,11 +69,13 @@ function extractClassName(lines: string[]): string {
 // ── Method declarations ──────────────────────────────────────────────────────
 
 /**
- * Match method declarations: access modifier (optional), static (optional),
- * return type, method name, open paren.
+ * Match method declarations: access modifier (optional), static/final/synchronized
+ * (optional), return type with optional single-level generic (e.g. List<String>),
+ * method name, open paren.
  * Excludes constructors (return type is required) and class declarations.
+ * Note: nested generics (e.g. Map<String, List<Object>>) are not supported.
  */
-const METHOD_RE = /^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?(\w+)\s+(\w+)\s*\(/;
+const METHOD_RE = /^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?(?:synchronized\s+)?(\w+)(?:<[^>]*>)?\s+(\w+)\s*\(/;
 
 /**
  * Words that METHOD_RE may capture in the return-type position but which are not real
@@ -77,11 +87,12 @@ const METHOD_RE = /^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+
  * - throw:          `throw buildError()` inside a method body
  * - assert:         `assert check()` inside a method body
  * - else:           `else delete()` on its own line (braces-free else branch)
+ * - new:            `new ClassName(` on its own line (multiline instantiation)
  */
 const NON_RETURN_TYPE_KEYWORDS = new Set([
   'class', 'interface', 'enum',
   'public', 'private', 'protected',
-  'return', 'throw', 'assert', 'else',
+  'return', 'throw', 'assert', 'else', 'new',
 ]);
 
 function extractMethods(lines: string[]): JavaMethodDecl[] {
@@ -105,11 +116,55 @@ function extractMethods(lines: string[]): JavaMethodDecl[] {
   return methods;
 }
 
+/**
+ * Strip string literals, char literals, and `//` line comments from a source line
+ * before brace counting. Prevents `"{"`, `'}'`, or `// { comment` from
+ * artificially inflating or deflating brace depth in findClosingBrace.
+ *
+ * Note: block comments (`/* ... *\/`) are not stripped — callers pass individual
+ * source lines where block comments rarely span the full line.
+ */
+function stripLineContext(line: string): string {
+  const chunks: string[] = [];
+  let i = 0;
+  let chunkStart = 0;
+
+  const flush = (end: number): void => {
+    if (end > chunkStart) chunks.push(line.slice(chunkStart, end));
+  };
+
+  const skipDelimited = (delim: string): void => {
+    i++; // skip opening delimiter
+    while (i < line.length && line[i] !== delim) {
+      if (line[i] === '\\') i++; // skip escaped character
+      i++;
+    }
+    i++; // skip closing delimiter
+    chunkStart = i;
+  };
+
+  while (i < line.length) {
+    if (line[i] === '/' && i + 1 < line.length && line[i + 1] === '/') {
+      flush(i);
+      break; // remainder is a line comment — discard
+    }
+    if (line[i] === '"' || line[i] === '\'') {
+      flush(i);
+      skipDelimited(line[i]);
+      continue;
+    }
+    i++;
+  }
+  flush(i);
+
+  return chunks.join('');
+}
+
 /** Find the matching closing brace for a method starting at startLine. */
 function findClosingBrace(lines: string[], startLine: number): number {
   let depth = 0;
   for (let i = startLine; i < lines.length; i++) {
-    for (const ch of lines[i]) {
+    for (const ch of stripLineContext(lines[i])) {
       if (ch === '{') depth++;
       if (ch === '}') {
         depth--;
