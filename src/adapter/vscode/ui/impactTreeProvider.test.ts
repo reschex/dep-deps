@@ -332,6 +332,23 @@ describe("ImpactTreeProvider", () => {
       expect(item.description).toContain("F=?");
     });
 
+    it("shows readable filename#line:col when metrics not found and symbolId is a URI-based ID", async () => {
+      const { ImpactTreeProvider } = await import("./impactTreeProvider");
+
+      const provider = new ImpactTreeProvider(state);
+      const node = {
+        type: "caller" as const,
+        symbolId: "file:///c%3A/code/dep-deps/src/foo/bar.ts#42:4",
+        depth: 1,
+        recursive: false,
+        ancestors: new Set(["root"]),
+      };
+      const item = provider.getTreeItem(node);
+
+      expect(item.label).toBe("bar.ts#42:4");
+      expect(item.description).toContain("F=?");
+    });
+
     it("formats empty node with info icon", async () => {
       const { ImpactTreeProvider } = await import("./impactTreeProvider");
       const provider = new ImpactTreeProvider(state);

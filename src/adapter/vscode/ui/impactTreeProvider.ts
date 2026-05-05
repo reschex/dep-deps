@@ -75,7 +75,7 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
     }
 
     const metrics = this.state.symbolById.get(element.symbolId);
-    const name = metrics?.name ?? element.symbolId;
+    const name = metrics?.name ?? labelFromSymbolId(element.symbolId);
     const fStr = metrics ? `F=${metrics.f.toFixed(1)}` : "F=?";
     const fileLabel = metrics ? fileNameFromUri(metrics.uri) : "";
     const fileSuffix = fileLabel ? ` · ${fileLabel}` : "";
@@ -141,4 +141,17 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
 function fileNameFromUri(uri: string): string {
   const lastSlash = Math.max(uri.lastIndexOf("/"), uri.lastIndexOf("\\"));
   return lastSlash >= 0 ? uri.slice(lastSlash + 1) : uri;
+}
+
+/**
+ * Extract a human-readable label from a symbol ID.
+ * e.g. "file:///c%3A/src/foo.ts#42:4" → "foo.ts#42:4"
+ * e.g. "unknown-id" → "unknown-id"
+ */
+function labelFromSymbolId(id: string): string {
+  const hash = id.lastIndexOf("#");
+  const uriPart = hash >= 0 ? id.slice(0, hash) : id;
+  const locationPart = hash >= 0 ? id.slice(hash + 1) : "";
+  const fileName = fileNameFromUri(uriPart);
+  return locationPart ? `${fileName}#${locationPart}` : fileName;
 }

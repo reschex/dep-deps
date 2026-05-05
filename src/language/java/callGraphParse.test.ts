@@ -461,4 +461,227 @@ public class OrderService {
       // Should not throw — just return whatever it can parse
     });
   });
+
+  describe('bugmagnet session 2026-05-05', () => {
+    // ── stripLineContext: string/char literal brace handling ─────────────────
+
+    it('returns correct endLine when string literal contains multi-char content before a closing brace', () => {
+      // skipDelimited inner loop →false mutant (L138): exits immediately, skips only 1 char.
+      // For "}" (1-char content) this accidentally works. For "ab}" the } leaks through.
+      const source = `public class Foo {
+    public void foo() {
+        String s = "ab}";
+        doWork();
+    }
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.methods[0].endLine).toBe(4); // } of foo(), not the leaked } inside string
+    });
+
+    it('returns correct endLine when string literal contains escaped delimiter before closing brace', () => {
+      // escape handling mutants (L139): without double-increment for \\, the \" closes the
+      // string early and the } after it leaks into brace-counting output.
+      const source = `public class Foo {
+    public void foo() {
+        String s = "a\\"}" ;
+        doWork();
+    }
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.methods[0].endLine).toBe(4); // } of foo(), not the leaked } after \"
+    });
+
+    it('returns correct endLine when char literal contains a closing brace', () => {
+      // char literal detection mutants (L151 →false, →""): without char-literal stripping,
+      // the } inside '}' is counted as a real brace and shifts endLine.
+      const source = `public class Foo {
+    public void foo() {
+        char c = '}';
+        doWork();
+    }
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.methods[0].endLine).toBe(4); // } of foo(), not the } inside char literal
+    });
+
+    // ── findClosingBrace: nested braces ──────────────────────────────────────
+
+    it('returns correct endLine for method with nested if block', () => {
+      // depth===0→true mutant (L171): returns at first } regardless of nesting
+      const source = `public class Foo {
+    public void run() {
+        if (true) {
+            doWork();
+        }
+    }
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.methods).toHaveLength(1);
+      expect(result.methods[0].name).toBe('run');
+      expect(result.methods[0].endLine).toBe(5); // outer } of run(), 0-based
+    });
+
+    it('returns correct endLine for method with nested for loop', () => {
+      // Second nested-braces test — confirms depth tracking, not just one scenario
+      const source = `public class Foo {
+    public void run() {
+        for (int i = 0; i < 10; i++) {
+            doWork();
+        }
+    }
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.methods[0].endLine).toBe(5);
+    });
+
+    // ── findClosingBrace: fallback when no closing brace found ───────────────
+
+    it('returns lines.length-1 as fallback endLine when method body is never closed', () => {
+      // ArithmeticOperator mutant (L175): lines.length - 1 → lines.length + 1
+      const source = `public class Broken {
+    public void unclosed() {
+        doWork();
+`;
+      // 4 lines (0-3), lines.length = 4 → fallback = 3
+      const result = parseJavaSource(source);
+      const lines = source.split('\n');
+
+      expect(result.methods[0].endLine).toBe(lines.length - 1);
+    });
+
+    // ── stripLineContext: division operator near opening brace ───────────────
+
+    it('returns correct endLine when method body contains arithmetic division before nested opening brace', () => {
+      // L147 variants: mutations to // detection trigger for single / in non-comment code.
+      // e.g. line[i] === '/' || ..., line[i] !== '/', line[i+1] !== '/' etc.
+      // When triggered at a/b, flush+break discards the { that follows on the same line.
+      const source = `public class Foo {
+    public void run() {
+        if (a / b > 0) {
+            doWork();
+        }
+    }
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.methods[0].endLine).toBe(5); // outer } of run()
+    });
+
+    // ── isPrimitiveOrKeyword: untested keyword categories ────────────────────
+
+    it('does not capture numeric primitive field types (long short byte float double boolean char void)', () => {
+      // StringLiteral mutants for each keyword in isPrimitiveOrKeyword (L209-210).
+      // If any keyword is blanked out, that type would be returned as a field.
+      const source = `public class Foo {
+    long longField;
+    short shortField;
+    byte byteField;
+    float floatField;
+    double doubleField;
+    boolean boolField;
+    char charField;
+    void voidField;
+    private Repository repo;
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.fields).toHaveLength(1);
+      expect(result.fields[0]).toEqual({ name: 'repo', typeName: 'Repository' });
+    });
+
+    it('does not capture control flow keywords as field types (if else for while do switch case break continue)', () => {
+      // StringLiteral mutants L210-211. These appear as typeName when keyword+varname+; lines
+      // exist in source (e.g. class body or method body without access modifiers).
+      const source = `public class Foo {
+    if ifField;
+    else elseField;
+    for forField;
+    while whileField;
+    do doField;
+    switch switchField;
+    case caseField;
+    break breakField;
+    continue continueField;
+    private Repository repo;
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.fields).toHaveLength(1);
+      expect(result.fields[0]).toEqual({ name: 'repo', typeName: 'Repository' });
+    });
+
+    it('does not capture exception handling keywords as field types (try catch finally throw)', () => {
+      const source = `public class Foo {
+    try tryField;
+    catch catchField;
+    finally finallyField;
+    throw throwField;
+    private Repository repo;
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.fields).toHaveLength(1);
+      expect(result.fields[0]).toEqual({ name: 'repo', typeName: 'Repository' });
+    });
+
+    it('does not capture object reference keywords as field types (new this super return)', () => {
+      const source = `public class Foo {
+    new newField;
+    this thisField;
+    super superField;
+    return returnField;
+    private Repository repo;
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.fields).toHaveLength(1);
+      expect(result.fields[0]).toEqual({ name: 'repo', typeName: 'Repository' });
+    });
+
+    it('does not capture compile-unit keywords as field types (import package)', () => {
+      const source = `public class Foo {
+    import Foo;
+    package bar;
+    private Repository repo;
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.fields).toHaveLength(1);
+      expect(result.fields[0]).toEqual({ name: 'repo', typeName: 'Repository' });
+    });
+
+    it('does not capture type declaration keywords as field types (class interface enum)', () => {
+      // These appear in NON_RETURN_TYPE_KEYWORDS for method detection; also filtered by
+      // isPrimitiveOrKeyword so lines like `class Inner;` don't produce ghost fields.
+      const source = `public class Foo {
+    class Inner;
+    interface IFoo;
+    enum Status;
+    private Repository repo;
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.fields).toHaveLength(1);
+      expect(result.fields[0]).toEqual({ name: 'repo', typeName: 'Repository' });
+    });
+
+    it('does not capture modifier keywords as field types (static abstract)', () => {
+      // static/abstract are not consumed by FIELD_RE modifier group (only public/private/protected
+      // and final are consumed), so they CAN appear as typeName and must be filtered.
+      const source = `public class Foo {
+    static staticField;
+    abstract abstractField;
+    private Repository repo;
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.fields).toHaveLength(1);
+      expect(result.fields[0]).toEqual({ name: 'repo', typeName: 'Repository' });
+    });
+  });
 });
