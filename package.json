@@ -2,7 +2,7 @@
   "name": "dependable-dependencies",
   "displayName": "Dependable Dependencies Risk",
   "description": "Surfaces high-risk code using Rank × CRAP (Dependable Dependencies principle).",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "local",
   "repository": {
     "type": "git",
