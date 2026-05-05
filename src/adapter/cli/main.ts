@@ -14,6 +14,7 @@ import { classifyRisk } from '../../core/riskLevel';
 import { formatImpactTreeText, formatImpactTreeJson, type CallersResult } from '../../core/formatImpactTree';
 import type { SymbolMetrics } from '../../core/analyze';
 import type { Logger } from '../../core/ports';
+import { findSymbol } from '../../shared/symbolSearch';
 
 /** Hardcoded version literal — keep in sync with the "version" field in package.json. */
 const VERSION = '0.1.0';
@@ -201,28 +202,6 @@ async function runCallers(ctx: CliContext, opts: ReturnType<typeof parseCallersA
   }
 }
 
-/**
- * Find a symbol in the analysis results by name and file path.
- * Matches the symbol whose URI ends with the given file path (after normalising
- * separators), preventing false positives where a shorter path is a substring of
- * a longer one (e.g. "utils.ts" inside "utils.test.ts").
- *
- * @internal Exported for unit testing only.
- */
-export function findSymbol(
-  symbols: readonly SymbolMetrics[],
-  file: string,
-  name: string,
-): SymbolMetrics | undefined {
-  // Normalise file separators for cross-platform matching
-  const normFile = file.replace(/\\/g, '/');
-  return symbols.find((s) => {
-    const uri = s.uri.replace(/\\/g, '/');
-    // Match only at a path boundary: the URI is either an exact match or the
-    // file path is preceded by '/', preventing "utils.ts" from matching "myutils.ts".
-    return s.name === name && (uri === normFile || uri.endsWith('/' + normFile));
-  });
-}
 
 /** Create a Logger from context and verbosity flag. */
 function makeLogger(ctx: CliContext, verbose: boolean): Logger {

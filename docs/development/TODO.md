@@ -61,31 +61,32 @@
 
 ---
 
-## 2. MCP Server (ADR-004 Phase 3) 🟡 NEXT
+## 2. MCP Server (ADR-004 Phase 3) ✅ DONE
 
-**Status**: Planned  
+**Status**: Complete (2026-05-05)  
 **Docs**: [ADR-004](../architecture/ADR-004-ai-agent-integration.md)  
 **Prerequisite**: Java call graph (above) so MCP exposes accurate R for all supported languages
 
-MCP server over stdio — thin wrapper around CLI output. No new domain logic.
+MCP server over stdio — adapter calling `runCliAnalysis()` directly (hexagonal pattern). No new domain logic.
 
 ### Implementation
 
-- [ ] Add `@modelcontextprotocol/sdk` to `dependencies` in `package.json`
-- [ ] Create `mcp-server/` directory
-- [ ] `mcp-server/index.ts` — MCP server entry point (stdio transport)
-- [ ] `mcp-server/tools/analyzeFile.ts` — `ddp_analyze_file(path)` → `SymbolMetrics[]` sorted by F desc
-- [ ] `mcp-server/tools/callerTree.ts` — `ddp_caller_tree(path, symbol, depth?)` → `CallersResult`
-- [ ] `mcp-server/tools/highRiskSymbols.ts` — `ddp_high_risk_symbols(path, fMin?)` → filtered `SymbolMetrics[]`
-- [ ] `mcp-server/tools/workspaceHotspots.ts` — `ddp_workspace_hotspots(topN?)` → top N by F across workspace
-- [ ] Each tool: spawns CLI via `spawnAndCollect`, deserialises JSON output — no duplicate logic
-- [ ] `mcp-server/index.ts` reads thresholds from `.ddprc.json` (requires Config File task below, or hardcode defaults initially)
-- [ ] Add `"mcp"` script to `package.json`: `"mcp": "node out/mcp-server/index.js"`
-- [ ] Unit tests for each tool (mock CLI spawn):
-  - [ ] Returns correct schema on success
-  - [ ] Propagates CLI errors as MCP error responses
-  - [ ] fMin default = 0 (returns all symbols)
-  - [ ] topN default = 10
+- [x] Add `@modelcontextprotocol/sdk` to `dependencies` in `package.json`
+- [x] Create `src/adapter/mcp/` directory (under `src/adapter/` for hexagonal consistency; `tsconfig.json` `rootDir: "src"` required this)
+- [x] `src/adapter/mcp/index.ts` — MCP server factory (`createMcpServer`) with 4 tools registered via `McpServer.registerTool`
+- [x] `src/adapter/mcp/bin.ts` — standalone entry point (stdio transport)
+- [x] `src/adapter/mcp/tools/analyzeFile.ts` — `ddp_analyze_file(path)` → `SymbolMetrics[]` sorted by F desc
+- [x] `src/adapter/mcp/tools/callerTree.ts` — `ddp_caller_tree(path, symbol, depth?)` → `CallersResult`
+- [x] `src/adapter/mcp/tools/highRiskSymbols.ts` — `ddp_high_risk_symbols(path, fMin?)` → filtered `SymbolMetrics[]`
+- [x] `src/adapter/mcp/tools/workspaceHotspots.ts` — `ddp_workspace_hotspots(topN?)` → top N by F across workspace
+- [x] Each tool: calls `runCliAnalysis()` directly (injected `RunAnalysis` port) — no duplicate logic
+- [ ] `index.ts` reads thresholds from `.ddprc.json` (requires Config File task below; hardcoded defaults for now)
+- [x] Add `"mcp"` script to `package.json`: `"mcp": "node out/adapter/mcp/bin.js"`
+- [x] Unit tests for each tool (26 tests, mock analysis via dependency injection):
+  - [x] Returns correct schema on success
+  - [x] Propagates analysis errors as MCP error responses
+  - [x] fMin default = 0 (returns all symbols)
+  - [x] topN default = 10
 
 ---
 

@@ -277,7 +277,8 @@
     "test:integration": "npm run compile && node out/test/runTest.js",
     "cli:dev": "npx tsx src/adapter/cli/bin.ts",
     "mutation": "stryker run --ignoreStatic",
-    "mutation:incremental": "stryker run --incremental"
+    "mutation:incremental": "stryker run --incremental",
+    "mcp": "node out/adapter/mcp/bin.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -302,6 +303,7 @@
     "diff": "^8.0.3"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "ignore": "^7.0.5",
     "vsce": "^2.15.0"
   }

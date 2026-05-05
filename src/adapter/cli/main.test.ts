@@ -12,7 +12,8 @@ import { describe, it, expect, afterEach, beforeAll } from 'vitest';
 import { join } from 'path';
 import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { main, findSymbol } from './main';
+import { main } from './main';
+import { findSymbol } from '../../shared/symbolSearch';
 import type { JsonOutput } from './formatJson';
 import { sym } from '../../core/testFixtures';
 
