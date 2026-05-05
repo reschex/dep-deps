@@ -265,6 +265,120 @@ Save this in `.vscode/settings.json` to customize your workspace:
 
 ---
 
+## AI Agent Integration (MCP)
+
+DDP exposes risk analysis to AI coding agents via an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server. Agents can query symbol risk, caller trees, and workspace hotspots before modifying code.
+
+### Available Tools
+
+| Tool | Arguments | Returns |
+|------|-----------|---------|
+| `ddp_analyze_file` | `path` | All symbol metrics for a file, sorted by F descending |
+| `ddp_caller_tree` | `path`, `symbol`, `depth?` | Nested caller tree with per-node metrics and impact summary |
+| `ddp_high_risk_symbols` | `path`, `fMin?` | Symbols in a file with F >= threshold |
+| `ddp_workspace_hotspots` | `topN?` | Top N riskiest symbols across the workspace |
+
+### Setup: Working Inside the DDP Repository
+
+Both Claude Code and GitHub Copilot are pre-configured via committed settings files:
+
+- **Claude Code** — `.claude/settings.json` registers the `ddp` MCP server automatically
+- **GitHub Copilot** — `.vscode/mcp.json` registers the `ddp` MCP server automatically
+
+No additional setup needed. Open the project and the agent can call DDP tools immediately.
+
+### Setup: Using DDP in Other Projects (Per-Project)
+
+To add DDP risk analysis to any other project:
+
+1. **Clone and build DDP** (one-time):
+   ```bash
+   git clone https://github.com/reschex/dep-deps.git
+   cd dep-deps
+   npm install
+   npm run compile
+   ```
+
+2. **Register with Claude Code** — add to your project's `.claude/settings.json`:
+   ```json
+   {
+     "mcpServers": {
+       "ddp": {
+         "command": "node",
+         "args": ["/absolute/path/to/dep-deps/out/adapter/mcp/bin.js"]
+       }
+     }
+   }
+   ```
+   > **Note:** Claude Code MCP servers are project-level only. There is no global `~/.claude/settings.json` option for MCP servers.
+
+3. **Register with GitHub Copilot** — create `.vscode/mcp.json` in your project:
+   ```json
+   {
+     "servers": {
+       "ddp": {
+         "command": "node",
+         "args": ["/absolute/path/to/dep-deps/out/adapter/mcp/bin.js"],
+         "type": "stdio"
+       }
+     }
+   }
+   ```
+
+### Setup: Using DDP in All Projects (Global — Copilot Only)
+
+GitHub Copilot supports global MCP server registration via the dedicated `mcp.json` file. This makes DDP tools available in every workspace without per-project config.
+
+Create or edit the user-level `mcp.json`:
+- **Windows:** `%APPDATA%/Code/User/mcp.json`
+- **Linux:** `~/.config/Code/User/mcp.json`
+- **macOS:** `~/Library/Application Support/Code/User/mcp.json`
+
+```json
+{
+  "servers": {
+    "ddp": {
+      "command": "node",
+      "args": ["/absolute/path/to/dep-deps/out/adapter/mcp/bin.js"],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+> **Claude Code** does not support global MCP server registration. Use the per-project `.claude/settings.json` approach above.
+
+### Running the MCP Server Directly
+
+For testing or debugging the MCP server:
+```bash
+cd dep-deps
+npm run mcp
+```
+The server communicates over stdio using the MCP JSON-RPC protocol.
+
+### Example Agent Queries
+
+Once connected, an agent can ask:
+
+- *"What are the riskiest functions in src/core/analyze.ts?"* — triggers `ddp_analyze_file`
+- *"Show me the caller tree for computeSymbolMetrics"* — triggers `ddp_caller_tree`
+- *"Which symbols have F > 200?"* — triggers `ddp_high_risk_symbols`
+- *"What are the top 5 hotspots in this project?"* — triggers `ddp_workspace_hotspots`
+
+### Risk Thresholds
+
+Agents should interpret F scores as follows:
+
+| F Score | Risk Level | Recommended Action |
+|---------|-----------|-------------------|
+| > 500 | CRITICAL | Stop and inform the user before editing |
+| 200-500 | HIGH | Warn; recommend writing tests first |
+| 100-200 | MEDIUM | Note the risk; proceed with care |
+| <= 100 | LOW | Proceed normally |
+
+---
+
 ## Development
 
 ### Testing the Extension

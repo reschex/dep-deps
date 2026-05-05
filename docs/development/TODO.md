@@ -90,51 +90,26 @@ MCP server over stdio — adapter calling `runCliAnalysis()` directly (hexagonal
 
 ---
 
-## 3. Agent Wiring + Documentation 🟡 NEXT
+## 3. Agent Wiring + Documentation 🟡 IN PROGRESS
 
-**Status**: Planned  
-**Prerequisite**: MCP server running
+**Status**: Partially complete (2026-05-05)  
+**Prerequisite**: MCP server running ✅
 
 ### Claude Code
 
-- [ ] Register MCP server in `.claude/settings.json` (committed to repo — all contributors get it):
-  ```json
-  {
-    "mcpServers": {
-      "ddp": {
-        "command": "node",
-        "args": ["out/mcp-server/index.js"],
-        "cwd": "${workspaceFolder}"
-      }
-    }
-  }
-  ```
+- [x] Register MCP server in `.claude/settings.json` (committed to repo — all contributors get it)
 - [ ] Update `CLAUDE.md` — add MCP tool reference alongside existing `ddp callers` CLI instructions
 - [ ] Update `docs/guides/AI_AGENT_INTEGRATION_GUIDE.md` — MCP server setup, tool descriptions, example queries
 
 ### GitHub Copilot (VS Code)
 
-- [ ] Register MCP server in VS Code workspace settings (`.vscode/settings.json`):
-  ```json
-  {
-    "github.copilot.chat.mcp.enabled": true,
-    "mcp": {
-      "servers": {
-        "ddp": {
-          "command": "node",
-          "args": ["out/mcp-server/index.js"],
-          "type": "stdio"
-        }
-      }
-    }
-  }
-  ```
+- [x] Register MCP server in VS Code workspace settings (`.vscode/settings.json`)
 - [ ] Create `.github/copilot-instructions.md` — DDP risk protocol instructions for Copilot (mirrors `CLAUDE.md` protocol section)
 - [ ] Test: Copilot chat can invoke `ddp_analyze_file` and receive risk data
 
 ### Documentation
 
-- [ ] Update README — "AI Agent Integration" section covering both Claude Code and Copilot
+- [x] Update README — "AI Agent Integration" section covering both Claude Code and Copilot (with and without VS Code extension)
 - [ ] Add `docs/guides/MCP_SERVER_GUIDE.md` — installation, tool reference, example sessions
 - [ ] Markdown serialiser for `ddp callers --format markdown` — for GitHub PR comment integration
 
