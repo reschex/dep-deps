@@ -10,7 +10,7 @@ import { DEFAULT_CONFIGURATION, type DdpConfiguration } from '../../adapter/vsco
 import { NodeDocumentProvider } from './nodeDocument';
 import { NodeCoverageProvider } from './nodeCoverage';
 import { NativeSymbolProvider } from '../../language/nativeSymbolProvider';
-import { NodeCallGraphProvider } from '../../language/typescript/callGraph';
+import { NativeCallGraphProvider } from '../../language/nativeCallGraphProvider';
 import { CcProviderRegistry } from '../../core/ccRegistry';
 import { nullLogger, type CallGraphProvider, type Logger } from '../../core/ports';
 import { loadGitignoreFilter, makeUriFilter, type UriFilter } from '../../core/gitignoreFilter';
@@ -59,7 +59,7 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
   }
 
   const nullCallGraph: CallGraphProvider = { collectCallEdges: async () => [] };
-  const callGraphProvider = skipCallGraph ? nullCallGraph : new NodeCallGraphProvider(rootPath);
+  const callGraphProvider = skipCallGraph ? nullCallGraph : new NativeCallGraphProvider(rootPath);
 
   const orchestrator = new AnalysisOrchestrator({
     documentProvider,

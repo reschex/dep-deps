@@ -21,7 +21,7 @@ import {
   VsCodeLogger,
 } from "./adapters";
 import { NativeSymbolProvider } from "../../language/nativeSymbolProvider";
-import { NodeCallGraphProvider } from "../../language/typescript/callGraph";
+import { NativeCallGraphProvider } from "../../language/nativeCallGraphProvider";
 import { GitChurnAdapter } from "./churn/gitChurnAdapter";
 import { loadGitignoreFilter, makeUriFilter, type UriFilter } from "../../core/gitignoreFilter";
 
@@ -71,7 +71,7 @@ export class AnalysisService {
     const lspCallGraph = new VsCodeCallGraphProvider(token, config.excludeTests, config.debugEnabled ? this.logger : undefined, gitignoreFilter);
     const logger = config.debugEnabled ? this.logger : undefined;
     const callGraphProvider = workspaceFolder
-      ? new HybridCallGraphProvider(lspCallGraph, new NodeCallGraphProvider(workspaceFolder.uri.fsPath), logger)
+      ? new HybridCallGraphProvider(lspCallGraph, new NativeCallGraphProvider(workspaceFolder.uri.fsPath), logger)
       : lspCallGraph;
 
     const orchestrator = new AnalysisOrchestrator({
