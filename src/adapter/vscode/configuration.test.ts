@@ -96,7 +96,7 @@ describe("buildConfiguration", () => {
       impactTree: { maxDepth: 5 },
       graphView: { enabled: false },
       analysis: { defaultFolder: "" },
-      fileFilter: { respectGitignore: false },
+      fileFilter: { respectGitignore: false, excludePatterns: [] },
       fileRollup: "sum",
       codelensEnabled: false,
       excludeTests: false,
@@ -199,7 +199,7 @@ describe("DEFAULT_CONFIGURATION", () => {
       impactTree: { maxDepth: 5 },
       graphView: { enabled: false },
       analysis: { defaultFolder: "" },
-      fileFilter: { respectGitignore: false },
+      fileFilter: { respectGitignore: false, excludePatterns: [] },
       fileRollup: "max",
       codelensEnabled: true,
       excludeTests: true,
@@ -540,6 +540,7 @@ describe("bugmagnet session 2026-04-16", () => {
         "decoration.errorThreshold",
         "decoration.warnThreshold",
         "excludeTests",
+        "fileFilter.excludePatterns",
         "fileFilter.respectGitignore",
         "fileRollup",
         "graphView.enabled",
@@ -573,6 +574,7 @@ describe("bugmagnet session 2026-04-16", () => {
         "impactTree.maxDepth": 5,
         "graphView.enabled": false,
         "analysis.defaultFolder": "",
+        "fileFilter.excludePatterns": [],
         "fileFilter.respectGitignore": false,
         "fileRollup": "max",
         "codelens.enabled": true,
@@ -663,6 +665,18 @@ describe("fileFilter configuration", () => {
       (key === "fileFilter.respectGitignore" ? true : defaultValue) as T
     );
     expect(config.fileFilter.respectGitignore).toBe(true);
+  });
+
+  it("defaults fileFilter.excludePatterns to empty array", () => {
+    expect(DEFAULT_CONFIGURATION.fileFilter.excludePatterns).toEqual([]);
+  });
+
+  it("buildConfiguration reads fileFilter.excludePatterns override from getter", () => {
+    const patterns = ["**/register*.ts", "**/generated/**"];
+    const config = buildConfiguration(<T>(key: string, defaultValue: T) =>
+      (key === "fileFilter.excludePatterns" ? patterns : defaultValue) as T
+    );
+    expect(config.fileFilter.excludePatterns).toEqual(patterns);
   });
 });
 

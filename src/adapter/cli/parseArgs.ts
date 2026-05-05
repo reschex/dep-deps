@@ -24,6 +24,8 @@ export type CliOptions = {
   readonly excludeTests: boolean;
   /** Respect .gitignore patterns when discovering files (default: false). */
   readonly respectGitignore: boolean;
+  /** Glob patterns to exclude from analysis (repeatable). */
+  readonly excludePatterns: readonly string[];
   /** Skip call graph computation (default: false). When true, all R=1. */
   readonly skipCallGraph: boolean;
   /** Enable verbose logging. */
@@ -50,6 +52,8 @@ export type CallersOptions = {
   readonly excludeTests: boolean;
   /** Respect .gitignore patterns when discovering files (default: false). */
   readonly respectGitignore: boolean;
+  /** Glob patterns to exclude from analysis (repeatable). */
+  readonly excludePatterns: readonly string[];
   /** Enable verbose logging. */
   readonly verbose: boolean;
 };
@@ -87,6 +91,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     options: {
       ...commonOptions,
       output: { type: 'string' },
+      exclude: { type: 'string', multiple: true },
       help: { type: 'boolean' },
       version: { type: 'boolean' },
     },
@@ -102,6 +107,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     format: stringOrUndefined(values.format) ?? 'json',
     excludeTests: lastWinsNegatable(tokens, 'exclude-tests', true),
     respectGitignore: lastWinsNegatable(tokens, 'respect-gitignore', false),
+    excludePatterns: (values.exclude as string[] | undefined) ?? [],
     skipCallGraph: !lastWinsNegatable(tokens, 'call-graph', true),
     verbose: Boolean(values.verbose),
     help: Boolean(values.help),
@@ -128,6 +134,7 @@ export function parseCallersArgs(argv: readonly string[]): CallersOptions {
       file: { type: 'string' },
       symbol: { type: 'string' },
       depth: { type: 'string' }, // parsed as string, validated below
+      exclude: { type: 'string', multiple: true },
     },
     strict: false,
     allowPositionals: true,
@@ -148,6 +155,7 @@ export function parseCallersArgs(argv: readonly string[]): CallersOptions {
     format: stringOrUndefined(values.format) ?? 'json',
     excludeTests: lastWinsNegatable(tokens, 'exclude-tests', true),
     respectGitignore: lastWinsNegatable(tokens, 'respect-gitignore', false),
+    excludePatterns: (values.exclude as string[] | undefined) ?? [],
     verbose: Boolean(values.verbose),
   };
 }

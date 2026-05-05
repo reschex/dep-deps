@@ -23,6 +23,8 @@ export type CliAnalysisOptions = {
   readonly excludeTests?: boolean;
   readonly maxFiles?: number;
   readonly respectGitignore?: boolean;
+  /** Glob patterns for files/folders to exclude from analysis. */
+  readonly excludePatterns?: readonly string[];
   readonly skipCallGraph?: boolean;
   readonly debugEnabled?: boolean;
   readonly logger?: Logger;
@@ -41,6 +43,7 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
     excludeTests = DEFAULT_CONFIGURATION.excludeTests,
     maxFiles = DEFAULT_CONFIGURATION.maxFiles,
     respectGitignore = DEFAULT_CONFIGURATION.fileFilter.respectGitignore,
+    excludePatterns = DEFAULT_CONFIGURATION.fileFilter.excludePatterns,
     skipCallGraph = false,
     debugEnabled = DEFAULT_CONFIGURATION.debugEnabled,
     logger = nullLogger,
@@ -82,6 +85,7 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
     fileFilter: {
       ...DEFAULT_CONFIGURATION.fileFilter,
       respectGitignore,
+      excludePatterns,
     },
     debugEnabled,
   };

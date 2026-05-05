@@ -51,6 +51,7 @@ Analyze Options:
   --no-exclude-tests      Include test files in analysis
   --respect-gitignore     Exclude files matched by .gitignore
   --no-respect-gitignore  Include .gitignore-matched files (default)
+  --exclude <glob>        Exclude files matching glob pattern (repeatable)
   --no-call-graph         Skip call graph computation (all R=1, faster)
   --verbose               Enable detailed logging to stderr
   --help                  Show this help message
@@ -63,6 +64,7 @@ Callers Options:
   --format <type>         Output format: json, text (default: json)
   --root <path>           Project root directory (default: current directory)
   --respect-gitignore     Exclude files matched by .gitignore
+  --exclude <glob>        Exclude files matching glob pattern (repeatable)
   --verbose               Enable detailed logging to stderr
 
 Examples:
@@ -112,6 +114,7 @@ async function runAnalyze(
       rootPath,
       excludeTests: opts.excludeTests,
       respectGitignore: opts.respectGitignore,
+      excludePatterns: opts.excludePatterns,
       skipCallGraph: opts.skipCallGraph,
       debugEnabled: opts.verbose,
       logger,
@@ -157,6 +160,7 @@ async function runCallers(ctx: CliContext, opts: ReturnType<typeof parseCallersA
       rootPath,
       excludeTests: opts.excludeTests,
       respectGitignore: opts.respectGitignore,
+      excludePatterns: opts.excludePatterns,
       debugEnabled: opts.verbose,
       logger,
     });

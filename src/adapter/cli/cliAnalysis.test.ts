@@ -179,6 +179,99 @@ describe('CLI Analysis Pipeline', () => {
     });
   });
 
+  describe('Scenario: Exclude files matching user-defined glob patterns', () => {
+    /**
+     * Create a temp project with the given files (relative paths → contents),
+     * run `body(rootPath)`, then clean up. Eliminates per-test mkdtemp/mkdir/rm
+     * boilerplate.
+     */
+    async function withTempProject(
+      prefix: string,
+      files: Record<string, string>,
+      body: (rootPath: string) => Promise<void>
+    ): Promise<void> {
+      const dir = await mkdtemp(join(tmpdir(), prefix));
+      try {
+        for (const [relPath, contents] of Object.entries(files)) {
+          const full = join(dir, relPath);
+          await mkdir(join(full, '..'), { recursive: true });
+          await writeFile(full, contents);
+        }
+        await body(dir);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('should exclude files matching exclude patterns', async () => {
+      await withTempProject(
+        'ddp-cli-exclude-',
+        {
+          'src/main.ts': 'export function main() { return 1; }\n',
+          'src/registerTS.ts': 'export function registerTS() { return 2; }\n',
+          'src/utils.ts': 'export function add(a: number, b: number) { return a + b; }\n',
+        },
+        async (dir) => {
+          const result = await runCliAnalysis({
+            rootPath: dir,
+            excludeTests: false,
+            excludePatterns: ['**/register*.ts'],
+            skipCallGraph: true,
+          });
+
+          const names = result.symbols.map(s => s.name);
+          expect(names).toContain('main');
+          expect(names).toContain('add');
+          expect(names).not.toContain('registerTS');
+        }
+      );
+    });
+
+    it('should exclude entire folders via glob pattern', async () => {
+      await withTempProject(
+        'ddp-cli-exclude-folder-',
+        {
+          'src/main.ts': 'export function main() { return 1; }\n',
+          'generated/api.ts': 'export function callApi() { return 2; }\n',
+        },
+        async (dir) => {
+          const result = await runCliAnalysis({
+            rootPath: dir,
+            excludeTests: false,
+            excludePatterns: ['**/generated/**'],
+            skipCallGraph: true,
+          });
+
+          const names = result.symbols.map(s => s.name);
+          expect(names).toContain('main');
+          expect(names).not.toContain('callApi');
+        }
+      );
+    });
+
+    it('should include all files when excludePatterns is empty', async () => {
+      await withTempProject(
+        'ddp-cli-exclude-empty-',
+        {
+          'src/main.ts': 'export function main() { return 1; }\n',
+          'src/registerTS.ts': 'export function registerTS() { return 2; }\n',
+        },
+        async (dir) => {
+          const result = await runCliAnalysis({
+            rootPath: dir,
+            excludeTests: false,
+            excludePatterns: [],
+            skipCallGraph: true,
+          });
+
+          const names = result.symbols.map(s => s.name);
+          expect(names).toContain('main');
+          expect(names).toContain('registerTS');
+        }
+      );
+    });
+  });
+
   describe('Scenario: Format analysis result as JSON', () => {
     // Run the pipeline once for the whole scenario — TypeScript compilation is expensive.
     let jsonResult: ReturnType<typeof formatAnalysisAsJson>;

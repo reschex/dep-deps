@@ -45,13 +45,13 @@ export type AnalysisConfig = {
 
 /**
  * File filtering configuration.
- * Groups all file-inclusion / exclusion concerns to support future include/exclude globs.
- *
- * TODO: add `includeGlob` and `excludeGlob` fields here when glob-based filtering is implemented.
+ * Groups all file-inclusion / exclusion concerns.
  */
 export type FileFilterConfig = {
   /** When true, files matched by .gitignore patterns are excluded from analysis. */
   readonly respectGitignore: boolean;
+  /** Glob patterns for files/folders to exclude from analysis (e.g. ["**\/generated\/**", "**\/register*.ts"]). */
+  readonly excludePatterns: readonly string[];
 };
 
 /**
@@ -103,7 +103,7 @@ export const DEFAULT_CONFIGURATION: DdpConfiguration = {
   impactTree: { maxDepth: 5 },
   graphView: { enabled: false },
   analysis: { defaultFolder: "" },
-  fileFilter: { respectGitignore: false },
+  fileFilter: { respectGitignore: false, excludePatterns: [] },
   fileRollup: "max",
   codelensEnabled: true,
   excludeTests: true,
@@ -150,6 +150,7 @@ export function buildConfiguration(
     },
     fileFilter: {
       respectGitignore: get<boolean>("fileFilter.respectGitignore", DEFAULT_CONFIGURATION.fileFilter.respectGitignore),
+      excludePatterns: get<readonly string[]>("fileFilter.excludePatterns", DEFAULT_CONFIGURATION.fileFilter.excludePatterns),
     },
     fileRollup: get<"max" | "sum">("fileRollup", DEFAULT_CONFIGURATION.fileRollup),
     codelensEnabled: get<boolean>("codelens.enabled", DEFAULT_CONFIGURATION.codelensEnabled),

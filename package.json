@@ -246,6 +246,14 @@
           "default": false,
           "description": "When enabled, files matched by .gitignore patterns are excluded from analysis."
         },
+        "ddp.fileFilter.excludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Glob patterns for files and folders to exclude from analysis (e.g. [\"**/generated/**\", \"**/register*.ts\"])."
+        },
         "ddp.debug": {
           "type": "boolean",
           "default": false,
@@ -305,6 +313,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ignore": "^7.0.5",
+    "minimatch": "^10.2.5",
     "vsce": "^2.15.0"
   }
 }

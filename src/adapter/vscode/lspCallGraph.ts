@@ -34,7 +34,10 @@ async function discoverFiles(maxFiles: number, rootUri: string | undefined, excl
     : allFiles;
 }
 
-async function collectSymbolsForFile(uri: vscode.Uri): Promise<{ id: string; uriStr: string }[]> {
+async function collectSymbolsForFile(
+  uri: vscode.Uri,
+  selectionIdMap: Map<string, string>
+): Promise<{ id: string; uriStr: string }[]> {
   try {
     await vscode.workspace.openTextDocument(uri);
   } catch (e) {
@@ -52,10 +55,18 @@ async function collectSymbolsForFile(uri: vscode.Uri): Promise<{ id: string; uri
   if (!syms?.length) {
     return [];
   }
-  return flattenFunctionSymbols(syms).map((fn) => ({
-    id: symbolIdFromUriRange(uri, fn.selectionRange),
-    uriStr: uri.toString(),
-  }));
+  return flattenFunctionSymbols(syms).map((fn) => {
+    // Use fn.range (full declaration range) for the edge ID — this matches
+    // NodeSymbolProvider which uses node.getStart() (declaration start, e.g. the
+    // `function`/`export`/`async` keyword). Using fn.selectionRange (name position)
+    // would produce IDs that don't match symbolById keys, causing F=? in the impact tree.
+    const id = symbolIdFromUriRange(uri, fn.range);
+    // Keep selectionRange-based ID for vscode.prepareCallHierarchy, which requires
+    // a position at or near the symbol name for reliable call hierarchy resolution.
+    const lspId = symbolIdFromUriRange(uri, fn.selectionRange);
+    selectionIdMap.set(id, lspId);
+    return { id, uriStr: uri.toString() };
+  });
 }
 
 async function prepareCallHierarchyItem(
@@ -99,8 +110,9 @@ async function resolveOutgoingCalls(
     );
     const outgoing = raw ?? [];
     return outgoing.map((o) => {
-      const r = o.to.selectionRange ?? o.to.range;
-      return symbolIdFromUriRange(o.to.uri, r);
+      // Use range (declaration start) not selectionRange (name position) — must
+      // match the same position logic used for caller IDs in collectSymbolsForFile.
+      return symbolIdFromUriRange(o.to.uri, o.to.range);
     });
   } catch (e) {
     console.debug(`[DDP] provideOutgoingCalls failed:`, e);
@@ -117,8 +129,68 @@ type BuildAdapterOptions = {
   readonly uriFilter?: UriFilter;
 };
 
+/**
+ * Normalize a callee ID against the set of known (discovered) symbol IDs.
+ *
+ * VS Code's call hierarchy may return a different `range.start` for a function
+ * than the document symbol provider does for the *same* function (e.g. the call
+ * hierarchy starts at `function` while the document symbol starts at `export`).
+ * When this happens, the callee ID won't match the caller ID, breaking
+ * multi-level impact tree traversal.
+ *
+ * This function finds the canonical symbol on the same line in the same file
+ * and returns its ID instead of the raw callee ID.
+ */
+function normalizeCalleeId(
+  rawId: string,
+  symbolsByUri: ReadonlyMap<string, readonly { line: number; char: number; id: string }[]>,
+  logger?: Logger
+): string {
+  const parsed = parseSymbolIdParts(rawId);
+  if (!parsed) {
+    return rawId;
+  }
+  const candidates = symbolsByUri.get(parsed.uriStr);
+  if (!candidates?.length) {
+    // File not in our index (e.g. external dep / node_modules) — expected, do not log.
+    return rawId;
+  }
+  const sameLine = candidates.filter((c) => c.line === parsed.line);
+  if (sameLine.length === 1) {
+    return sameLine[0]!.id;
+  }
+  if (sameLine.length > 1) {
+    // Multiple symbols on same line — pick closest character offset
+    return sameLine.reduce((best, c) =>
+      Math.abs(c.char - parsed.character) < Math.abs(best.char - parsed.character) ? c : best
+    ).id;
+  }
+  // Suspicious: file is in our index but no symbol on this line.
+  // Emit debug log so silent edge-mismatch fallbacks are observable.
+  logger?.debug?.(
+    `[DDP] normalizeCalleeId: no same-line symbol in ${parsed.uriStr} at line ${parsed.line} (raw=${rawId})`
+  );
+  return rawId;
+}
+
 function buildVscodeAdapter(opts: BuildAdapterOptions): CallHierarchyAdapter {
   const { maxFiles, token, rootUri, excludeTests, logger, uriFilter } = opts;
+  // ---------------------------------------------------------------
+  // Adapter state (closure-captured, mutable).
+  //
+  // CONTRACT: collectCallEdgesViaAdapter must call findFunctionSymbols()
+  // exactly once and to completion BEFORE any getOutgoingCalleeIds() calls.
+  // findFunctionSymbols populates both maps; getOutgoingCalleeIds reads them.
+  // The adapter is single-use and not safe for concurrent invocation.
+  // ---------------------------------------------------------------
+
+  // Maps range-based edge IDs → selectionRange-based IDs for prepareCallHierarchy.
+  // Edge IDs use fn.range (declaration start, matching NodeSymbolProvider/symbolById keys).
+  // prepareCallHierarchy requires a position at/near the symbol name to work reliably.
+  const selectionIdMap = new Map<string, string>();
+  // Spatial index: uri → symbols on each line. Used to normalize callee IDs
+  // from outgoing calls so they match the canonical caller IDs from document symbols.
+  const symbolsByUri = new Map<string, { line: number; char: number; id: string }[]>();
   return {
     async findFunctionSymbols() {
       let files = await discoverFiles(maxFiles, rootUri, excludeTests);
@@ -135,17 +207,31 @@ function buildVscodeAdapter(opts: BuildAdapterOptions): CallHierarchyAdapter {
           break;
         }
         logger?.debug?.(`  call graph: ${uri.toString()}`);
-        const symbols = await collectSymbolsForFile(uri);
+        const symbols = await collectSymbolsForFile(uri, selectionIdMap);
+        for (const sym of symbols) {
+          const parsed = parseSymbolIdParts(sym.id);
+          if (parsed) {
+            let list = symbolsByUri.get(parsed.uriStr);
+            if (!list) {
+              list = [];
+              symbolsByUri.set(parsed.uriStr, list);
+            }
+            list.push({ line: parsed.line, char: parsed.character, id: sym.id });
+          }
+        }
         result.push(...symbols);
       }
       return result;
     },
     async getOutgoingCalleeIds(symbolId: string) {
-      const item = await prepareCallHierarchyItem(symbolId, token);
+      // Use selectionRange-based ID for prepareCallHierarchy so the LSP finds the symbol.
+      const lspId = selectionIdMap.get(symbolId) ?? symbolId;
+      const item = await prepareCallHierarchyItem(lspId, token);
       if (!item) {
         return [];
       }
-      return resolveOutgoingCalls(item, token);
+      const rawCalleeIds = await resolveOutgoingCalls(item, token);
+      return rawCalleeIds.map((id) => normalizeCalleeId(id, symbolsByUri, logger));
     },
     isCancelled() {
       return token.isCancellationRequested;

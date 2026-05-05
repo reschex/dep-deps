@@ -97,7 +97,7 @@ const defaultTestConfig: DdpConfiguration = {
   impactTree: { maxDepth: 5 },
   graphView: { enabled: false },
   analysis: { defaultFolder: "" },
-  fileFilter: { respectGitignore: false },
+  fileFilter: { respectGitignore: false, excludePatterns: [] },
   fileRollup: "max",
   codelensEnabled: true,
   excludeTests: true,
@@ -863,7 +863,7 @@ describe("AnalysisService", () => {
 
       vi.mocked(buildConfiguration).mockReturnValue({
         ...defaultTestConfig,
-        fileFilter: { respectGitignore: true },
+        fileFilter: { respectGitignore: true, excludePatterns: [] },
       });
 
       const service = new AnalysisService();
@@ -884,7 +884,7 @@ describe("AnalysisService", () => {
     it("does not load gitignore when respectGitignore is false", async () => {
       vi.mocked(buildConfiguration).mockReturnValue({
         ...defaultTestConfig,
-        fileFilter: { respectGitignore: false },
+        fileFilter: { respectGitignore: false, excludePatterns: [] },
       });
 
       const service = new AnalysisService();
@@ -904,7 +904,7 @@ describe("AnalysisService", () => {
 
       vi.mocked(buildConfiguration).mockReturnValue({
         ...defaultTestConfig,
-        fileFilter: { respectGitignore: true },
+        fileFilter: { respectGitignore: true, excludePatterns: [] },
       });
 
       const service = new AnalysisService();

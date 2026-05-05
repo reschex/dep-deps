@@ -317,6 +317,55 @@ describe('CLI main()', () => {
     });
   });
 
+  describe('Scenario: Callers subcommand honors --exclude flag', () => {
+    it('should return exit code 1 when --exclude removes the file containing the target symbol', async () => {
+      // Given the callers subcommand targeting "add" in src/utils.ts
+      // When --exclude **/utils.ts is passed (excluding the file containing the symbol)
+      const stdout = captureStream();
+      const stderr = captureStream();
+
+      const exitCode = await main({
+        argv: [
+          'node', 'ddp', 'callers',
+          '--root', FIXTURE_PATH,
+          '--file', 'src/utils.ts',
+          '--symbol', 'add',
+          '--no-exclude-tests',
+          '--exclude', '**/utils.ts',
+        ],
+        stdout,
+        stderr,
+        cwd: FIXTURE_PATH,
+      });
+
+      // Then symbol should not be found because file was excluded from analysis
+      expect(exitCode).toBe(1);
+      expect(stderr.output).toContain('not found');
+    });
+
+    it('should still find the symbol when --exclude does not match', async () => {
+      // Sanity: an exclude pattern that doesn't match utils.ts must not affect the result.
+      const stdout = captureStream();
+      const stderr = captureStream();
+
+      const exitCode = await main({
+        argv: [
+          'node', 'ddp', 'callers',
+          '--root', FIXTURE_PATH,
+          '--file', 'src/utils.ts',
+          '--symbol', 'add',
+          '--no-exclude-tests',
+          '--exclude', '**/nothing-here/**',
+        ],
+        stdout,
+        stderr,
+        cwd: FIXTURE_PATH,
+      });
+
+      expect(exitCode).toBe(0);
+    });
+  });
+
   describe('Scenario: Callers subcommand with unknown symbol', () => {
     it('should return exit code 1 when symbol not found in analysis', async () => {
       const stdout = captureStream();

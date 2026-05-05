@@ -1788,7 +1788,7 @@ describe("gitignore filtering", () => {
     const config: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
       excludeTests: false,
-      fileFilter: { respectGitignore: true },
+      fileFilter: { respectGitignore: true, excludePatterns: [] },
     };
 
     const orchestrator = new AnalysisOrchestrator({
@@ -1814,7 +1814,7 @@ describe("gitignore filtering", () => {
     const config: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
       excludeTests: false,
-      fileFilter: { respectGitignore: false },
+      fileFilter: { respectGitignore: false, excludePatterns: [] },
     };
 
     const orchestrator = new AnalysisOrchestrator({
@@ -1838,7 +1838,7 @@ describe("gitignore filtering", () => {
     const config: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
       excludeTests: false,
-      fileFilter: { respectGitignore: true },
+      fileFilter: { respectGitignore: true, excludePatterns: [] },
     };
 
     const orchestrator = new AnalysisOrchestrator({
@@ -1857,6 +1857,128 @@ describe("gitignore filtering", () => {
     const uris = result.symbols.map((s) => s.uri);
     expect(uris).toContain(prodUri);
     expect(uris).toContain(ignoredUri);
+  });
+});
+
+// ─── Exclude patterns ──────────────────────────────────────────────────────
+
+describe("exclude patterns filtering", () => {
+  const prodUri = "file:///project/src/service.ts";
+  const excludedUri = "file:///project/src/registerTS.ts";
+  const generatedUri = "file:///project/generated/api.ts";
+
+  function buildDocs() {
+    return new Map<string, DocumentInfo>([
+      [prodUri, fakeDoc(prodUri, "typescript")],
+      [excludedUri, fakeDoc(excludedUri, "typescript")],
+      [generatedUri, fakeDoc(generatedUri, "typescript")],
+    ]);
+  }
+
+  function buildSymbols() {
+    return new Map<string, FunctionSymbolInfo[]>([
+      [prodUri, [{ name: "serve", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+      [excludedUri, [{ name: "registerTS", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+      [generatedUri, [{ name: "callApi", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 3 }]],
+    ]);
+  }
+
+  it("excludes files matching exclude patterns", async () => {
+    const config: DdpConfiguration = {
+      ...DEFAULT_CONFIGURATION,
+      excludeTests: false,
+      fileFilter: { respectGitignore: false, excludePatterns: ["**/register*.ts"] },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(buildDocs()),
+      symbolProvider: fakeSymbolProvider(buildSymbols()),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(config, neverCancelledCtx());
+    assert(result);
+    const uris = result.symbols.map((s) => s.uri);
+    expect(uris).toContain(prodUri);
+    expect(uris).not.toContain(excludedUri);
+    expect(uris).toContain(generatedUri);
+  });
+
+  it("excludes files matching folder patterns", async () => {
+    const config: DdpConfiguration = {
+      ...DEFAULT_CONFIGURATION,
+      excludeTests: false,
+      fileFilter: { respectGitignore: false, excludePatterns: ["**/generated/**"] },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(buildDocs()),
+      symbolProvider: fakeSymbolProvider(buildSymbols()),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(config, neverCancelledCtx());
+    assert(result);
+    const uris = result.symbols.map((s) => s.uri);
+    expect(uris).toContain(prodUri);
+    expect(uris).toContain(excludedUri);
+    expect(uris).not.toContain(generatedUri);
+  });
+
+  it("does not filter when excludePatterns is empty", async () => {
+    const config: DdpConfiguration = {
+      ...DEFAULT_CONFIGURATION,
+      excludeTests: false,
+      fileFilter: { respectGitignore: false, excludePatterns: [] },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(buildDocs()),
+      symbolProvider: fakeSymbolProvider(buildSymbols()),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(config, neverCancelledCtx());
+    assert(result);
+    const uris = result.symbols.map((s) => s.uri);
+    expect(uris).toContain(prodUri);
+    expect(uris).toContain(excludedUri);
+    expect(uris).toContain(generatedUri);
+  });
+
+  it("combines exclude patterns with other filters", async () => {
+    const gitignoreFilter = (uri: string) => uri.includes("/generated/");
+    const config: DdpConfiguration = {
+      ...DEFAULT_CONFIGURATION,
+      excludeTests: false,
+      fileFilter: { respectGitignore: true, excludePatterns: ["**/register*.ts"] },
+    };
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(buildDocs()),
+      symbolProvider: fakeSymbolProvider(buildSymbols()),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+      gitignoreFilter,
+    });
+
+    const result = await orchestrator.analyze(config, neverCancelledCtx());
+    assert(result);
+    const uris = result.symbols.map((s) => s.uri);
+    expect(uris).toContain(prodUri);
+    expect(uris).not.toContain(excludedUri);   // excluded by pattern
+    expect(uris).not.toContain(generatedUri);   // excluded by gitignore
   });
 });
 

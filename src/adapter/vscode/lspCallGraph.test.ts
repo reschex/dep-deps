@@ -741,11 +741,11 @@ describe("collectCallEdgesFromWorkspace", () => {
       expect(edges).toEqual([]);
     });
 
-    it("uses selectionRange over range for callee symbolId", async () => {
+    it("uses range.start for callee symbolId (matches native symbol provider declaration start)", async () => {
       const callerUri = fakeUri("file:///src/caller.ts");
       const calleeUri = fakeUri("file:///src/callee.ts");
       const item = { uri: callerUri, selectionRange: { start: { line: 0, character: 0 } } };
-      
+
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
       vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
         if (command === "vscode.executeDocumentSymbolProvider") {
@@ -758,8 +758,8 @@ describe("collectCallEdgesFromWorkspace", () => {
           return [{
             to: {
               uri: calleeUri,
-              selectionRange: { start: { line: 3, character: 4 } },
-              range: { start: { line: 1, character: 0 } },
+              selectionRange: { start: { line: 3, character: 4 } }, // name position
+              range: { start: { line: 1, character: 0 } },           // declaration start
             },
           }] as any;
         }
@@ -768,29 +768,34 @@ describe("collectCallEdgesFromWorkspace", () => {
 
       const edges = await collectCallEdgesFromWorkspace();
 
-      // selectionRange (3:4) is used, not range (1:0)
-      expect(edges[0].callee).toBe("file:///src/callee.ts#3:4");
+      // range.start (1:0) is used — matches node.getStart() in native symbol provider
+      expect(edges[0].callee).toBe("file:///src/callee.ts#1:0");
     });
 
-    it("falls back to range when selectionRange is missing", async () => {
+    it("uses range.start for caller symbolId when different from selectionRange.start", async () => {
       const callerUri = fakeUri("file:///src/caller.ts");
-      const calleeUri = fakeUri("file:///src/callee.ts");
-      const item = { uri: callerUri, selectionRange: { start: { line: 0, character: 0 } } };
-      
+      // Symbol with selectionRange at (5,9) [name: "doWork"] but range at (5,0) [declaration start: "function"]
+      const symbol = {
+        name: "doWork",
+        kind: 11, // Function
+        selectionRange: { start: { line: 5, character: 9 } }, // name position
+        range: { start: { line: 5, character: 0 } },           // declaration start
+        children: [],
+      };
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
       vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
         if (command === "vscode.executeDocumentSymbolProvider") {
-          return [fnSymbol("fn", 0)] as any;
+          return [symbol] as any;
         }
         if (command === "vscode.prepareCallHierarchy") {
-          return [item] as any;
+          return [{ uri: callerUri, selectionRange: { start: { line: 5, character: 9 } } }] as any;
         }
         if (command === "vscode.provideOutgoingCalls") {
           return [{
             to: {
-              uri: calleeUri,
-              selectionRange: undefined,
-              range: { start: { line: 7, character: 2 } },
+              uri: fakeUri("file:///src/callee.ts"),
+              selectionRange: { start: { line: 10, character: 4 } },
+              range: { start: { line: 10, character: 0 } },
             },
           }] as any;
         }
@@ -799,8 +804,40 @@ describe("collectCallEdgesFromWorkspace", () => {
 
       const edges = await collectCallEdgesFromWorkspace();
 
-      // Falls back to range (7:2) since selectionRange is undefined
-      expect(edges[0].callee).toBe("file:///src/callee.ts#7:2");
+      // Caller ID uses range.start (5:0), not selectionRange.start (5:9)
+      expect(edges).toHaveLength(1);
+      expect(edges[0].caller).toBe("file:///src/caller.ts#5:0");
+    });
+
+    it("calls prepareCallHierarchy with selectionRange position even when edge ID uses range.start", async () => {
+      const callerUri = fakeUri("file:///src/caller.ts");
+      const symbol = {
+        name: "doWork",
+        kind: 11,
+        selectionRange: { start: { line: 5, character: 9 } }, // name position
+        range: { start: { line: 5, character: 0 } },           // declaration start
+        children: [],
+      };
+      const prepareCallPositions: { line: number; character: number }[] = [];
+
+      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([callerUri] as any);
+      vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string, ...args: unknown[]) => {
+        if (command === "vscode.executeDocumentSymbolProvider") {
+          return [symbol] as any;
+        }
+        if (command === "vscode.prepareCallHierarchy") {
+          const pos = args[1] as { line: number; character: number };
+          prepareCallPositions.push({ line: pos.line, character: pos.character });
+          return undefined as any;
+        }
+        return undefined as any;
+      });
+
+      await collectCallEdgesFromWorkspace();
+
+      // prepareCallHierarchy called with selectionRange position (5:9), not range.start (5:0)
+      expect(prepareCallPositions).toHaveLength(1);
+      expect(prepareCallPositions[0]).toEqual({ line: 5, character: 9 });
     });
   });
 
@@ -1557,5 +1594,268 @@ describe("collectCallEdgesFromWorkspace", () => {
       expect(openedUris).toContain("file:///proj/src/app.ts");
       expect(openedUris).toContain("file:///proj/.stryker-tmp/sandbox123/src/app.ts");
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Impact tree traversal: callee IDs must match caller IDs for the
+// same function so directCallersOf can traverse multi-level chains.
+// ═══════════════════════════════════════════════════════════════════
+describe("edge ID consistency for multi-level impact tree traversal", () => {
+  let debugSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.mocked(vscode.workspace.findFiles).mockReset().mockResolvedValue([]);
+    vi.mocked(vscode.workspace.openTextDocument).mockReset().mockResolvedValue({} as any);
+    vi.mocked(vscode.commands.executeCommand).mockReset().mockResolvedValue(undefined as any);
+    debugSpy?.mockRestore();
+    debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+  });
+
+  it("produces edges where callee ID for fnB matches caller ID for fnB — enabling 2-level traversal", async () => {
+    // Chain: fnA (file1) → fnB (file2) → fnC (file3)
+    // The impact tree for fnC should show: fnC ← fnB ← fnA (2 levels)
+    //
+    // For this to work, the callee ID of fnB (from fnA's outgoing calls)
+    // must EXACTLY match the caller ID of fnB (from file2's document symbols).
+    const file1 = fakeUri("file:///src/a.ts");
+    const file2 = fakeUri("file:///src/b.ts");
+    const file3 = fakeUri("file:///src/c.ts");
+
+    // fnB in file2: DocumentSymbol.range starts at (5, 0) — e.g. "export function fnB()"
+    const fnBDocSymbol = {
+      name: "fnB",
+      kind: 11,
+      selectionRange: { start: { line: 5, character: 16 } }, // name position
+      range: { start: { line: 5, character: 0 }, end: { line: 10, character: 1 } },
+      children: [],
+    };
+
+    vi.mocked(vscode.workspace.findFiles).mockResolvedValue([file1, file2, file3] as any);
+    vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string, ...args: unknown[]) => {
+      if (command === "vscode.executeDocumentSymbolProvider") {
+        const uri = (args[0] as { toString(): string }).toString();
+        if (uri === "file:///src/a.ts") return [fnSymbol("fnA", 0)] as any;
+        if (uri === "file:///src/b.ts") return [fnBDocSymbol] as any;
+        if (uri === "file:///src/c.ts") return [fnSymbol("fnC", 0)] as any;
+        return [] as any;
+      }
+      if (command === "vscode.prepareCallHierarchy") {
+        const pos = args[1] as { line: number; character: number };
+        return [{ uri: args[0], selectionRange: { start: pos } }] as any;
+      }
+      if (command === "vscode.provideOutgoingCalls") {
+        const item = args[0] as { uri: { toString(): string }; selectionRange: { start: { line: number; character: number } } };
+        const uri = item.uri.toString();
+        const line = item.selectionRange.start.line;
+
+        // fnA calls fnB — call hierarchy returns fnB's range
+        if (uri === "file:///src/a.ts" && line === 0) {
+          return [{
+            to: {
+              uri: file2,
+              selectionRange: { start: { line: 5, character: 16 } },
+              range: { start: { line: 5, character: 0 } }, // matches DocumentSymbol.range ✓
+            },
+          }] as any;
+        }
+        // fnB calls fnC
+        if (uri === "file:///src/b.ts" && line === 5) {
+          return [{
+            to: {
+              uri: file3,
+              selectionRange: { start: { line: 0, character: 9 } },
+              range: { start: { line: 0, character: 0 } },
+            },
+          }] as any;
+        }
+        return [] as any;
+      }
+      return undefined as any;
+    });
+
+    const edges = await collectCallEdgesFromWorkspace();
+
+    // Should produce two edges forming a chain
+    expect(edges).toHaveLength(2);
+
+    // Edge 1: fnA → fnB
+    const edgeAtoB = edges.find((e) => e.caller.includes("a.ts"));
+    expect(edgeAtoB).toBeDefined();
+
+    // Edge 2: fnB → fnC
+    const edgeBtoC = edges.find((e) => e.caller.includes("b.ts"));
+    expect(edgeBtoC).toBeDefined();
+
+    // CRITICAL: fnB's callee ID (from fnA→fnB edge) must match fnB's caller ID (from fnB→fnC edge)
+    // This is what enables multi-level impact tree traversal.
+    expect(edgeAtoB!.callee).toBe(edgeBtoC!.caller);
+  });
+
+  it("REGRESSION: produces consistent IDs when CallHierarchyItem.range differs from DocumentSymbol.range", async () => {
+    // Simulates real-world scenario where the TS language server returns
+    // CallHierarchyItem.range starting at a different position than DocumentSymbol.range
+    // for the same function (e.g., CallHierarchy starts at "function" keyword while
+    // DocumentSymbol starts at "export" keyword).
+    const file1 = fakeUri("file:///src/a.ts");
+    const file2 = fakeUri("file:///src/b.ts");
+    const file3 = fakeUri("file:///src/c.ts");
+
+    // fnB's DocumentSymbol.range starts at (5, 0) — "export function fnB()"
+    const fnBDocSymbol = {
+      name: "fnB",
+      kind: 11,
+      selectionRange: { start: { line: 5, character: 16 } },
+      range: { start: { line: 5, character: 0 }, end: { line: 10, character: 1 } },
+      children: [],
+    };
+
+    vi.mocked(vscode.workspace.findFiles).mockResolvedValue([file1, file2, file3] as any);
+    vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string, ...args: unknown[]) => {
+      if (command === "vscode.executeDocumentSymbolProvider") {
+        const uri = (args[0] as { toString(): string }).toString();
+        if (uri === "file:///src/a.ts") return [fnSymbol("fnA", 0)] as any;
+        if (uri === "file:///src/b.ts") return [fnBDocSymbol] as any;
+        if (uri === "file:///src/c.ts") return [fnSymbol("fnC", 0)] as any;
+        return [] as any;
+      }
+      if (command === "vscode.prepareCallHierarchy") {
+        const pos = args[1] as { line: number; character: number };
+        return [{ uri: args[0], selectionRange: { start: pos } }] as any;
+      }
+      if (command === "vscode.provideOutgoingCalls") {
+        const item = args[0] as { uri: { toString(): string }; selectionRange: { start: { line: number; character: number } } };
+        const uri = item.uri.toString();
+        const line = item.selectionRange.start.line;
+
+        // fnA calls fnB — BUT the call hierarchy returns a DIFFERENT range than
+        // DocumentSymbol. E.g., range starts at "function" (char 7) not "export" (char 0).
+        if (uri === "file:///src/a.ts" && line === 0) {
+          return [{
+            to: {
+              uri: file2,
+              selectionRange: { start: { line: 5, character: 16 } },
+              range: { start: { line: 5, character: 7 } }, // ← MISMATCHED with DocumentSymbol range (5:0)
+            },
+          }] as any;
+        }
+        // fnB calls fnC
+        if (uri === "file:///src/b.ts") {
+          return [{
+            to: {
+              uri: file3,
+              selectionRange: { start: { line: 0, character: 9 } },
+              range: { start: { line: 0, character: 0 } },
+            },
+          }] as any;
+        }
+        return [] as any;
+      }
+      return undefined as any;
+    });
+
+    const edges = await collectCallEdgesFromWorkspace();
+    expect(edges).toHaveLength(2);
+
+    const edgeAtoB = edges.find((e) => e.caller.includes("a.ts"));
+    const edgeBtoC = edges.find((e) => e.caller.includes("b.ts"));
+    expect(edgeAtoB).toBeDefined();
+    expect(edgeBtoC).toBeDefined();
+
+    // fnB's callee ID must match fnB's caller ID for impact tree traversal.
+    // If they don't match, the tree stops at 1 level.
+    expect(edgeAtoB!.callee).toBe(edgeBtoC!.caller);
+  });
+
+  it("logs a debug message when normalizeCalleeId cannot find a same-line candidate in a known file", async () => {
+    // Scenario: a.ts contains fnA at line 5. The call hierarchy returns an
+    // outgoing edge whose callee URI is a.ts but at a line (line 9) that does
+    // NOT correspond to any discovered symbol. This is suspicious — the file
+    // is in our index but the line doesn't line up. Must log a debug message
+    // to make the silent fallback observable.
+    const file = fakeUri("file:///src/a.ts");
+    const fnA = {
+      name: "fnA",
+      kind: 11,
+      selectionRange: { start: { line: 5, character: 9 } },
+      range: { start: { line: 5, character: 0 }, end: { line: 6, character: 1 } },
+      children: [],
+    };
+
+    vi.mocked(vscode.workspace.findFiles).mockResolvedValue([file] as any);
+    vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+      if (command === "vscode.executeDocumentSymbolProvider") {
+        return [fnA] as any;
+      }
+      if (command === "vscode.prepareCallHierarchy") {
+        return [{ uri: file, selectionRange: { start: { line: 5, character: 9 } } }] as any;
+      }
+      if (command === "vscode.provideOutgoingCalls") {
+        return [{
+          to: {
+            uri: file,
+            selectionRange: { start: { line: 9, character: 0 } },
+            range: { start: { line: 9, character: 0 } }, // ← line 9: NOT a known symbol
+          },
+        }] as any;
+      }
+      return undefined as any;
+    });
+
+    const debugMessages: string[] = [];
+    const logger = {
+      info() {}, warn() {}, error() {},
+      debug(msg: string) { debugMessages.push(msg); },
+    };
+
+    await collectCallEdgesFromWorkspace({ logger });
+
+    // Must log a debug message about the unresolved callee in a known file.
+    expect(
+      debugMessages.some((m) => m.includes("file:///src/a.ts") && m.toLowerCase().includes("normaliz"))
+    ).toBe(true);
+  });
+
+  it("does not log when callee file is not in the symbol index (external dependency)", async () => {
+    // External deps (e.g. node_modules) won't be in symbolsByUri.
+    // That's expected; should not generate noise.
+    const file = fakeUri("file:///src/a.ts");
+    const fnA = {
+      name: "fnA",
+      kind: 11,
+      selectionRange: { start: { line: 0, character: 9 } },
+      range: { start: { line: 0, character: 0 } },
+      children: [],
+    };
+
+    vi.mocked(vscode.workspace.findFiles).mockResolvedValue([file] as any);
+    vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command: string) => {
+      if (command === "vscode.executeDocumentSymbolProvider") {
+        return [fnA] as any;
+      }
+      if (command === "vscode.prepareCallHierarchy") {
+        return [{ uri: file, selectionRange: { start: { line: 0, character: 9 } } }] as any;
+      }
+      if (command === "vscode.provideOutgoingCalls") {
+        return [{
+          to: {
+            uri: fakeUri("file:///node_modules/lib/index.ts"),
+            selectionRange: { start: { line: 0, character: 0 } },
+            range: { start: { line: 0, character: 0 } },
+          },
+        }] as any;
+      }
+      return undefined as any;
+    });
+
+    const debugMessages: string[] = [];
+    const logger = {
+      info() {}, warn() {}, error() {},
+      debug(msg: string) { debugMessages.push(msg); },
+    };
+
+    await collectCallEdgesFromWorkspace({ logger });
+
+    expect(debugMessages.some((m) => m.toLowerCase().includes("normaliz"))).toBe(false);
   });
 });

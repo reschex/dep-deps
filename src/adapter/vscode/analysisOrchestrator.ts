@@ -25,6 +25,7 @@ import type { CcProviderRegistry } from "../../core/ccRegistry";
 import type { UriFilter } from "../../core/gitignoreFilter";
 import type { DdpConfiguration, AnalysisScope } from "./configuration";
 import { isTestFileUri } from "./configuration";
+import { matchesExcludePattern } from "../../core/excludeFilter";
 import { estimateCyclomaticComplexity } from "../../language/estimateCc";
 
 
@@ -139,6 +140,10 @@ export class AnalysisOrchestrator {
     const gitignoreFilter = this.deps.gitignoreFilter;
     if (config.fileFilter.respectGitignore && gitignoreFilter) {
       uris = uris.filter((u) => !gitignoreFilter(u));
+    }
+    const { excludePatterns } = config.fileFilter;
+    if (excludePatterns.length > 0) {
+      uris = uris.filter((u) => !matchesExcludePattern(u, excludePatterns));
     }
     return uris;
   }

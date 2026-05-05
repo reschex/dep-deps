@@ -355,6 +355,40 @@ describe('parseArgs', () => {
     });
   });
 
+  describe('Scenario: Exclude patterns via --exclude flag', () => {
+    it('should default excludePatterns to empty array', () => {
+      const result = parseArgs(['node', 'ddp']);
+
+      expect(result.excludePatterns).toEqual([]);
+    });
+
+    it('should parse a single --exclude flag', () => {
+      const result = parseArgs(['node', 'ddp', '--exclude', '**/register*.ts']);
+
+      expect(result.excludePatterns).toEqual(['**/register*.ts']);
+    });
+
+    it('should collect multiple --exclude flags', () => {
+      const result = parseArgs([
+        'node', 'ddp',
+        '--exclude', '**/register*.ts',
+        '--exclude', '**/legacy/**',
+      ]);
+
+      expect(result.excludePatterns).toEqual(['**/register*.ts', '**/legacy/**']);
+    });
+
+    it('should preserve order of multiple --exclude flags', () => {
+      const result = parseArgs([
+        'node', 'ddp',
+        '--exclude', 'b/**',
+        '--exclude', 'a/**',
+      ]);
+
+      expect(result.excludePatterns).toEqual(['b/**', 'a/**']);
+    });
+  });
+
   describe('Scenario: Detect callers subcommand', () => {
     it('should set command to "callers" when first user arg is "callers"', () => {
       const result = parseArgs(['node', 'ddp', 'callers', '--file', 'src/foo.ts', '--symbol', 'doStuff']);
@@ -480,6 +514,33 @@ describe('parseCallersArgs', () => {
       const result = parseCallersArgs(['node', 'ddp', 'callers', '--no-respect-gitignore']);
 
       expect(result.respectGitignore).toBe(false);
+    });
+
+    it('should default excludePatterns to empty array', () => {
+      const result = parseCallersArgs(['node', 'ddp', 'callers']);
+
+      expect(result.excludePatterns).toEqual([]);
+    });
+
+    it('should parse a single --exclude flag', () => {
+      const result = parseCallersArgs([
+        'node', 'ddp', 'callers',
+        '--file', 'f.ts',
+        '--symbol', 'fn',
+        '--exclude', '**/register*.ts',
+      ]);
+
+      expect(result.excludePatterns).toEqual(['**/register*.ts']);
+    });
+
+    it('should collect multiple --exclude flags in order', () => {
+      const result = parseCallersArgs([
+        'node', 'ddp', 'callers',
+        '--exclude', '**/register*.ts',
+        '--exclude', '**/legacy/**',
+      ]);
+
+      expect(result.excludePatterns).toEqual(['**/register*.ts', '**/legacy/**']);
     });
   });
 

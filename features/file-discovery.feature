@@ -95,3 +95,44 @@ Feature: Source File Discovery
     Given "ddp.debug" is set to false (default)
     When I run analysis on the project
     Then the logger should NOT emit any debug messages
+
+  Scenario: Exclude files matching user-defined glob patterns
+    Given "ddp.fileFilter.excludePatterns" is set to ["**/register*.ts"]
+    When I run analysis on the project
+    Then "src/utils.ts" should be analyzed
+    And "src/main.ts" should be analyzed
+    But "src/registerTS.ts" should NOT be analyzed
+
+  Scenario: Exclude entire folders via glob pattern
+    Given "ddp.fileFilter.excludePatterns" is set to ["**/generated/**"]
+    When I run analysis on the project
+    Then files in "generated/" should NOT be analyzed
+    But "src/utils.ts" should still be analyzed
+
+  Scenario: Multiple exclude patterns combine additively
+    Given "ddp.fileFilter.excludePatterns" is set to ["**/register*.ts", "**/legacy/**"]
+    When I run analysis on the project
+    Then "src/registerTS.ts" should NOT be analyzed
+    And files in "legacy/" should NOT be analyzed
+    But "src/utils.ts" should still be analyzed
+
+  Scenario: Empty exclude patterns list excludes nothing
+    Given "ddp.fileFilter.excludePatterns" is set to []
+    When I run analysis on the project
+    Then all discovered source files should be analyzed
+
+  Scenario: Exclude patterns via CLI flag
+    When I run "ddp --exclude **/register*.ts --exclude **/legacy/**"
+    Then "src/registerTS.ts" should NOT be analyzed
+    And files in "legacy/" should NOT be analyzed
+    But "src/utils.ts" should still be analyzed
+
+  Scenario: Exclude patterns combine with other filters
+    Given "ddp.fileFilter.excludePatterns" is set to ["**/generated/**"]
+    And "ddp.fileFilter.respectGitignore" is set to true
+    And "ddp.excludeTests" is set to true
+    When I run analysis on the project
+    Then test files should NOT be analyzed
+    And files in "generated/" should NOT be analyzed
+    And gitignored files should NOT be analyzed
+    But non-excluded production source files should be analyzed
