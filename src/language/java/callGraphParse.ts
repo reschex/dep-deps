@@ -67,6 +67,23 @@ function extractClassName(lines: string[]): string {
  */
 const METHOD_RE = /^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?(\w+)\s+(\w+)\s*\(/;
 
+/**
+ * Words that METHOD_RE may capture in the return-type position but which are not real
+ * return types. Each entry documents the pattern that triggers the false match:
+ *
+ * - Type keywords:  `class Foo(` / `interface Foo(` / `enum Foo(`
+ * - Constructors:   `public Foo(` / `private Foo(` / `protected Foo(`
+ * - return:         `return format(id)` inside a method body
+ * - throw:          `throw buildError()` inside a method body
+ * - assert:         `assert check()` inside a method body
+ * - else:           `else delete()` on its own line (braces-free else branch)
+ */
+const NON_RETURN_TYPE_KEYWORDS = new Set([
+  'class', 'interface', 'enum',
+  'public', 'private', 'protected',
+  'return', 'throw', 'assert', 'else',
+]);
+
 function extractMethods(lines: string[]): JavaMethodDecl[] {
   const methods: JavaMethodDecl[] = [];
 
@@ -77,15 +94,7 @@ function extractMethods(lines: string[]): JavaMethodDecl[] {
     const returnType = m[1];
     const name = m[2];
 
-    // Skip class declarations and constructors.
-    // Constructors match as: access modifier backtracked into return-type position
-    // (e.g. "public Service(" → returnType="public", name="Service").
-    if (returnType === 'class' || returnType === 'interface' || returnType === 'enum') continue;
-    if (returnType === 'public' || returnType === 'private' || returnType === 'protected') continue;
-    // Skip statement keywords that regex can misread as a return type
-    // e.g. "return format(id)" → returnType="return", name="format"
-    //      "throw buildError()" → returnType="throw", name="buildError"
-    if (returnType === 'return' || returnType === 'throw' || returnType === 'assert') continue;
+    if (NON_RETURN_TYPE_KEYWORDS.has(returnType)) continue;
 
     const endLine = findClosingBrace(lines, i);
     const bodyLines = lines.slice(i + 1, endLine);

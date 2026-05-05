@@ -118,6 +118,22 @@ public class Service {
   });
 
   describe('Scenario: No ghost methods from statement keywords as return type', () => {
+    it('should not create a ghost method from else method() on its own line', () => {
+      // "else delete();" → METHOD_RE matches: returnType='else', name='delete' → ghost without fix
+      const source = `public class Service {
+    public void process(boolean flag) {
+        if (flag) validate();
+        else delete();
+    }
+    public void validate() {}
+    public void delete() {}
+}`;
+      const result = parseJavaSource(source);
+
+      expect(result.methods).toHaveLength(3);
+      expect(result.methods.map((m) => m.name)).toEqual(['process', 'validate', 'delete']);
+    });
+
     it('should not create a ghost method when a method body contains return unqualifiedCall()', () => {
       const source = `public class Service {
     public String processOrder(String id) {
@@ -151,23 +167,25 @@ public class Service {
   });
 
   describe('Scenario: Constructor parameter type resolution limitation', () => {
-    it('should return 0 fields when type only appears as a constructor parameter (no field declaration)', () => {
+    it('should return 0 fields when type only appears as a constructor parameter or method parameter (no field declaration)', () => {
       // Known limitation of the regex approach (ADR-005 Option B):
-      // FIELD_RE matches field declarations ending in ; or = but not constructor parameter lists.
-      // A class with constructor-only injection and no explicit field cannot be resolved.
+      // FIELD_RE matches field declarations ending in ; or = but not constructor or method
+      // parameter lists. Neither constructor parameters nor method parameters are captured.
       // The feature scenario for "Constructor parameter type resolution" requires an explicit
-      // `private final Repository repo;` field — that field is what FIELD_RE captures.
+      // `private final Repository repo;` field — that is what FIELD_RE captures.
       const source = `public class Service {
     public Service(Repository repo) {
-        // repo used locally but never assigned to a field
+        // constructor param — not a field declaration
     }
     public void run(Repository repo) {
+        // method param — also not a field declaration
         repo.save();
     }
 }`;
       const result = parseJavaSource(source);
 
-      // No field declaration → 0 fields → repo.save() calls cannot be resolved
+      // Neither constructor params nor method params are captured → 0 fields
+      // → repo.save() calls in this class cannot be resolved via field lookup
       expect(result.fields).toHaveLength(0);
     });
 

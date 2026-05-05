@@ -22,14 +22,14 @@
     - [x] `Service.java` — calls `Repository.java` methods (simulates common layered pattern)
     - [x] `Repository.java` — called by `Service.java`; calls `Util.java`
     - [x] `Util.java` — called by `Repository.java`; no outbound calls (leaf node)
-  - [ ] `pom.xml` or `build.gradle` — minimal project descriptor (enables PMD path resolution)
-  - [ ] `coverage/jacoco.xml` — minimal JaCoCo fixture covering some methods (reuse pattern from existing TS fixture)
+  - [x] `pom.xml` — minimal Maven project descriptor
+  - [x] `coverage/jacoco.xml` — minimal JaCoCo fixture covering some methods
 - [x] Integration test in `src/language/java/javaIntegration.test.ts`:
   - [x] Java project produces `edges.length > 0`
   - [x] Service → Repository edges exist
   - [x] Repository → Util edges exist
   - [x] Util has no outbound edges (leaf node)
-  - [ ] R > 1 through full pipeline (blocked: requires native Java symbol provider or PMD — see backlog)
+  - [x] R > 1 through full pipeline (via `JavaNativeSymbolProvider` — no PMD needed)
 
 ### Step 2: Java Call Graph Implementation ✅
 
@@ -57,7 +57,7 @@
 
 - [x] `NativeCallGraphProvider` includes Java — wired into `analysisService.ts` as hybrid fallback
   - [x] Java: `JavaCallGraphProvider` via `NativeCallGraphProvider`; LSP as primary (existing `HybridCallGraphProvider`)
-- [ ] Update README: document Java call graph support (remove R=1 limitation note)
+- [x] Update README: document Java call graph support (PMD optional, native extraction)
 
 ---
 
@@ -244,6 +244,16 @@ MCP server over stdio — thin wrapper around CLI output. No new domain logic.
 - [x] `features/java-call-graph.feature` — 9 BDD scenarios
 - [x] 32 new tests (10 parse + 11 build + 3 provider + 3 dispatch + 5 integration)
 
+### Native Java Symbol Provider ✅ (2026-05-05)
+
+- [x] `src/language/java/nativeSymbols.ts` — `JavaNativeSymbolProvider` using `callGraphParse.ts`
+- [x] Finds ALL methods regardless of CC (PMD only finds CC ≥ 2)
+- [x] Symbol IDs match call graph edge IDs (`uri#line:0`)
+- [x] Wired into `NativeSymbolProvider` (replaces `JavaSymbolProvider` for symbol extraction)
+- [x] PMD retained for accurate CC via `PmdCcProvider` in registry; fallback regex estimator when PMD absent
+- [x] R > 1 through full CLI pipeline verified (integration test)
+- [x] 6 new tests + updated `nativeSymbolProvider.test.ts`
+
 ---
 
 ## Backlog (De-prioritised)
@@ -251,7 +261,6 @@ MCP server over stdio — thin wrapper around CLI output. No new domain logic.
 These items are valid but not part of the current sprint. Revisit after priorities 1–4 above are complete.
 
 - [ ] ADR-004 Phase 2: PreToolUse hook (`.claude/hooks/ddp-pre-edit-check.js`) — superseded by MCP as primary agent integration mechanism; hook adds latency per-edit
-- [ ] Native Java symbol provider (`src/language/java/nativeSymbols.ts`) — extract methods from Java source via regex (reuse `callGraphParse.ts`), removing PMD dependency for symbol extraction. Currently `JavaSymbolProvider` requires PMD and misses CC=1 methods. A native provider would: (1) find ALL methods regardless of CC, (2) enable R>1 in full pipeline without PMD installed, (3) use fallback CC estimation for methods PMD misses. Wire into `NativeSymbolProvider` as primary, PMD as optional CC enhancement.
 - [ ] ADR-005 Phase 3: Python call graph (`src/language/python/callGraph.ts`) — R=1 for Python; deferred until Java call graph proves the pattern
 - [ ] Markdown serialiser for `ddp callers --format markdown` — moved to Agent Wiring task above
 - [ ] Full TreeView panel (replace QuickPick) for deep impact navigation

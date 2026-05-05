@@ -43,7 +43,7 @@ describe('NativeCallGraphProvider', () => {
       // MIXED_FIXTURES contains caller.ts→callee.ts and Service.java→Repository.java
       // both in one directory — scoped root avoids picking up unrelated test files
       const provider = new NativeCallGraphProvider(MIXED_FIXTURES);
-      const edges = await provider.collectCallEdges(50);
+      const edges = await provider.collectCallEdges(50); // 50 >> 4 files in the fixture
 
       const tsEdges = edges.filter((e) => e.caller.includes('.ts#'));
       const javaEdges = edges.filter((e) => e.caller.includes('.java#'));

@@ -40,3 +40,30 @@ Feature: Java Symbol Extraction
     When PMD analyses the file
     Then methods with CC=1 may not appear in the symbol list
     # This is a known limitation: PMD only reports violations for CC >= minimum threshold
+
+  # ── Native symbol extraction (PMD-free) ──────────────────────────────────
+
+  Scenario: Extract all methods from Java source without PMD
+    Given a Java file "Service.java" with methods "processOrder" and "validate"
+    When I extract symbols using the native Java parser
+    Then both methods should be found including CC=1 methods
+    And symbol lines should be 0-based
+
+  Scenario: Native extraction finds methods that PMD misses
+    Given a Java file with a CC=1 method "simpleGetter"
+    When I extract symbols using the native Java parser
+    Then "simpleGetter" should be found
+    # Unlike PMD, native extraction does not require a minimum CC threshold
+
+  Scenario: Native symbols produce IDs that match call graph edges
+    Given a Java file with methods at known line positions
+    When I extract symbols using the native Java parser
+    And I build call graph edges for the same file
+    Then the symbol IDs should match the call edge symbol IDs
+    # Both use uri#line:0 format with 0-based lines
+
+  Scenario: Skip constructors in native extraction
+    Given a Java file with a constructor and regular methods
+    When I extract symbols using the native Java parser
+    Then only regular methods should be found
+    And constructors should be excluded

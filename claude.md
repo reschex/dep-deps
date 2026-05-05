@@ -116,7 +116,12 @@ Current test coverage: **>98%** (see coverage reports in `coverage/lcov-report/`
   - `python/` — Python:
     - `cc/` — Radon CC provider (radonCc, radonSpawn, radonParse)
   - `java/` — Java:
+    - `nativeSymbols.ts` — Native symbol extraction from source (no PMD needed)
+    - `callGraphParse.ts` — Java source parser (classes, methods, fields)
+    - `callGraphBuild.ts` — Cross-file call edge builder
+    - `callGraph.ts` — `JavaCallGraphProvider`
     - `cc/` — PMD CC provider (pmdComplexity, pmdSpawn, pmdParse)
+  - `nativeCallGraphProvider.ts` — Multi-language call graph dispatch (TS + Java)
 
 ### Shared Infrastructure
 
@@ -243,9 +248,10 @@ npm run cli:dev             # Run CLI locally
 
 ### "Rank (R) is always 1"
 
-- Call graph analysis may not be implemented for your language yet
-- In CLI, simplified ranking (R=1) is the MVP default
-- Check `NodeCallGraphProvider` implementation status
+- TypeScript/JavaScript and Java have full call graph support (R > 1)
+- Python call graph is not yet implemented (R=1 always — see backlog)
+- Verify call graph edges exist: check `edgesCount` in analysis output
+- Check `NativeCallGraphProvider` dispatches correctly for your file type
 
 ### "Tests are slow"
 

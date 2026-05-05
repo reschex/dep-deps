@@ -124,11 +124,14 @@ Thresholds and color intensity can be adjusted in VS Code settings (see [Configu
 
 #### **Java**
 
-1. **PMD** (required for cyclomatic complexity)
+1. **No mandatory prerequisites** — Java symbol extraction and call graph analysis work out of the box using native source parsing. All methods are found regardless of complexity, and cross-file call edges produce R > 1.
+
+2. **PMD** (optional, for accurate cyclomatic complexity)
+   - Without PMD, CC is estimated using a regex-based fallback (less precise but functional)
    - Download from [pmd.github.io](https://pmd.github.io/latest/) (version 6+)
    - Add PMD's `bin/` directory to your `PATH`, or specify the full path in VS Code settings
 
-2. **Test Coverage** (optional, for test coverage metric `T`)
+3. **Test Coverage** (optional, for test coverage metric `T`)
    - **JaCoCo** is the recommended coverage provider for Java projects
    
    **Maven Setup:**

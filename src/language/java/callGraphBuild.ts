@@ -67,7 +67,7 @@ export async function buildJavaCallEdges(
 // ── File reading ─────────────────────────────────────────────────────────────
 
 async function parseAllFiles(fileUris: string[]): Promise<ParsedFile[]> {
-  const settled = await Promise.all(
+  const candidates = await Promise.all(
     fileUris.map(async (rawUri): Promise<ParsedFile | null> => {
       try {
         const filePath = rawUri.startsWith('file://') ? fileURLToPath(rawUri) : rawUri;
@@ -82,7 +82,7 @@ async function parseAllFiles(fileUris: string[]): Promise<ParsedFile[]> {
     }),
   );
 
-  return settled.filter((r): r is ParsedFile => r !== null);
+  return candidates.filter((r): r is ParsedFile => r !== null);
 }
 
 // ── Method index ─────────────────────────────────────────────────────────────

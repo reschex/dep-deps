@@ -2,7 +2,7 @@ import type { SymbolProvider, FunctionSymbolInfo } from '../core/ports';
 import { detectLanguageId } from './patterns';
 import { NodeSymbolProvider } from './typescript/symbols';
 import { PythonSymbolProvider } from './python/symbols';
-import { JavaSymbolProvider } from './java/symbols';
+import { JavaNativeSymbolProvider } from './java/nativeSymbols';
 
 const TS_LANGUAGE_IDS = new Set([
   'typescript', 'javascript', 'typescriptreact', 'javascriptreact',
@@ -17,7 +17,7 @@ const TS_LANGUAGE_IDS = new Set([
 export class NativeSymbolProvider implements SymbolProvider {
   private readonly ts: NodeSymbolProvider;
   private readonly python: PythonSymbolProvider;
-  private readonly java: JavaSymbolProvider;
+  private readonly java: JavaNativeSymbolProvider;
 
   constructor(config?: {
     pythonPath?: string;
@@ -27,7 +27,7 @@ export class NativeSymbolProvider implements SymbolProvider {
   }) {
     this.ts = new NodeSymbolProvider();
     this.python = new PythonSymbolProvider(config?.pythonPath, config?.pythonTimeoutMs);
-    this.java = new JavaSymbolProvider(config?.pmdPath, config?.javaTimeoutMs);
+    this.java = new JavaNativeSymbolProvider();
   }
 
   async getFunctionSymbols(uri: string): Promise<FunctionSymbolInfo[]> {

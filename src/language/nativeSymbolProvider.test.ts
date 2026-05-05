@@ -29,8 +29,8 @@ vi.mock('./python/symbols', () => ({
   },
 }));
 
-vi.mock('./java/symbols', () => ({
-  JavaSymbolProvider: class {
+vi.mock('./java/nativeSymbols', () => ({
+  JavaNativeSymbolProvider: class {
     constructor(...args: unknown[]) { lastJavaCtorArgs = args; }
     getFunctionSymbols = javaFunctionSymbols;
   },
@@ -159,17 +159,22 @@ describe('NativeSymbolProvider', () => {
     expect(javaFunctionSymbols).not.toHaveBeenCalled();
   });
 
-  it('should forward pythonPath and pmdPath to sub-provider constructors', () => {
+  it('should forward pythonPath to PythonSymbolProvider constructor', () => {
     new NativeSymbolProvider({ pythonPath: '/opt/python3', pmdPath: '/opt/pmd' });
 
     expect(lastPythonCtorArgs[0]).toBe('/opt/python3');
-    expect(lastJavaCtorArgs[0]).toBe('/opt/pmd');
   });
 
-  it('should forward pythonTimeoutMs and javaTimeoutMs to sub-provider constructors', () => {
+  it('should forward pythonTimeoutMs to PythonSymbolProvider constructor', () => {
     new NativeSymbolProvider({ pythonTimeoutMs: 5_000, javaTimeoutMs: 15_000 });
 
     expect(lastPythonCtorArgs[1]).toBe(5_000);
-    expect(lastJavaCtorArgs[1]).toBe(15_000);
+  });
+
+  it('should construct JavaNativeSymbolProvider with no arguments', () => {
+    new NativeSymbolProvider({ pmdPath: '/opt/pmd', javaTimeoutMs: 15_000 });
+
+    // JavaNativeSymbolProvider takes no args — parses source directly, no PMD
+    expect(lastJavaCtorArgs).toHaveLength(0);
   });
 });

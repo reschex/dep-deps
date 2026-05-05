@@ -51,6 +51,15 @@ describe('buildJavaCallEdges', () => {
     const validateLine = intraClassLines.findIndex((l) => /public void validate\(\)/.test(l));
     const checkLine = intraClassLines.findIndex((l) => /private void check\(\)/.test(l));
 
+    // Guard: fail fast with a clear message if the fixture was renamed or reformatted
+    if (processLine === -1 || validateLine === -1 || checkLine === -1) {
+      throw new Error(
+        `IntraClass.java fixture missing expected method signatures ` +
+          `(process=${processLine}, validate=${validateLine}, check=${checkLine}). ` +
+          `Update the findIndex patterns to match the current fixture.`,
+      );
+    }
+
     beforeAll(async () => {
       edges = await buildJavaCallEdges([fixtureUri('IntraClass.java')]);
     });
