@@ -133,15 +133,30 @@ function workspaceCwd(uri: vscode.Uri): string {
   return vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath ?? "";
 }
 
+/**
+ * Resolve a DocumentInfo URI to a local filesystem path and workspace cwd.
+ * Returns undefined when the URI is not a file:// URI (e.g. untitled, git, vscode-userdata).
+ */
+function resolveFileFsPath(doc: DocumentInfo): { fsPath: string; cwd: string } | undefined {
+  const uri = vscode.Uri.parse(doc.uri);
+  if (uri.scheme !== "file") {
+    return undefined;
+  }
+  return { fsPath: uri.fsPath, cwd: workspaceCwd(uri) };
+}
+
+/** Empty CcResult returned when a document is not on the local filesystem. */
+function emptyCcResult(): CcResult {
+  return { byLine: new Map(), byName: new Map() };
+}
+
 export class EslintCcProvider implements CyclomaticComplexityProvider {
   constructor(private readonly eslintPath: string) {}
 
   async computeComplexity(doc: DocumentInfo): Promise<CcResult> {
-    const uri = vscode.Uri.parse(doc.uri);
-    if (uri.scheme !== "file") {
-      return { byLine: new Map(), byName: new Map() };
-    }
-    const byLine = await eslintCcForFile(doc.languageId, uri.fsPath, workspaceCwd(uri), this.eslintPath);
+    const resolved = resolveFileFsPath(doc);
+    if (!resolved) return emptyCcResult();
+    const byLine = await eslintCcForFile(doc.languageId, resolved.fsPath, resolved.cwd, this.eslintPath);
     return { byLine, byName: new Map() };
   }
 }
@@ -150,12 +165,10 @@ export class RadonCcProvider implements CyclomaticComplexityProvider {
   constructor(private readonly pythonPath: string) {}
 
   async computeComplexity(doc: DocumentInfo): Promise<CcResult> {
-    const uri = vscode.Uri.parse(doc.uri);
-    if (uri.scheme !== "file") {
-      return { byLine: new Map(), byName: new Map() };
-    }
-    const radonMap = await radonCcForFile(doc.languageId, uri.fsPath, workspaceCwd(uri), this.pythonPath);
-    return { byLine: new Map(), byName: radonMap };
+    const resolved = resolveFileFsPath(doc);
+    if (!resolved) return emptyCcResult();
+    const byName = await radonCcForFile(doc.languageId, resolved.fsPath, resolved.cwd, this.pythonPath);
+    return { byLine: new Map(), byName };
   }
 }
 
@@ -163,11 +176,9 @@ export class PmdCcProvider implements CyclomaticComplexityProvider {
   constructor(private readonly pmdPath: string) {}
 
   async computeComplexity(doc: DocumentInfo): Promise<CcResult> {
-    const uri = vscode.Uri.parse(doc.uri);
-    if (uri.scheme !== "file") {
-      return { byLine: new Map(), byName: new Map() };
-    }
-    const byLine = await pmdCcForFile(doc.languageId, uri.fsPath, workspaceCwd(uri), this.pmdPath);
+    const resolved = resolveFileFsPath(doc);
+    if (!resolved) return emptyCcResult();
+    const byLine = await pmdCcForFile(doc.languageId, resolved.fsPath, resolved.cwd, this.pmdPath);
     return { byLine, byName: new Map() };
   }
 }
