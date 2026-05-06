@@ -16,11 +16,9 @@ reports/**
 stryker.conf.mjs
 stryker.log
 eslint.config.mjs
+esbuild.mjs
 .claude/**
-out/test/**
-out/adapter/cli/**
-out/cli/**
-out/ddp/**
+out/**
 docs/**
 features/**
 *.md

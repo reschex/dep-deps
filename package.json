@@ -2,7 +2,7 @@
   "name": "dependable-dependencies",
   "displayName": "Dependable Dependencies Risk",
   "description": "Surfaces high-risk code using Rank × CRAP (Dependable Dependencies principle).",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "publisher": "local",
   "repository": {
     "type": "git",
@@ -17,7 +17,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "bin": {
     "ddp-analyze": "./out/adapter/cli/bin.js"
   },
@@ -270,8 +270,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run bundle -- --production",
     "compile": "tsc -p ./ && tsc -p src/test/tsconfig.json",
+    "bundle": "node esbuild.mjs",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src/",
     "test": "vitest run",
@@ -293,6 +294,7 @@
     "@types/vscode": "^1.85.0",
     "@vitest/coverage-v8": "^4.1.4",
     "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.28.0",
     "eslint": "^10.2.0",
     "glob": "^13.0.6",
     "mocha": "^11.7.5",
@@ -308,7 +310,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ignore": "^7.0.5",
-    "minimatch": "^10.2.5",
-    "vsce": "^2.15.0"
+    "minimatch": "^10.2.5"
   }
 }
