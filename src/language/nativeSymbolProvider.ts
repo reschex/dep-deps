@@ -1,12 +1,8 @@
 import type { SymbolProvider, FunctionSymbolInfo } from '../core/ports';
-import { detectLanguageId } from './patterns';
+import { detectLanguageId, isTypescriptOrJavascript } from './patterns';
 import { NodeSymbolProvider } from './typescript/symbols';
 import { PythonSymbolProvider } from './python/symbols';
 import { JavaNativeSymbolProvider } from './java/nativeSymbols';
-
-const TS_LANGUAGE_IDS = new Set([
-  'typescript', 'javascript', 'typescriptreact', 'javascriptreact',
-]);
 
 /**
  * Language-native symbol provider that dispatches to per-language extractors.
@@ -22,11 +18,6 @@ export class NativeSymbolProvider implements SymbolProvider {
   constructor(config?: {
     pythonPath?: string;
     pythonTimeoutMs?: number;
-    /**
-     * Reserved for a future Java symbol provider that delegates to PMD.
-     * Currently unused — `JavaNativeSymbolProvider` parses sources directly.
-     */
-    javaTimeoutMs?: number;
   }) {
     this.ts = new NodeSymbolProvider();
     this.python = new PythonSymbolProvider(config?.pythonPath, config?.pythonTimeoutMs);
@@ -35,7 +26,7 @@ export class NativeSymbolProvider implements SymbolProvider {
 
   async getFunctionSymbols(uri: string): Promise<FunctionSymbolInfo[]> {
     const languageId = detectLanguageId(uri);
-    if (TS_LANGUAGE_IDS.has(languageId)) {
+    if (isTypescriptOrJavascript(languageId)) {
       return this.ts.getFunctionSymbols(uri);
     }
     if (languageId === 'python') {

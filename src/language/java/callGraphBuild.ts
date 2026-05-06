@@ -11,9 +11,9 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { CallEdge } from '../../core/rank';
 import { parseJavaSource, type JavaSourceInfo } from './callGraphParse';
+import { toFilePath, toFileUri } from '../patterns';
 
 /** Parsed file with its URI and source info. */
 type ParsedFile = {
@@ -70,8 +70,8 @@ async function parseAllFiles(fileUris: string[]): Promise<ParsedFile[]> {
   const candidates = await Promise.all(
     fileUris.map(async (rawUri): Promise<ParsedFile | null> => {
       try {
-        const filePath = rawUri.startsWith('file://') ? fileURLToPath(rawUri) : rawUri;
-        const uri = rawUri.startsWith('file://') ? rawUri : pathToFileURL(rawUri).toString();
+        const filePath = toFilePath(rawUri);
+        const uri = toFileUri(rawUri);
         const source = await readFile(filePath, 'utf-8');
         const info = parseJavaSource(source);
         return info.className ? { uri, info } : null;

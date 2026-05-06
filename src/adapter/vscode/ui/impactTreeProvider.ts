@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type { ExtensionState } from "../extensionState";
 import { callerTree, impactSummary, directCallersOf, type CallerNode } from "../../../core/callerTree";
+import { formatFLabel } from "../../../core/metricLabel";
 
 const DEFAULT_MAX_DEPTH = 5;
 
@@ -76,7 +77,7 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
 
     const metrics = this.state.symbolById.get(element.symbolId);
     const name = metrics?.name ?? labelFromSymbolId(element.symbolId);
-    const fStr = metrics ? `F=${metrics.f.toFixed(1)}` : "F=?";
+    const fStr = formatFLabel(metrics);
     const fileLabel = metrics ? fileNameFromUri(metrics.uri) : "";
     const fileSuffix = fileLabel ? ` · ${fileLabel}` : "";
     const collapsible = element.recursive

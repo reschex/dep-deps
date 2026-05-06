@@ -39,27 +39,47 @@ const HIGH_CHURN = 2;
 
 /** Generate dynamic insight strings based on metric values. */
 function analyzeMetrics(s: SymbolMetrics): string[] {
-  const insights: string[] = [];
+  return [
+    complexityInsight(s),
+    dependencyInsight(s),
+    churnInsight(s),
+  ].filter((m): m is string => m !== null);
+}
 
-  if (s.cc >= HIGH_CC && s.t < LOW_COVERAGE) {
-    insights.push("High complexity with low coverage — write tests to reduce CRAP.");
-  } else if (s.cc >= HIGH_CC && s.t >= WELL_TESTED) {
-    insights.push("Complex but well-tested — coverage keeps CRAP in check.");
+/**
+ * Insight for complexity vs coverage.
+ *
+ * Coverage between LOW_COVERAGE and WELL_TESTED is the silent zone — trending
+ * toward well-tested but not yet urgent. No message until it crosses a threshold.
+ */
+function complexityInsight(s: SymbolMetrics): string | null {
+  if (s.cc < HIGH_CC) return null;
+  if (s.t < LOW_COVERAGE) {
+    return "High complexity with low coverage — write tests to reduce CRAP.";
   }
-  // cc >= HIGH_CC with coverage between LOW_COVERAGE and WELL_TESTED: trending
-  // toward well-tested but not yet urgent — no message until it crosses a threshold.
+  if (s.t >= WELL_TESTED) {
+    return "Complex but well-tested — coverage keeps CRAP in check.";
+  }
+  return null;
+}
 
+/** Insight for dependency-graph importance (rank) and CRAP. */
+function dependencyInsight(s: SymbolMetrics): string | null {
   if (s.r >= HIGH_RANK_WITH_RISK && s.crap >= HIGH_CRAP_WITH_RISK) {
-    insights.push("Failures here cascade through dependents — consider decoupling or adding tests.");
-  } else if (s.r >= HIGH_RANK) {
-    insights.push("Widely depended upon — changes here affect many callers.");
+    return "Failures here cascade through dependents — consider decoupling or adding tests.";
   }
+  if (s.r >= HIGH_RANK) {
+    return "Widely depended upon — changes here affect many callers.";
+  }
+  return null;
+}
 
+/** Insight for risky code that changes frequently (churn). */
+function churnInsight(s: SymbolMetrics): string | null {
   if (s.f >= HIGH_F && s.g > HIGH_CHURN) {
-    insights.push("Risky and frequently changed — most urgent priority to address.");
+    return "Risky and frequently changed — most urgent priority to address.";
   }
-
-  return insights;
+  return null;
 }
 
 /** Format a compact CodeLens title showing key metrics. */

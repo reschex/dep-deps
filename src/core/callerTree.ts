@@ -1,5 +1,6 @@
 import type { CallEdge } from "./rank";
 import type { SymbolMetrics } from "./analyze";
+import { formatFLabel } from "./metricLabel";
 
 /** A node in the caller tree with depth and recursion detection. */
 export type CallerNode = {
@@ -109,7 +110,7 @@ function flattenInto(
   for (const node of nodes) {
     const metrics = metricsById.get(node.id);
     const name = metrics?.name ?? node.id;
-    const fStr = metrics ? `F=${metrics.f.toFixed(1)}` : "F=?";
+    const fStr = formatFLabel(metrics);
     const recursiveTag = node.recursive ? " \u{1F504} RECURSIVE" : "";
     const indent = node.depth > 1 ? "$(indent)".repeat(node.depth - 1) : "";
     out.push({

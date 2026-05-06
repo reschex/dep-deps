@@ -9,10 +9,7 @@ import type { CallGraphProvider } from '../../core/ports';
 import type { CallEdge } from '../../core/rank';
 import { NodeDocumentProvider } from '../../adapter/cli/nodeDocument';
 import { buildTypeScriptCallEdges } from './callGraphBuild';
-import { detectLanguageId } from '../patterns';
-
-/** Language IDs eligible for TypeScript Compiler API call graph analysis. */
-const TS_JS_LANGUAGE_IDS = new Set(['typescript', 'typescriptreact', 'javascript', 'javascriptreact']);
+import { detectLanguageId, isTypescriptOrJavascript } from '../patterns';
 
 export class NodeCallGraphProvider implements CallGraphProvider {
   constructor(private readonly rootPath: string) {}
@@ -21,7 +18,7 @@ export class NodeCallGraphProvider implements CallGraphProvider {
     const docProvider = new NodeDocumentProvider(this.rootPath);
     const fileUris = await docProvider.findSourceFiles(maxFiles, rootUri);
     // Filter to TS/JS only — other languages use null provider for now
-    const tsUris = fileUris.filter((u) => TS_JS_LANGUAGE_IDS.has(detectLanguageId(u)));
+    const tsUris = fileUris.filter((u) => isTypescriptOrJavascript(detectLanguageId(u)));
     return buildTypeScriptCallEdges(this.rootPath, tsUris);
   }
 }

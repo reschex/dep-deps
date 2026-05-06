@@ -166,13 +166,13 @@ describe('NativeSymbolProvider', () => {
   });
 
   it('should forward pythonTimeoutMs to PythonSymbolProvider constructor', () => {
-    new NativeSymbolProvider({ pythonTimeoutMs: 5_000, javaTimeoutMs: 15_000 });
+    new NativeSymbolProvider({ pythonTimeoutMs: 5_000 });
 
     expect(lastPythonCtorArgs[1]).toBe(5_000);
   });
 
   it('should construct JavaNativeSymbolProvider with no arguments', () => {
-    new NativeSymbolProvider({ javaTimeoutMs: 15_000 });
+    new NativeSymbolProvider();
 
     // JavaNativeSymbolProvider takes no args — parses source directly, no PMD.
     // pmdPath is intentionally not accepted by NativeSymbolProvider — Java

@@ -8,6 +8,7 @@
 import type { CallerNode, ImpactSummary } from "./callerTree";
 import type { SymbolMetrics } from "./analyze";
 import type { RiskLevel } from "./riskLevel";
+import { formatFLabel } from "./metricLabel";
 
 /** Structured result for the `ddp callers` sub-command. */
 export type CallersResult = {
@@ -71,7 +72,7 @@ function renderNodes(
 
     const metrics = metricsById.get(node.id);
     const name = metrics?.name ?? node.id;
-    const fStr = metrics ? `F=${metrics.f.toFixed(1)}` : "F=?";
+    const fStr = formatFLabel(metrics);
     const recursiveTag = node.recursive ? " 🔄 RECURSIVE" : "";
 
     out.push(`${prefix}${connector}${name} [${fStr}]${recursiveTag}`);

@@ -14,14 +14,14 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import type { SymbolProvider, FunctionSymbolInfo } from '../../core/ports';
 import { parseJavaSource } from './callGraphParse';
+import { toFilePath } from '../patterns';
 
 export class JavaNativeSymbolProvider implements SymbolProvider {
   async getFunctionSymbols(uri: string): Promise<FunctionSymbolInfo[]> {
     try {
-      const filePath = uri.startsWith('file://') ? fileURLToPath(uri) : uri;
+      const filePath = toFilePath(uri);
       const source = await readFile(filePath, 'utf-8');
       const info = parseJavaSource(source);
 

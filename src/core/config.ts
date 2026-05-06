@@ -158,31 +158,54 @@ export async function loadDdpConfig(
 ): Promise<DdpFileConfig> {
   const configPath = join(rootPath, '.ddprc.json');
 
-  let raw: string;
-  try {
-    raw = await readFile(configPath, 'utf-8') as string;
-  } catch (err: unknown) {
-    if (isNodeError(err) && err.code === 'ENOENT') {
-      return mergeConfig({});
-    }
-    warn(`.ddprc.json: could not read file — ${(err as Error).message}`);
+  const raw = await readConfigText(configPath, warn);
+  if (raw === null) {
     return mergeConfig({});
   }
 
+  const parsed = parseConfigJson(raw, warn);
+  if (parsed === null) {
+    return mergeConfig({});
+  }
+
+  return mergeConfig(parsed);
+}
+
+/**
+ * Read the raw contents of `configPath`. Returns null when the file is
+ * missing (silent) or unreadable (warns).
+ */
+async function readConfigText(configPath: string, warn: WarnFn): Promise<string | null> {
+  try {
+    return (await readFile(configPath, 'utf-8')) as string;
+  } catch (err: unknown) {
+    if (isNodeError(err) && err.code === 'ENOENT') {
+      return null;
+    }
+    warn(`.ddprc.json: could not read file — ${(err as Error).message}`);
+    return null;
+  }
+}
+
+/**
+ * Parse `raw` as a JSON object. Returns null on invalid JSON or non-object
+ * roots (arrays, primitives) and warns the caller in either case.
+ */
+function parseConfigJson(raw: string, warn: WarnFn): Record<string, unknown> | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (err: unknown) {
     warn(`.ddprc.json: invalid JSON — ${(err as Error).message}`);
-    return mergeConfig({});
+    return null;
   }
 
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     warn(`.ddprc.json: expected an object at root`);
-    return mergeConfig({});
+    return null;
   }
 
-  return mergeConfig(parsed as Record<string, unknown>);
+  return parsed as Record<string, unknown>;
 }
 
 // ── Merge logic ──────────────────────────────────────────────────────────────

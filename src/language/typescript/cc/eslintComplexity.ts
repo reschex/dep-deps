@@ -1,12 +1,8 @@
 import { runEslintComplexity } from "./eslintSpawn";
+import { isTypescriptOrJavascript } from "../../patterns";
 
 export function isJsLanguage(languageId: string): boolean {
-  return (
-    languageId === "javascript" ||
-    languageId === "typescript" ||
-    languageId === "javascriptreact" ||
-    languageId === "typescriptreact"
-  );
+  return isTypescriptOrJavascript(languageId);
 }
 
 export async function eslintCcForFile(

@@ -1,7 +1,7 @@
-import { fileURLToPath } from 'node:url';
 import type { SymbolProvider, FunctionSymbolInfo } from '../../core/ports';
 import { runPmdRaw } from './cc/pmdSpawn';
 import { parsePmdSymbolsXml } from './symbolsParse';
+import { toFilePath } from '../patterns';
 
 const DEFAULT_PMD = 'pmd';
 const TIMEOUT_MS = 30_000;
@@ -24,7 +24,7 @@ export class JavaSymbolProvider implements SymbolProvider {
   ) {}
 
   async getFunctionSymbols(uri: string): Promise<FunctionSymbolInfo[]> {
-    const filePath = uri.startsWith('file://') ? fileURLToPath(uri) : uri;
+    const filePath = toFilePath(uri);
     // PMD is invoked with an absolute path (-d fileFsPath); cwd does not
     // affect which file is read, so use '.' as a stable sentinel.
     const rawXml = await runPmdRaw(this.pmdPath, filePath, '.', this.timeoutMs);

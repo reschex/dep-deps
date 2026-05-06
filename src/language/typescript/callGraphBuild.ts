@@ -7,8 +7,9 @@
  */
 
 import * as ts from 'typescript';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import type { CallEdge } from '../../core/rank';
+import { toFilePath } from '../patterns';
 
 /**
  * Build a canonical symbol ID for a declaration.
@@ -126,9 +127,7 @@ export async function buildTypeScriptCallEdges(
   rootPath: string,
   fileUris: string[],
 ): Promise<CallEdge[]> {
-  const filePaths = fileUris.map((u) =>
-    u.startsWith('file://') ? fileURLToPath(u) : u,
-  );
+  const filePaths = fileUris.map(toFilePath);
 
   const program = ts.createProgram(filePaths, {
     allowJs: true,
