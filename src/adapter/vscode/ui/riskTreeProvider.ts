@@ -74,29 +74,9 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
       const scopeLabel = rootUri
         ? vscode.Uri.parse(rootUri).fsPath
         : "workspace";
-      const scopeNode: RiskNode = { type: "scope", label: scopeLabel };
-      const byFile = new Map<string, SymbolMetrics[]>();
-      for (const s of analysis.symbols) {
-        let list = byFile.get(s.uri);
-        if (!list) {
-          list = [];
-          byFile.set(s.uri, list);
-        }
-        list.push(s);
-      }
-      const field = this._sortField;
-      const files = [...byFile.entries()].sort((a, b) => {
-        const maxA = Math.max(...a[1].map((x) => x[field]));
-        const maxB = Math.max(...b[1].map((x) => x[field]));
-        return maxB - maxA;
-      });
       return [
-        scopeNode,
-        ...files.map(([uri]) => ({
-          type: "file" as const,
-          uri,
-          label: vscode.Uri.parse(uri).fsPath.split(/[/\\]/).pop() ?? uri,
-        })),
+        { type: "scope" as const, label: scopeLabel },
+        ...buildFileNodes(analysis.symbols, this._sortField),
       ];
     }
     if (element.type === "file") {
@@ -105,6 +85,33 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
     }
     return [];
   }
+}
+
+/**
+ * Group symbols by their owning file URI, then return file nodes ordered by
+ * the highest value of `field` within each file (descending — riskiest files
+ * first).
+ */
+function buildFileNodes(symbols: readonly SymbolMetrics[], field: SortField): RiskNode[] {
+  const byFile = new Map<string, SymbolMetrics[]>();
+  for (const s of symbols) {
+    let list = byFile.get(s.uri);
+    if (!list) {
+      list = [];
+      byFile.set(s.uri, list);
+    }
+    list.push(s);
+  }
+  const sortedEntries = [...byFile.entries()].sort((a, b) => {
+    const maxA = Math.max(...a[1].map((x) => x[field]));
+    const maxB = Math.max(...b[1].map((x) => x[field]));
+    return maxB - maxA;
+  });
+  return sortedEntries.map(([uri]) => ({
+    type: "file" as const,
+    uri,
+    label: vscode.Uri.parse(uri).fsPath.split(/[/\\]/).pop() ?? uri,
+  }));
 }
 
 /** Build a leaf TreeItem representing a single ranked symbol. */
