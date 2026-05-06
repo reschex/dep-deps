@@ -58,6 +58,20 @@ async function resolveGitignoreFilter(
   return makeUriFilter(workspaceFolder.uri.toString(), rawFilter);
 }
 
+/**
+ * Build a CC provider registry wired to the per-language adapters
+ * (ESLint, Radon, PMD), parameterised by the resolved configuration.
+ */
+function buildCcRegistry(config: DdpConfiguration): CcProviderRegistry {
+  const ccRegistry = new CcProviderRegistry();
+  registerCcProviders(ccRegistry, config, {
+    eslint: () => new EslintCcProvider(config.cc.eslintPath),
+    radon: () => new RadonCcProvider(config.cc.pythonPath),
+    pmd: () => new PmdCcProvider(config.cc.pmdPath),
+  });
+  return ccRegistry;
+}
+
 export class AnalysisService {
   readonly coverageStore = new CoverageStore();
   private readonly logger: VsCodeLogger;
@@ -91,12 +105,7 @@ export class AnalysisService {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     const config = await this.resolveConfig(rawConfig, workspaceFolder?.uri.fsPath);
 
-    const ccRegistry = new CcProviderRegistry();
-    registerCcProviders(ccRegistry, config, {
-      eslint: () => new EslintCcProvider(config.cc.eslintPath),
-      radon: () => new RadonCcProvider(config.cc.pythonPath),
-      pmd: () => new PmdCcProvider(config.cc.pmdPath),
-    });
+    const ccRegistry = buildCcRegistry(config);
 
     const workspaceRootUri = workspaceFolder?.uri.toString();
     const churnProvider = config.churn.enabled && workspaceRootUri
