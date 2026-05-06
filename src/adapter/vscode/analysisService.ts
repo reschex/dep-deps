@@ -44,6 +44,20 @@ function isExplicitlySet(rawConfig: vscode.WorkspaceConfiguration, key: string):
   ));
 }
 
+/**
+ * Build the URI filter that excludes .gitignore-matched files, or undefined
+ * when the feature is disabled or there is no workspace folder to anchor
+ * the gitignore lookup against.
+ */
+async function resolveGitignoreFilter(
+  workspaceFolder: vscode.WorkspaceFolder | undefined,
+  respectGitignore: boolean,
+): Promise<UriFilter | undefined> {
+  if (!respectGitignore || !workspaceFolder) return undefined;
+  const rawFilter = await loadGitignoreFilter(workspaceFolder.uri.fsPath);
+  return makeUriFilter(workspaceFolder.uri.toString(), rawFilter);
+}
+
 export class AnalysisService {
   readonly coverageStore = new CoverageStore();
   private readonly logger: VsCodeLogger;
@@ -89,11 +103,7 @@ export class AnalysisService {
       ? new GitChurnAdapter(workspaceRootUri)
       : undefined;
 
-    let gitignoreFilter: UriFilter | undefined;
-    if (config.fileFilter.respectGitignore && workspaceFolder) {
-      const rawFilter = await loadGitignoreFilter(workspaceFolder.uri.fsPath);
-      gitignoreFilter = makeUriFilter(workspaceFolder.uri.toString(), rawFilter);
-    }
+    const gitignoreFilter = await resolveGitignoreFilter(workspaceFolder, config.fileFilter.respectGitignore);
 
     const lspCallGraph = new VsCodeCallGraphProvider(token, config.debugEnabled ? this.logger : undefined, gitignoreFilter);
     const logger = config.debugEnabled ? this.logger : undefined;
