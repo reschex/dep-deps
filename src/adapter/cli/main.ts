@@ -7,13 +7,14 @@
 
 import { writeFile } from 'node:fs/promises';
 import { parseArgs, parseCallersArgs } from './parseArgs';
-import { runCliAnalysis } from './cliAnalysis';
-import { resolveAnalysisOptions } from './resolveOptions';
+import { runCliAnalysis, type CliAnalysisOptions } from './cliAnalysis';
+import { resolveAnalysisOptions, type ResolvableOptions } from './resolveOptions';
 import { formatAnalysisAsJson } from './formatJson';
 import { callerTree, impactSummary } from '../../core/callerTree';
 import { classifyRisk } from '../../core/riskLevel';
 import { loadDdpConfig } from '../../core/config';
 import { formatImpactTreeText, formatImpactTreeJson, type CallersResult } from '../../core/formatImpactTree';
+import type { AnalysisResult } from '../vscode/analysisOrchestrator';
 import type { SymbolMetrics } from '../../core/analyze';
 import type { Logger } from '../../core/ports';
 import { findSymbol } from '../../shared/symbolSearch';
@@ -113,6 +114,25 @@ export async function main(ctx: CliContext): Promise<number> {
   return runAnalyze(ctx, opts);
 }
 
+/**
+ * Run analysis end-to-end with the standard preamble shared by `analyze` and
+ * `callers`: resolve root path, build a logger, load `.ddprc.json`, merge with
+ * CLI flags, and execute `runCliAnalysis`.
+ */
+async function executeCliAnalysis(
+  ctx: CliContext,
+  opts: ResolvableOptions,
+): Promise<{ result: AnalysisResult; resolved: CliAnalysisOptions; rootPath: string; logger: Logger }> {
+  const rootPath = opts.root ?? ctx.cwd;
+  const logger = makeLogger(ctx, opts.verbose);
+  const warnFn = (msg: string) => logger.warn?.(msg);
+
+  const config = await loadDdpConfig(rootPath, warnFn);
+  const resolved = resolveAnalysisOptions(opts, config, ctx.cwd);
+  const result = await runCliAnalysis({ ...resolved, logger });
+  return { result, resolved, rootPath, logger };
+}
+
 /** Run the default `analyze` command. */
 async function runAnalyze(
   ctx: CliContext,
@@ -123,18 +143,8 @@ async function runAnalyze(
     return 1;
   }
 
-  const rootPath = opts.root ?? ctx.cwd;
-  const logger = makeLogger(ctx, opts.verbose);
-  const warnFn = (msg: string) => logger.warn?.(msg);
-
   try {
-    const config = await loadDdpConfig(rootPath, warnFn);
-    const resolved = resolveAnalysisOptions(opts, config, ctx.cwd);
-
-    const result = await runCliAnalysis({
-      ...resolved,
-      logger,
-    });
+    const { result, rootPath } = await executeCliAnalysis(ctx, opts);
     const json = formatAnalysisAsJson(result, rootPath);
 
     if (opts.output) {
@@ -167,19 +177,8 @@ async function runCallers(ctx: CliContext, opts: ReturnType<typeof parseCallersA
     return 1;
   }
 
-  const rootPath = opts.root ?? ctx.cwd;
-  const logger = makeLogger(ctx, opts.verbose);
-  const warnFn = (msg: string) => logger.warn?.(msg);
-
   try {
-    const config = await loadDdpConfig(rootPath, warnFn);
-    const resolved = resolveAnalysisOptions(opts, config, ctx.cwd);
-
-    // Run full analysis to get symbols, edges, and metrics
-    const result = await runCliAnalysis({
-      ...resolved,
-      logger,
-    });
+    const { result } = await executeCliAnalysis(ctx, opts);
 
     // Find the target symbol by name (matching against file path)
     const targetSymbol = findSymbol(result.symbols, opts.file, opts.symbol);
