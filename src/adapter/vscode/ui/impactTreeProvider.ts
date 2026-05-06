@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type { ExtensionState } from "../extensionState";
 import { callerTree, impactSummary, directCallersOf, type CallerNode } from "../../../core/callerTree";
 import { formatFLabel } from "../../../core/metricLabel";
+import type { SymbolMetrics } from "../../../core/analyze";
 
 const DEFAULT_MAX_DEPTH = 5;
 
@@ -74,22 +75,7 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
       item.iconPath = new vscode.ThemeIcon("info");
       return item;
     }
-
-    const metrics = this.state.symbolById.get(element.symbolId);
-    const name = metrics?.name ?? labelFromSymbolId(element.symbolId);
-    const fStr = formatFLabel(metrics);
-    const fileLabel = metrics ? fileNameFromUri(metrics.uri) : "";
-    const fileSuffix = fileLabel ? ` · ${fileLabel}` : "";
-    const collapsible = element.recursive
-      ? vscode.TreeItemCollapsibleState.None
-      : vscode.TreeItemCollapsibleState.Collapsed;
-
-    const item = new vscode.TreeItem(name, collapsible);
-    item.description = element.recursive ? `${fStr}${fileSuffix} \u{1F504} RECURSIVE` : `${fStr}${fileSuffix}`;
-    item.iconPath = new vscode.ThemeIcon(element.recursive ? "sync" : "symbol-function");
-    item.contextValue = "ddpImpactCaller";
-    item.command = { command: "ddp.revealSymbol", title: "Reveal symbol", arguments: [element.symbolId] };
-    return item;
+    return buildCallerItem(element, this.state.symbolById.get(element.symbolId));
   }
 
   async getChildren(element?: ImpactTreeNode): Promise<ImpactTreeNode[]> {
@@ -136,6 +122,31 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
 
     return [];
   }
+}
+
+/**
+ * Build a TreeItem for a caller node in the impact tree. Recursive callers
+ * render as collapsed leaves with a RECURSIVE marker; otherwise the node is
+ * collapsible to lazy-load its own callers.
+ */
+function buildCallerItem(
+  element: { symbolId: string; recursive: boolean },
+  metrics: SymbolMetrics | undefined,
+): vscode.TreeItem {
+  const name = metrics?.name ?? labelFromSymbolId(element.symbolId);
+  const fStr = formatFLabel(metrics);
+  const fileLabel = metrics ? fileNameFromUri(metrics.uri) : "";
+  const fileSuffix = fileLabel ? ` · ${fileLabel}` : "";
+  const collapsible = element.recursive
+    ? vscode.TreeItemCollapsibleState.None
+    : vscode.TreeItemCollapsibleState.Collapsed;
+
+  const item = new vscode.TreeItem(name, collapsible);
+  item.description = element.recursive ? `${fStr}${fileSuffix} \u{1F504} RECURSIVE` : `${fStr}${fileSuffix}`;
+  item.iconPath = new vscode.ThemeIcon(element.recursive ? "sync" : "symbol-function");
+  item.contextValue = "ddpImpactCaller";
+  item.command = { command: "ddp.revealSymbol", title: "Reveal symbol", arguments: [element.symbolId] };
+  return item;
 }
 
 /** Extract the file name from a URI string (e.g. "file:///src/foo/bar.ts" → "bar.ts"). */
