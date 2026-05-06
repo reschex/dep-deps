@@ -20,7 +20,6 @@ import { pathToFileURL } from 'node:url';
 export type CliAnalysisOptions = {
   readonly rootPath: string;
   readonly lcovGlob?: string;
-  readonly excludeTests?: boolean;
   readonly maxFiles?: number;
   readonly respectGitignore?: boolean;
   /** Glob patterns for files/folders to exclude from analysis. */
@@ -40,7 +39,6 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
   const {
     rootPath,
     lcovGlob = DEFAULT_CONFIGURATION.coverage.lcovGlob,
-    excludeTests = DEFAULT_CONFIGURATION.excludeTests,
     maxFiles = DEFAULT_CONFIGURATION.maxFiles,
     respectGitignore = DEFAULT_CONFIGURATION.fileFilter.respectGitignore,
     excludePatterns = DEFAULT_CONFIGURATION.fileFilter.excludePatterns,
@@ -77,7 +75,6 @@ export async function runCliAnalysis(options: CliAnalysisOptions): Promise<Analy
   const config: DdpConfiguration = {
     ...DEFAULT_CONFIGURATION,
     maxFiles,
-    excludeTests,
     coverage: {
       ...DEFAULT_CONFIGURATION.coverage,
       lcovGlob,

@@ -8,6 +8,35 @@
 import { minimatch } from "minimatch";
 
 /**
+ * Default glob patterns that identify test files across JS/TS, Python, and Java.
+ *
+ * User-configurable glob patterns shipped as defaults.
+ * Use with `nocase: true` to match case-insensitive conventions (e.g. __TESTS__, .TEST.).
+ */
+export const DEFAULT_TEST_EXCLUDE_PATTERNS: readonly string[] = [
+  // ── File-name conventions (JS/TS/Python) ──
+  "**/*.test.*",    // foo.test.ts, bar.test.py
+  "**/*.spec.*",    // foo.spec.js, bar.spec.mjs
+
+  // ── Java conventions ──
+  "**/*Test.java",  // FooTest.java
+  "**/*Tests.java", // FooTests.java
+  "**/*IT.java",    // ServiceIT.java (integration tests)
+
+  // ── Directory conventions ──
+  "**/__tests__/**",  // Jest __tests__/
+  "**/test/**",       // test/ directory
+  "**/tests/**",      // tests/ directory
+  "**/test_*/**",     // test_integration/, test_e2e/, etc.
+];
+
+/** Options for exclude pattern matching. */
+export type ExcludeMatchOptions = {
+  /** When true, patterns match case-insensitively (e.g. "*.test.*" matches "foo.TEST.ts"). */
+  readonly nocase?: boolean;
+};
+
+/**
  * Check whether a file URI matches any of the user-defined exclude patterns.
  *
  * Extracts the path portion from the URI and tests it against each glob pattern.
@@ -15,8 +44,13 @@ import { minimatch } from "minimatch";
  *
  * @param uri      File URI (e.g. "file:///project/src/foo.ts")
  * @param patterns Array of glob patterns (e.g. ["**\/generated\/**", "**\/register*.ts"])
+ * @param options  Optional matching options (e.g. case-insensitive mode)
  */
-export function matchesExcludePattern(uri: string, patterns: readonly string[]): boolean {
+export function matchesExcludePattern(
+  uri: string,
+  patterns: readonly string[],
+  options?: ExcludeMatchOptions,
+): boolean {
   if (patterns.length === 0) {
     return false;
   }
@@ -40,7 +74,9 @@ export function matchesExcludePattern(uri: string, patterns: readonly string[]):
     // keep `path` as-is
   }
 
+  const nocase = options?.nocase ?? false;
+
   return patterns.some((pattern) =>
-    minimatch(path, pattern, { dot: true, matchBase: !pattern.includes("/") })
+    minimatch(path, pattern, { dot: true, nocase, matchBase: !pattern.includes("/") })
   );
 }

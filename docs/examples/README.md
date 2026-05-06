@@ -20,7 +20,10 @@ ddp-analyze
 
 **Key Configuration Options:**
 - **maxFiles**: Maximum number of files to analyze (default: 1000)
-- **excludeTests**: Exclude test files from analysis (default: true)
+- **fileFilter.respectGitignore**: When true, exclude files matched by `.gitignore` (default: false)
+- **fileFilter.excludePatterns**: Glob patterns to exclude (default: `[]`). Empty default means
+  test files are analyzed. Add patterns such as `**/*.test.*`, `**/__tests__/**`,
+  `**/*Test.java` to exclude tests. Patterns match case-insensitively.
 - **coverage**: LCOV and JaCoCo file patterns
 - **cc**: Cyclomatic complexity tool paths (ESLint, Radon, PMD)
 - **rank**: PageRank algorithm parameters

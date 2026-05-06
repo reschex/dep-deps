@@ -28,10 +28,8 @@ const EXCLUDE_PATTERNS = [
  * Node.js implementation of DocumentProvider for CLI analysis.
  * Uses glob for file discovery without VS Code dependencies.
  *
- * Test-file exclusion is deliberately NOT handled here — that concern belongs to
- * AnalysisOrchestrator, which applies the canonical isTestFileUri filter when
- * config.excludeTests is true. Keeping the provider neutral avoids double-filtering
- * with two divergent implementations.
+ * File exclusion (test files, user-defined patterns) is NOT handled here — that
+ * concern belongs to AnalysisOrchestrator, which applies excludePatterns from config.
  */
 export class NodeDocumentProvider implements DocumentProvider {
   constructor(private readonly rootPath: string) {}

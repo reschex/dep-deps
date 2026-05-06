@@ -69,7 +69,6 @@ function fakeConfig(overrides: Partial<DdpConfiguration> = {}): DdpConfiguration
     decoration: { warnThreshold: 50, errorThreshold: 150 },
     fileRollup: "max",
     codelensEnabled: true,
-    excludeTests: false,
     ...overrides,
   } as DdpConfiguration;
 }

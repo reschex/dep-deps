@@ -26,17 +26,18 @@ Feature: Source File Discovery
     And "src/utils.ts" should be included
     And "src/main.ts" should be included
 
-  Scenario: Exclude test files by default
-    When I run "ddp-analyze --exclude-tests"
+  Scenario: Test files are analyzed by default
+    When I run "ddp-analyze" with no exclude patterns
+    Then "src/utils.ts" should be analyzed
+    And "src/utils.test.ts" should be analyzed
+    And "tests/integration.test.ts" should be analyzed
+
+  Scenario: Exclude test files via opt-in glob patterns
+    When I run "ddp-analyze --exclude **/*.test.* --exclude **/__tests__/** --exclude **/tests/**"
     Then "src/utils.ts" should be analyzed
     And "src/main.ts" should be analyzed
     But "src/utils.test.ts" should NOT be analyzed
     And "tests/integration.test.ts" should NOT be analyzed
-
-  Scenario: Include test files when requested
-    When I run "ddp-analyze --no-exclude-tests"
-    Then "src/utils.test.ts" should be analyzed
-    And "tests/integration.test.ts" should be analyzed
 
   Scenario: Exclude common build directories
     When I run analysis on the project
@@ -128,9 +129,8 @@ Feature: Source File Discovery
     But "src/utils.ts" should still be analyzed
 
   Scenario: Exclude patterns combine with other filters
-    Given "ddp.fileFilter.excludePatterns" is set to ["**/generated/**"]
+    Given "ddp.fileFilter.excludePatterns" is set to ["**/generated/**", "**/*.test.*", "**/__tests__/**"]
     And "ddp.fileFilter.respectGitignore" is set to true
-    And "ddp.excludeTests" is set to true
     When I run analysis on the project
     Then test files should NOT be analyzed
     And files in "generated/" should NOT be analyzed

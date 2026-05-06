@@ -37,7 +37,7 @@ describe('CLI main()', () => {
       const stdout = captureStream();
       const stderr = captureStream();
       exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--no-call-graph'],
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-call-graph'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -91,6 +91,39 @@ describe('CLI main()', () => {
       expect(stdout.output).toContain('--output');
       expect(stdout.output).toContain('--format');
     });
+
+    it('help text MUST NOT promise default test-file exclusion', async () => {
+      // Behavior change: tests are now included by default; users opt in with --exclude.
+      const stdout = captureStream();
+      const stderr = captureStream();
+
+      await main({
+        argv: ['node', 'ddp-analyze', '--help'],
+        stdout,
+        stderr,
+        cwd: FIXTURE_PATH,
+      });
+
+      expect(stdout.output).not.toMatch(/test files excluded/i);
+      expect(stdout.output).not.toContain('--exclude-tests');
+      expect(stdout.output).not.toContain('--no-exclude-tests');
+    });
+
+    it('help text describes --exclude as opt-in (no default patterns)', async () => {
+      const stdout = captureStream();
+      const stderr = captureStream();
+
+      await main({
+        argv: ['node', 'ddp-analyze', '--help'],
+        stdout,
+        stderr,
+        cwd: FIXTURE_PATH,
+      });
+
+      // Documents the new contract: no default exclusion; users supply their own globs.
+      expect(stdout.output).toContain('--exclude');
+      expect(stdout.output).toMatch(/no patterns by default|none by default|opt-in/i);
+    });
   });
 
   describe('Scenario: Display version information', () => {
@@ -142,7 +175,7 @@ describe('CLI main()', () => {
       const stdout = captureStream();
       const stderr = captureStream();
       verboseExitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--no-call-graph', '--verbose'],
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-call-graph', '--verbose'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -169,7 +202,7 @@ describe('CLI main()', () => {
       const stderr = captureStream();
 
       const exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--no-call-graph'],
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-call-graph'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -190,7 +223,7 @@ describe('CLI main()', () => {
 
       // When I run the CLI targeting that path
       const exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--no-call-graph', '--output', badOutputPath],
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-call-graph', '--output', badOutputPath],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -219,7 +252,7 @@ describe('CLI main()', () => {
 
       // When I run ddp-analyze --output <file>
       const exitCode = await main({
-        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-exclude-tests', '--no-call-graph', '--output', outputFile],
+        argv: ['node', 'ddp-analyze', '--root', FIXTURE_PATH, '--no-call-graph', '--output', outputFile],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -278,7 +311,7 @@ describe('CLI main()', () => {
 
       // When I run the callers subcommand targeting "add"
       const exitCode = await main({
-        argv: ['node', 'ddp', 'callers', '--root', FIXTURE_PATH, '--file', 'src/utils.ts', '--symbol', 'add', '--format', 'json', '--no-exclude-tests'],
+        argv: ['node', 'ddp', 'callers', '--root', FIXTURE_PATH, '--file', 'src/utils.ts', '--symbol', 'add', '--format', 'json'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -305,7 +338,7 @@ describe('CLI main()', () => {
       const stderr = captureStream();
 
       const exitCode = await main({
-        argv: ['node', 'ddp', 'callers', '--root', FIXTURE_PATH, '--file', 'src/utils.ts', '--symbol', 'add', '--format', 'text', '--no-exclude-tests'],
+        argv: ['node', 'ddp', 'callers', '--root', FIXTURE_PATH, '--file', 'src/utils.ts', '--symbol', 'add', '--format', 'text'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,
@@ -330,7 +363,6 @@ describe('CLI main()', () => {
           '--root', FIXTURE_PATH,
           '--file', 'src/utils.ts',
           '--symbol', 'add',
-          '--no-exclude-tests',
           '--exclude', '**/utils.ts',
         ],
         stdout,
@@ -354,7 +386,6 @@ describe('CLI main()', () => {
           '--root', FIXTURE_PATH,
           '--file', 'src/utils.ts',
           '--symbol', 'add',
-          '--no-exclude-tests',
           '--exclude', '**/nothing-here/**',
         ],
         stdout,
@@ -372,7 +403,7 @@ describe('CLI main()', () => {
       const stderr = captureStream();
 
       const exitCode = await main({
-        argv: ['node', 'ddp', 'callers', '--root', FIXTURE_PATH, '--file', 'src/utils.ts', '--symbol', 'nonExistentFn', '--no-exclude-tests'],
+        argv: ['node', 'ddp', 'callers', '--root', FIXTURE_PATH, '--file', 'src/utils.ts', '--symbol', 'nonExistentFn'],
         stdout,
         stderr,
         cwd: FIXTURE_PATH,

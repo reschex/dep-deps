@@ -29,7 +29,9 @@ Feature: End-to-End Analysis Workflow
       """
       {
         "maxFiles": 500,
-        "excludeTests": true,
+        "fileFilter": {
+          "excludePatterns": ["**/*.test.*", "**/__tests__/**"]
+        },
         "fileRollup": "max"
       }
       """

@@ -68,14 +68,14 @@ export class AnalysisService {
       gitignoreFilter = makeUriFilter(workspaceFolder.uri.toString(), rawFilter);
     }
 
-    const lspCallGraph = new VsCodeCallGraphProvider(token, config.excludeTests, config.debugEnabled ? this.logger : undefined, gitignoreFilter);
+    const lspCallGraph = new VsCodeCallGraphProvider(token, config.debugEnabled ? this.logger : undefined, gitignoreFilter);
     const logger = config.debugEnabled ? this.logger : undefined;
     const callGraphProvider = workspaceFolder
       ? new HybridCallGraphProvider(lspCallGraph, new NativeCallGraphProvider(workspaceFolder.uri.fsPath), logger)
       : lspCallGraph;
 
     const orchestrator = new AnalysisOrchestrator({
-      documentProvider: new VsCodeDocumentProvider(config.excludeTests),
+      documentProvider: new VsCodeDocumentProvider(),
       symbolProvider: new NativeSymbolProvider({ pythonPath: config.cc.pythonPath, pmdPath: config.cc.pmdPath }),
       callGraphProvider,
       coverageProvider: new VsCodeCoverageProvider(this.coverageStore, config.coverage.lcovGlob, config.coverage.jacocoGlob, token),

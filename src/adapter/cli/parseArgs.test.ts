@@ -85,28 +85,6 @@ describe('parseArgs', () => {
     });
   });
 
-  describe('Scenario: Exclude test files by default', () => {
-    it('should default excludeTests to true', () => {
-      const result = parseArgs(['node', 'ddp-analyze']);
-
-      expect(result.excludeTests).toBe(true);
-    });
-
-    it('should parse --exclude-tests flag', () => {
-      const result = parseArgs(['node', 'ddp-analyze', '--exclude-tests']);
-
-      expect(result.excludeTests).toBe(true);
-    });
-  });
-
-  describe('Scenario: Include test files when requested', () => {
-    it('should parse --no-exclude-tests flag', () => {
-      const result = parseArgs(['node', 'ddp-analyze', '--no-exclude-tests']);
-
-      expect(result.excludeTests).toBe(false);
-    });
-  });
-
   describe('Scenario: Skip call graph computation', () => {
     it('should default skipCallGraph to false', () => {
       const result = parseArgs(['node', 'ddp-analyze']);
@@ -177,14 +155,12 @@ describe('parseArgs', () => {
         '--root', '/my/project',
         '--output', 'out.json',
         '--format', 'json',
-        '--no-exclude-tests',
         '--verbose',
       ]);
 
       expect(result.root).toBe('/my/project');
       expect(result.output).toBe('out.json');
       expect(result.format).toBe('json');
-      expect(result.excludeTests).toBe(false);
       expect(result.verbose).toBe(true);
     });
   });
@@ -280,18 +256,6 @@ describe('parseArgs', () => {
   });
 
   describe('Scenario: Conflicting boolean flags (last wins)', () => {
-    it('returns excludeTests=false when --exclude-tests followed by --no-exclude-tests', () => {
-      const result = parseArgs(['node', 'ddp', '--exclude-tests', '--no-exclude-tests']);
-
-      expect(result.excludeTests).toBe(false);
-    });
-
-    it('returns excludeTests=true when --no-exclude-tests followed by --exclude-tests', () => {
-      const result = parseArgs(['node', 'ddp', '--no-exclude-tests', '--exclude-tests']);
-
-      expect(result.excludeTests).toBe(true);
-    });
-
     it('returns respectGitignore=false when --respect-gitignore followed by --no-respect-gitignore', () => {
       const result = parseArgs(['node', 'ddp', '--respect-gitignore', '--no-respect-gitignore']);
 
@@ -490,24 +454,6 @@ describe('parseCallersArgs', () => {
       const result = parseCallersArgs(['node', 'ddp', 'callers', '--file', 'f.ts', '--symbol', 'fn']);
 
       expect(result.respectGitignore).toBe(false);
-    });
-
-    it('should parse --exclude-tests flag', () => {
-      const result = parseCallersArgs(['node', 'ddp', 'callers', '--exclude-tests']);
-
-      expect(result.excludeTests).toBe(true);
-    });
-
-    it('should parse --no-exclude-tests flag', () => {
-      const result = parseCallersArgs(['node', 'ddp', 'callers', '--no-exclude-tests']);
-
-      expect(result.excludeTests).toBe(false);
-    });
-
-    it('should default excludeTests to true', () => {
-      const result = parseCallersArgs(['node', 'ddp', 'callers']);
-
-      expect(result.excludeTests).toBe(true);
     });
 
     it('should parse --no-respect-gitignore flag', () => {

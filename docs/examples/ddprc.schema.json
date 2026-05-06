@@ -10,10 +10,22 @@
       "default": 1000,
       "minimum": 1
     },
-    "excludeTests": {
-      "type": "boolean",
-      "description": "Exclude test files from analysis",
-      "default": true
+    "fileFilter": {
+      "type": "object",
+      "description": "File discovery and exclusion options",
+      "properties": {
+        "respectGitignore": {
+          "type": "boolean",
+          "description": "When true, files matched by .gitignore are excluded from analysis",
+          "default": false
+        },
+        "excludePatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns for files/folders to exclude (case-insensitive). Empty by default — test files are analyzed unless excluded explicitly. Examples: \"**/*.test.*\", \"**/__tests__/**\", \"**/*Test.java\".",
+          "default": []
+        }
+      }
     },
     "coverage": {
       "type": "object",

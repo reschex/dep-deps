@@ -323,62 +323,6 @@ describe("collectCallEdgesFromWorkspace", () => {
     });
   });
 
-  // ─── Test file filtering ──────────────────────────────────────────
-  describe("test file filtering", () => {
-    it("doubles the findFiles limit when excludeTests is true", async () => {
-      await collectCallEdgesFromWorkspace({ maxFiles: 10, excludeTests: true });
-
-      const [, , limit] = vi.mocked(vscode.workspace.findFiles).mock.calls[0];
-      expect(limit).toBe(20);
-    });
-
-    it("uses exact maxFiles limit when excludeTests is false", async () => {
-      await collectCallEdgesFromWorkspace({ maxFiles: 10, excludeTests: false });
-
-      const [, , limit] = vi.mocked(vscode.workspace.findFiles).mock.calls[0];
-      expect(limit).toBe(10);
-    });
-
-    it("filters out test files and slices to maxFiles when excludeTests is true", async () => {
-      const uris = [
-        fakeUri("file:///src/app.ts"),
-        fakeUri("file:///src/app.test.ts"),
-        fakeUri("file:///src/util.ts"),
-        fakeUri("file:///src/util.spec.ts"),
-        fakeUri("file:///src/helper.ts"),
-      ];
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-
-      await collectCallEdgesFromWorkspace({ maxFiles: 2, excludeTests: true });
-
-      const allOpenedUris = vi.mocked(vscode.workspace.openTextDocument).mock.calls.map(
-        (c) => (c[0] as any).toString(),
-      );
-      // Test files excluded
-      expect(allOpenedUris).not.toContain("file:///src/app.test.ts");
-      expect(allOpenedUris).not.toContain("file:///src/util.spec.ts");
-      // helper.ts excluded by maxFiles=2 slice
-      expect(allOpenedUris).not.toContain("file:///src/helper.ts");
-    });
-
-    it("keeps all files including test files when excludeTests is false", async () => {
-      const uris = [
-        fakeUri("file:///src/app.ts"),
-        fakeUri("file:///src/app.test.ts"),
-      ];
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-
-      await collectCallEdgesFromWorkspace({ excludeTests: false });
-
-      const openedUris = vi.mocked(vscode.workspace.openTextDocument).mock.calls.map(
-        (c) => (c[0] as any).toString(),
-      );
-      expect(openedUris).toContain("file:///src/app.ts");
-      expect(openedUris).toContain("file:///src/app.test.ts");
-    });
-  });
 
   // ─── Scheme filtering ─────────────────────────────────────────────
   describe("scheme filtering", () => {
@@ -843,12 +787,11 @@ describe("collectCallEdgesFromWorkspace", () => {
 
   // ─── Defaults ─────────────────────────────────────────────────────
   describe("defaults", () => {
-    it("defaults maxFiles to 500 and excludeTests to true", async () => {
+    it("defaults maxFiles to 500", async () => {
       await collectCallEdgesFromWorkspace();
 
       const [, , limit] = vi.mocked(vscode.workspace.findFiles).mock.calls[0];
-      // excludeTests defaults to true → limit = 500 * 2 = 1000
-      expect(limit).toBe(1000);
+      expect(limit).toBe(500);
     });
 
     it("creates its own cancellation token when none provided", async () => {
@@ -938,33 +881,6 @@ describe("collectCallEdgesFromWorkspace", () => {
       );
     });
 
-    it("handles test filtering + maxFiles interaction correctly", async () => {
-      // 10 files, 5 are tests, maxFiles=3 → only 3 non-test files retained
-      const uris = [
-        fakeUri("file:///src/a.ts"),
-        fakeUri("file:///src/a.test.ts"),
-        fakeUri("file:///src/b.ts"),
-        fakeUri("file:///src/b.test.ts"),
-        fakeUri("file:///src/c.ts"),
-        fakeUri("file:///src/c.test.ts"),
-        fakeUri("file:///src/d.ts"),
-        fakeUri("file:///src/d.test.ts"),
-        fakeUri("file:///src/e.ts"),
-        fakeUri("file:///src/e.test.ts"),
-      ];
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
-      vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
-
-      await collectCallEdgesFromWorkspace({ maxFiles: 3, excludeTests: true });
-
-      const openedUris = vi.mocked(vscode.workspace.openTextDocument).mock.calls.map(
-        (c) => (c[0] as any).toString(),
-      );
-      // No test files opened
-      for (const u of openedUris) {
-        expect(u).not.toMatch(/\.test\.ts$/);
-      }
-    });
   });
 
   // ─── Edge cases ───────────────────────────────────────────────────
@@ -973,7 +889,6 @@ describe("collectCallEdgesFromWorkspace", () => {
       await collectCallEdgesFromWorkspace({ maxFiles: 0 });
 
       const [, , limit] = vi.mocked(vscode.workspace.findFiles).mock.calls[0];
-      // excludeTests defaults to true → limit = 0 * 2 = 0
       expect(limit).toBe(0);
     });
 
@@ -1116,27 +1031,22 @@ describe("collectCallEdgesFromWorkspace", () => {
   describe("bugmagnet session 2026-04-15", () => {
     // ─── Complex interactions ──────────────────────────────────────
     describe("complex interactions", () => {
-      it("combines scoped rootUri with test filtering", async () => {
+      it("combines scoped rootUri with maxFiles", async () => {
         const uris = [
           fakeUri("file:///root/src/app.ts"),
-          fakeUri("file:///root/src/app.test.ts"),
+          fakeUri("file:///root/src/utils.ts"),
         ];
         vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
         vi.mocked(vscode.commands.executeCommand).mockResolvedValue([fnSymbol("fn", 0)] as any);
 
         await collectCallEdgesFromWorkspace({
           rootUri: "file:///root",
-          excludeTests: true,
           maxFiles: 10,
         });
 
         const [pattern, , limit] = vi.mocked(vscode.workspace.findFiles).mock.calls[0];
         expect(pattern).toBeInstanceOf(vscode.RelativePattern);
-        expect(limit).toBe(20); // 10 * 2 for excludeTests=true
-        const openedUris = vi.mocked(vscode.workspace.openTextDocument).mock.calls.map(
-          (c) => (c[0] as any).toString(),
-        );
-        expect(openedUris).not.toContain("file:///root/src/app.test.ts");
+        expect(limit).toBe(10);
       });
 
       it("handles multiple files with multiple functions each producing a call graph", async () => {

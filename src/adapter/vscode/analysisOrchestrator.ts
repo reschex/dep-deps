@@ -24,7 +24,6 @@ import type {
 import type { CcProviderRegistry } from "../../core/ccRegistry";
 import type { UriFilter } from "../../core/gitignoreFilter";
 import type { DdpConfiguration, AnalysisScope } from "./configuration";
-import { isTestFileUri } from "./configuration";
 import { matchesExcludePattern } from "../../core/excludeFilter";
 import { estimateCyclomaticComplexity } from "../../language/estimateCc";
 
@@ -134,16 +133,13 @@ export class AnalysisOrchestrator {
 
   private async discoverSourceFiles(config: DdpConfiguration, rootUri?: string): Promise<string[]> {
     let uris = await this.deps.documentProvider.findSourceFiles(config.maxFiles, rootUri);
-    if (config.excludeTests) {
-      uris = uris.filter((u) => !isTestFileUri(u));
-    }
     const gitignoreFilter = this.deps.gitignoreFilter;
     if (config.fileFilter.respectGitignore && gitignoreFilter) {
       uris = uris.filter((u) => !gitignoreFilter(u));
     }
     const { excludePatterns } = config.fileFilter;
     if (excludePatterns.length > 0) {
-      uris = uris.filter((u) => !matchesExcludePattern(u, excludePatterns));
+      uris = uris.filter((u) => !matchesExcludePattern(u, excludePatterns, { nocase: true }));
     }
     return uris;
   }

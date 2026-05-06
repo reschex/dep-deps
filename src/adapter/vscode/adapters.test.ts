@@ -100,7 +100,6 @@ vi.mock("../../language/java/cc/pmdComplexity", () => ({
 vi.mock("./configuration", () => ({
   SOURCE_FILE_GLOB: "**/*.{ts,tsx,js,jsx,mjs,cjs,py,java}",
   EXCLUDE_GLOB: "**/node_modules/**",
-  isTestFileUri: vi.fn((uri: string) => /\.test\.|\.spec\.|__tests__/i.test(uri)),
 }));
 
 // ── Imports (after mocks) ────────────────────────────────────────────
@@ -121,7 +120,6 @@ import { loadJacocoIntoStore } from "./loadJacocoIntoStore";
 import { eslintCcForFile } from "../../language/typescript/cc/eslintComplexity";
 import { radonCcForFile } from "../../language/python/cc/radonCc";
 import { pmdCcForFile } from "../../language/java/cc/pmdComplexity";
-import { isTestFileUri } from "./configuration";
 import type { DocumentInfo } from "../../core/ports";
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -157,38 +155,12 @@ describe("VsCodeDocumentProvider", () => {
     vi.clearAllMocks();
   });
 
-  // ─── constructor defaults ────────────────────────────────────────
-  describe("constructor", () => {
-    it("defaults excludeTests to true", async () => {
-      const fileUri = fakeVscodeUri("file:///src/foo.test.ts");
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([fileUri as any]);
-
-      const provider = new VsCodeDocumentProvider();
-      const result = await provider.findSourceFiles(10);
-
-      // Test files should be filtered out
-      expect(result).toEqual([]);
-    });
-
-    it("includes test files when excludeTests is false", async () => {
-      const testUri = fakeVscodeUri("file:///src/foo.test.ts");
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([testUri as any]);
-      vi.mocked(isTestFileUri).mockReturnValue(true);
-
-      const provider = new VsCodeDocumentProvider(false);
-      const result = await provider.findSourceFiles(10);
-
-      expect(result).toEqual(["file:///src/foo.test.ts"]);
-    });
-  });
-
   // ─── findSourceFiles ─────────────────────────────────────────────
   describe("findSourceFiles", () => {
     it("returns file:// URIs as strings", async () => {
       const uri1 = fakeVscodeUri("file:///src/a.ts");
       const uri2 = fakeVscodeUri("file:///src/b.ts");
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri1, uri2] as any);
-      vi.mocked(isTestFileUri).mockReturnValue(false);
 
       const provider = new VsCodeDocumentProvider();
       const result = await provider.findSourceFiles(10);
@@ -200,7 +172,6 @@ describe("VsCodeDocumentProvider", () => {
       const fileUri = fakeVscodeUri("file:///src/a.ts");
       const untitledUri = { toString: () => "untitled:Untitled-1", scheme: "untitled", fsPath: "" };
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([fileUri, untitledUri] as any);
-      vi.mocked(isTestFileUri).mockReturnValue(false);
 
       const provider = new VsCodeDocumentProvider();
       const result = await provider.findSourceFiles(10);
@@ -208,63 +179,13 @@ describe("VsCodeDocumentProvider", () => {
       expect(result).toEqual(["file:///src/a.ts"]);
     });
 
-    it("filters out test files when excludeTests is true", async () => {
-      const srcUri = fakeVscodeUri("file:///src/a.ts");
-      const testUri = fakeVscodeUri("file:///src/a.test.ts");
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([srcUri, testUri] as any);
-      vi.mocked(isTestFileUri).mockImplementation((u) => u.includes(".test."));
-
-      const provider = new VsCodeDocumentProvider(true);
-      const result = await provider.findSourceFiles(10);
-
-      expect(result).toEqual(["file:///src/a.ts"]);
-    });
-
-    it("keeps test files when excludeTests is false", async () => {
-      const srcUri = fakeVscodeUri("file:///src/a.ts");
-      const testUri = fakeVscodeUri("file:///src/a.test.ts");
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([srcUri, testUri] as any);
-
-      const provider = new VsCodeDocumentProvider(false);
-      const result = await provider.findSourceFiles(10);
-
-      expect(result).toEqual(["file:///src/a.ts", "file:///src/a.test.ts"]);
-    });
-
-    it("requests maxFiles * 2 limit when excludeTests is true", async () => {
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([]);
-
-      const provider = new VsCodeDocumentProvider(true);
-      await provider.findSourceFiles(5);
-
-      expect(vscode.workspace.findFiles).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        10,
-      );
-    });
-
-    it("requests exact maxFiles limit when excludeTests is false", async () => {
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([]);
-
-      const provider = new VsCodeDocumentProvider(false);
-      await provider.findSourceFiles(5);
-
-      expect(vscode.workspace.findFiles).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        5,
-      );
-    });
-
     it("truncates result to maxFiles after filtering", async () => {
       const uris = Array.from({ length: 20 }, (_, i) =>
         fakeVscodeUri(`file:///src/f${i}.ts`)
       );
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
-      vi.mocked(isTestFileUri).mockReturnValue(false);
 
-      const provider = new VsCodeDocumentProvider(true);
+      const provider = new VsCodeDocumentProvider();
       const result = await provider.findSourceFiles(3);
 
       expect(result).toHaveLength(3);
@@ -278,7 +199,7 @@ describe("VsCodeDocumentProvider", () => {
     it("passes raw glob string when rootUri is undefined", async () => {
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([]);
 
-      const provider = new VsCodeDocumentProvider(false);
+      const provider = new VsCodeDocumentProvider();
       await provider.findSourceFiles(10);
 
       // First argument should be a string (not a RelativePattern)
@@ -289,7 +210,7 @@ describe("VsCodeDocumentProvider", () => {
     it("passes RelativePattern when rootUri is provided", async () => {
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([]);
 
-      const provider = new VsCodeDocumentProvider(false);
+      const provider = new VsCodeDocumentProvider();
       await provider.findSourceFiles(10, "file:///c%3A/code/src");
 
       const pattern = vi.mocked(vscode.workspace.findFiles).mock.calls[0][0];
@@ -354,33 +275,22 @@ describe("VsCodeCallGraphProvider", () => {
     vi.clearAllMocks();
   });
 
-  it("passes token, maxFiles, rootUri, and excludeTests to collectCallEdgesFromWorkspace", async () => {
+  it("passes token, maxFiles, and rootUri to collectCallEdgesFromWorkspace", async () => {
     const token = fakeToken();
     const edges = [{ caller: "a", callee: "b" }];
     vi.mocked(collectCallEdgesFromWorkspace).mockResolvedValue(edges);
 
-    const provider = new VsCodeCallGraphProvider(token, false);
+    const provider = new VsCodeCallGraphProvider(token);
     const result = await provider.collectCallEdges(50, "file:///root");
 
     expect(collectCallEdgesFromWorkspace).toHaveBeenCalledWith({
       token,
       maxFiles: 50,
       rootUri: "file:///root",
-      excludeTests: false,
+      logger: undefined,
+      uriFilter: undefined,
     });
     expect(result).toEqual(edges);
-  });
-
-  it("defaults excludeTests to true", async () => {
-    const token = fakeToken();
-    vi.mocked(collectCallEdgesFromWorkspace).mockResolvedValue([]);
-
-    const provider = new VsCodeCallGraphProvider(token);
-    await provider.collectCallEdges(10);
-
-    expect(collectCallEdgesFromWorkspace).toHaveBeenCalledWith(
-      expect.objectContaining({ excludeTests: true }),
-    );
   });
 
   it("passes undefined rootUri when not provided", async () => {
@@ -400,7 +310,7 @@ describe("VsCodeCallGraphProvider", () => {
     const logger = { info() {}, warn() {}, error() {}, debug() {} };
     vi.mocked(collectCallEdgesFromWorkspace).mockResolvedValue([]);
 
-    const provider = new VsCodeCallGraphProvider(token, true, logger);
+    const provider = new VsCodeCallGraphProvider(token, logger);
     await provider.collectCallEdges(10);
 
     expect(collectCallEdgesFromWorkspace).toHaveBeenCalledWith(
@@ -425,7 +335,7 @@ describe("VsCodeCallGraphProvider", () => {
     const uriFilter = (uri: string) => uri.includes(".stryker-tmp");
     vi.mocked(collectCallEdgesFromWorkspace).mockResolvedValue([]);
 
-    const provider = new VsCodeCallGraphProvider(token, true, undefined, uriFilter);
+    const provider = new VsCodeCallGraphProvider(token, undefined, uriFilter);
     await provider.collectCallEdges(10);
 
     expect(collectCallEdgesFromWorkspace).toHaveBeenCalledWith(
@@ -757,7 +667,7 @@ describe("bugmagnet session 2026-04-16", () => {
     it("treats empty string rootUri as falsy and returns raw glob", async () => {
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([]);
 
-      const provider = new VsCodeDocumentProvider(false);
+      const provider = new VsCodeDocumentProvider();
       await provider.findSourceFiles(10, "");
 
       const pattern = vi.mocked(vscode.workspace.findFiles).mock.calls[0][0];
@@ -767,7 +677,7 @@ describe("bugmagnet session 2026-04-16", () => {
     it("creates RelativePattern for rootUri with encoded characters", async () => {
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([]);
 
-      const provider = new VsCodeDocumentProvider(false);
+      const provider = new VsCodeDocumentProvider();
       await provider.findSourceFiles(10, "file:///c%3A/code/my%20project");
 
       const pattern = vi.mocked(vscode.workspace.findFiles).mock.calls[0][0];
@@ -781,31 +691,17 @@ describe("bugmagnet session 2026-04-16", () => {
     it("returns empty array when maxFiles is 0", async () => {
       const uri = fakeVscodeUri("file:///src/a.ts");
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([uri] as any);
-      vi.mocked(isTestFileUri).mockReturnValue(false);
 
-      const provider = new VsCodeDocumentProvider(false);
+      const provider = new VsCodeDocumentProvider();
       const result = await provider.findSourceFiles(0);
 
       expect(result).toEqual([]);
     });
 
-    it("passes limit 0 to findFiles when maxFiles is 0 and excludeTests is false", async () => {
+    it("passes limit 0 to findFiles when maxFiles is 0", async () => {
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue([]);
 
-      const provider = new VsCodeDocumentProvider(false);
-      await provider.findSourceFiles(0);
-
-      expect(vscode.workspace.findFiles).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        0,
-      );
-    });
-
-    it("passes limit 0 to findFiles when maxFiles is 0 and excludeTests is true (0*2=0)", async () => {
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue([]);
-
-      const provider = new VsCodeDocumentProvider(true);
+      const provider = new VsCodeDocumentProvider();
       await provider.findSourceFiles(0);
 
       expect(vscode.workspace.findFiles).toHaveBeenCalledWith(
@@ -820,30 +716,12 @@ describe("bugmagnet session 2026-04-16", () => {
         fakeVscodeUri(`file:///src/f${i}.ts`)
       );
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
-      vi.mocked(isTestFileUri).mockReturnValue(false);
 
-      const provider = new VsCodeDocumentProvider(true);
+      const provider = new VsCodeDocumentProvider();
       const result = await provider.findSourceFiles(1);
 
       expect(result).toHaveLength(1);
       expect(result[0]).toBe("file:///src/f0.ts");
-    });
-  });
-
-  // ─── findSourceFiles: all results are test files ─────────────────
-  describe("findSourceFiles when all results are test files", () => {
-    it("returns empty array when every file is a test file", async () => {
-      const testUris = [
-        fakeVscodeUri("file:///src/a.test.ts"),
-        fakeVscodeUri("file:///src/b.spec.ts"),
-      ];
-      vi.mocked(vscode.workspace.findFiles).mockResolvedValue(testUris as any);
-      vi.mocked(isTestFileUri).mockReturnValue(true);
-
-      const provider = new VsCodeDocumentProvider(true);
-      const result = await provider.findSourceFiles(10);
-
-      expect(result).toEqual([]);
     });
   });
 
@@ -857,9 +735,8 @@ describe("bugmagnet session 2026-04-16", () => {
         fakeVscodeUri("file:///real/src.ts"),
       ];
       vi.mocked(vscode.workspace.findFiles).mockResolvedValue(uris as any);
-      vi.mocked(isTestFileUri).mockReturnValue(false);
 
-      const provider = new VsCodeDocumentProvider(true);
+      const provider = new VsCodeDocumentProvider();
       const result = await provider.findSourceFiles(10);
 
       expect(result).toEqual(["file:///real/src.ts"]);
@@ -934,7 +811,7 @@ describe("bugmagnet session 2026-04-16", () => {
       ];
       vi.mocked(collectCallEdgesFromWorkspace).mockResolvedValue(edges);
 
-      const provider = new VsCodeCallGraphProvider(fakeToken(), true);
+      const provider = new VsCodeCallGraphProvider(fakeToken());
       const result = await provider.collectCallEdges(50, "file:///root");
 
       expect(result).toEqual(edges);

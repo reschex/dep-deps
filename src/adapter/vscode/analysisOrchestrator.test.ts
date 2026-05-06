@@ -2,7 +2,7 @@ import { describe, it, expect, assert } from "vitest";
 import { AnalysisOrchestrator, type AnalysisContext, type OrchestratorDeps } from "./analysisOrchestrator";
 import { CcProviderRegistry } from "../../core/ccRegistry";
 import { DEFAULT_CONFIGURATION, type DdpConfiguration, type AnalysisScope } from "./configuration";
-import { isTestFileUri } from "./configuration";
+import { DEFAULT_TEST_EXCLUDE_PATTERNS } from "../../core/excludeFilter";
 import type {
   DocumentProvider,
   DocumentInfo,
@@ -1624,25 +1624,6 @@ describe("bugmagnet session 2026-04-15", () => {
 // ─── Test-file exclusion ──────────────────────────────────────────────────────
 
 describe("test-file exclusion", () => {
-  /**
-   * A fakeDocProvider that filters out test-file URIs when `excludeTests` is
-   * true, mirroring what VsCodeDocumentProvider does via isTestFileUri.
-   */
-  function filteringDocProvider(
-    docs: Map<string, DocumentInfo>,
-    excludeTests: boolean,
-  ): DocumentProvider {
-    return {
-      async findSourceFiles() {
-        const all = [...docs.keys()];
-        return excludeTests ? all.filter((u) => !isTestFileUri(u)) : all;
-      },
-      async openDocument(uri) {
-        return docs.get(uri);
-      },
-    };
-  }
-
   const prodUri = "file:///project/src/service.ts";
   const testUri = "file:///project/src/service.test.ts";
 
@@ -1660,10 +1641,32 @@ describe("test-file exclusion", () => {
     ]);
   }
 
-  it("excludes test files from results when excludeTests is true", async () => {
+  it("excludes test files when DEFAULT_TEST_EXCLUDE_PATTERNS is opted in via excludePatterns", async () => {
+    const docs = buildDocs();
+    const optIn: DdpConfiguration = {
+      ...DEFAULT_CONFIGURATION,
+      fileFilter: { respectGitignore: false, excludePatterns: [...DEFAULT_TEST_EXCLUDE_PATTERNS] },
+    };
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(buildSymbols()),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(optIn, neverCancelledCtx());
+    assert(result);
+    const uris = result.symbols.map((s) => s.uri);
+    expect(uris).toContain(prodUri);
+    expect(uris).not.toContain(testUri);
+  });
+
+  it("includes test files by default (excludePatterns empty)", async () => {
     const docs = buildDocs();
     const orchestrator = new AnalysisOrchestrator({
-      documentProvider: filteringDocProvider(docs, true),
+      documentProvider: fakeDocProvider(docs),
       symbolProvider: fakeSymbolProvider(buildSymbols()),
       callGraphProvider: fakeCallGraphProvider([]),
       coverageProvider: fakeCoverageProvider(new Map()),
@@ -1675,32 +1678,15 @@ describe("test-file exclusion", () => {
     assert(result);
     const uris = result.symbols.map((s) => s.uri);
     expect(uris).toContain(prodUri);
-    expect(uris).not.toContain(testUri);
-  });
-
-  it("includes test files in results when excludeTests is false", async () => {
-    const docs = buildDocs();
-    const noExclude: DdpConfiguration = { ...DEFAULT_CONFIGURATION, excludeTests: false };
-    const orchestrator = new AnalysisOrchestrator({
-      documentProvider: filteringDocProvider(docs, false),
-      symbolProvider: fakeSymbolProvider(buildSymbols()),
-      callGraphProvider: fakeCallGraphProvider([]),
-      coverageProvider: fakeCoverageProvider(new Map()),
-      ccRegistry: new CcProviderRegistry(),
-      logger: nullLogger,
-    });
-
-    const result = await orchestrator.analyze(noExclude, neverCancelledCtx());
-    assert(result);
-    const uris = result.symbols.map((s) => s.uri);
-    expect(uris).toContain(prodUri);
     expect(uris).toContain(testUri);
   });
 
-  it("orchestrator safety-net excludes test files even when provider does not filter", async () => {
-    // Simulates the case where the adapter omits test-file filtering:
-    // the document provider returns test files, but the orchestrator still filters them.
+  it("excludes test files via opt-in patterns even when provider does not filter", async () => {
     const docs = buildDocs();
+    const optIn: DdpConfiguration = {
+      ...DEFAULT_CONFIGURATION,
+      fileFilter: { respectGitignore: false, excludePatterns: [...DEFAULT_TEST_EXCLUDE_PATTERNS] },
+    };
     const orchestrator = new AnalysisOrchestrator({
       documentProvider: fakeDocProvider(docs), // does NOT filter test files
       symbolProvider: fakeSymbolProvider(buildSymbols()),
@@ -1710,7 +1696,7 @@ describe("test-file exclusion", () => {
       logger: nullLogger,
     });
 
-    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    const result = await orchestrator.analyze(optIn, neverCancelledCtx());
     assert(result);
     const uris = result.symbols.map((s) => s.uri);
     expect(uris).toContain(prodUri);
@@ -1787,7 +1773,6 @@ describe("gitignore filtering", () => {
 
     const config: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
-      excludeTests: false,
       fileFilter: { respectGitignore: true, excludePatterns: [] },
     };
 
@@ -1813,7 +1798,6 @@ describe("gitignore filtering", () => {
 
     const config: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
-      excludeTests: false,
       fileFilter: { respectGitignore: false, excludePatterns: [] },
     };
 
@@ -1837,7 +1821,6 @@ describe("gitignore filtering", () => {
   it("works without a gitignoreFilter (default: no filtering)", async () => {
     const config: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
-      excludeTests: false,
       fileFilter: { respectGitignore: true, excludePatterns: [] },
     };
 
@@ -1886,7 +1869,6 @@ describe("exclude patterns filtering", () => {
   it("excludes files matching exclude patterns", async () => {
     const config: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
-      excludeTests: false,
       fileFilter: { respectGitignore: false, excludePatterns: ["**/register*.ts"] },
     };
 
@@ -1910,7 +1892,6 @@ describe("exclude patterns filtering", () => {
   it("excludes files matching folder patterns", async () => {
     const config: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
-      excludeTests: false,
       fileFilter: { respectGitignore: false, excludePatterns: ["**/generated/**"] },
     };
 
@@ -1934,7 +1915,6 @@ describe("exclude patterns filtering", () => {
   it("does not filter when excludePatterns is empty", async () => {
     const config: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
-      excludeTests: false,
       fileFilter: { respectGitignore: false, excludePatterns: [] },
     };
 
@@ -1959,7 +1939,6 @@ describe("exclude patterns filtering", () => {
     const gitignoreFilter = (uri: string) => uri.includes("/generated/");
     const config: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
-      excludeTests: false,
       fileFilter: { respectGitignore: true, excludePatterns: ["**/register*.ts"] },
     };
 
@@ -2114,8 +2093,15 @@ describe("debug logging", () => {
 
 describe("bugmagnet session 2026-05-04", () => {
 
-  describe("excludeTests patterns", () => {
-    it("excludes .spec.ts files when excludeTests is true", async () => {
+  describe("opt-in DEFAULT_TEST_EXCLUDE_PATTERNS for test files", () => {
+    function configWithTestExcludes(): DdpConfiguration {
+      return {
+        ...DEFAULT_CONFIGURATION,
+        fileFilter: { respectGitignore: false, excludePatterns: [...DEFAULT_TEST_EXCLUDE_PATTERNS] },
+      };
+    }
+
+    it("excludes .spec.ts files when DEFAULT_TEST_EXCLUDE_PATTERNS opted in", async () => {
       const prodUri = "file:///project/src/service.ts";
       const specUri = "file:///project/src/service.spec.ts";
       const docs = new Map([
@@ -2136,14 +2122,14 @@ describe("bugmagnet session 2026-05-04", () => {
         logger: nullLogger,
       });
 
-      const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+      const result = await orchestrator.analyze(configWithTestExcludes(), neverCancelledCtx());
       assert(result !== undefined);
       const uris = result.symbols.map(s => s.uri);
       expect(uris).toContain(prodUri);
       expect(uris).not.toContain(specUri);
     });
 
-    it("excludes files in __tests__/ directory when excludeTests is true", async () => {
+    it("excludes files in __tests__/ directory when DEFAULT_TEST_EXCLUDE_PATTERNS opted in", async () => {
       const prodUri = "file:///project/src/service.ts";
       const testDirUri = "file:///project/src/__tests__/service.ts";
       const docs = new Map([
@@ -2164,7 +2150,7 @@ describe("bugmagnet session 2026-05-04", () => {
         logger: nullLogger,
       });
 
-      const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+      const result = await orchestrator.analyze(configWithTestExcludes(), neverCancelledCtx());
       assert(result !== undefined);
       const uris = result.symbols.map(s => s.uri);
       expect(uris).toContain(prodUri);

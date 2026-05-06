@@ -71,7 +71,7 @@ describe('Java Full Pipeline — R > 1', () => {
   beforeAll(async () => {
     result = await runCliAnalysis({
       rootPath: JAVA_PROJECT_ROOT,
-      excludeTests: false,
+      excludePatterns: [],
     });
   });
 

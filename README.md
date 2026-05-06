@@ -225,8 +225,30 @@ Open VS Code **Settings** (Ctrl+,) and search for `ddp` to customize analysis be
 - **`ddp.codelens.enabled`** (boolean, default: `true`)
   - Show inline code lens with metrics on each function
 
-- **`ddp.excludeTests`** (boolean, default: `true`)
-  - Exclude test files (matching `*.test.*`, `*.spec.*`, `__tests__/`, `tests/`) from analysis
+#### File Filtering
+
+- **`ddp.fileFilter.respectGitignore`** (boolean, default: `false`)
+  - When enabled, files matched by `.gitignore` are excluded from analysis
+
+- **`ddp.fileFilter.excludePatterns`** (string array, default: `[]`)
+  - Glob patterns for files/folders to exclude from analysis. Patterns match case-insensitively.
+  - **By default, no patterns are excluded — test files ARE analyzed.** To exclude test files,
+    opt in by adding patterns. Recommended set covering JS/TS/Python/Java conventions:
+    ```json
+    "ddp.fileFilter.excludePatterns": [
+      "**/*.test.*",
+      "**/*.spec.*",
+      "**/*Test.java",
+      "**/*Tests.java",
+      "**/*IT.java",
+      "**/__tests__/**",
+      "**/test/**",
+      "**/tests/**",
+      "**/test_*/**"
+    ]
+    ```
+  - **Note**: `**/test/**` excludes any folder named `test`. Projects whose production
+    code lives under a `test/` directory should override accordingly.
 
 #### Churn Scoring
 
@@ -257,7 +279,8 @@ Save this in `.vscode/settings.json` to customize your workspace:
   "ddp.decoration.errorThreshold": 150,
   "ddp.fileRollup": "max",
   "ddp.codelens.enabled": true,
-  "ddp.excludeTests": true,
+  "ddp.fileFilter.respectGitignore": false,
+  "ddp.fileFilter.excludePatterns": [],
   "ddp.churn.enabled": false,
   "ddp.churn.lookbackDays": 90
 }

@@ -203,11 +203,6 @@
           "default": true,
           "description": "When true, merge ESLint complexity diagnostics into CC for JavaScript/TypeScript."
         },
-        "ddp.excludeTests": {
-          "type": "boolean",
-          "default": true,
-          "description": "Exclude test files (*.test.*, *.spec.*, __tests__/, test/, tests/) from analysis. Keeps risk metrics focused on production code."
-        },
         "ddp.churn.enabled": {
           "type": "boolean",
           "default": false,
@@ -252,7 +247,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Glob patterns for files and folders to exclude from analysis (e.g. [\"**/generated/**\", \"**/register*.ts\"])."
+          "description": "Glob patterns for files and folders to exclude from analysis. Empty by default — test files are analyzed. To exclude test files add patterns such as \"**/*.test.*\", \"**/*.spec.*\", \"**/__tests__/**\", \"**/*Test.java\", \"**/*Tests.java\", \"**/*IT.java\". Patterns match case-insensitively."
         },
         "ddp.debug": {
           "type": "boolean",

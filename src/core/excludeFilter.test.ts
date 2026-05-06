@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { matchesExcludePattern } from "./excludeFilter";
+import { matchesExcludePattern, DEFAULT_TEST_EXCLUDE_PATTERNS } from "./excludeFilter";
 
 describe("matchesExcludePattern", () => {
   describe("Scenario: Single file glob pattern", () => {
@@ -59,6 +59,23 @@ describe("matchesExcludePattern", () => {
     });
   });
 
+  describe("Scenario: Case-insensitive matching", () => {
+    it("matches case-insensitively when nocase is true", () => {
+      const patterns = ["**/*.test.*"];
+      expect(matchesExcludePattern("file:///project/src/foo.TEST.ts", patterns, { nocase: true })).toBe(true);
+    });
+
+    it("does not match case-insensitively by default", () => {
+      const patterns = ["**/*.test.*"];
+      expect(matchesExcludePattern("file:///project/src/foo.TEST.ts", patterns)).toBe(false);
+    });
+
+    it("matches case-insensitive directory names when nocase is true", () => {
+      const patterns = ["**/__tests__/**"];
+      expect(matchesExcludePattern("file:///project/__TESTS__/foo.ts", patterns, { nocase: true })).toBe(true);
+    });
+  });
+
   describe("Edge cases", () => {
     it("handles Windows-style file URIs", () => {
       const patterns = ["**/register*.ts"];
@@ -91,6 +108,101 @@ describe("matchesExcludePattern", () => {
       expect(
         matchesExcludePattern("file:///project/src/bad%path/registerTS.ts", patterns)
       ).toBe(true);
+    });
+  });
+});
+
+describe("DEFAULT_TEST_EXCLUDE_PATTERNS", () => {
+  const opts = { nocase: true };
+
+  it("is a non-empty array", () => {
+    expect(DEFAULT_TEST_EXCLUDE_PATTERNS.length).toBeGreaterThan(0);
+  });
+
+  describe("matches JS/TS test file conventions", () => {
+    it.each([
+      "file:///project/src/foo.test.ts",
+      "file:///project/src/bar.spec.js",
+      "file:///project/src/baz.test.py",
+      "file:///project/src/foo.test.tsx",
+      "file:///project/src/foo.spec.mjs",
+      "file:///project/src/foo.test.cjs",
+    ])("matches %s", (uri) => {
+      expect(matchesExcludePattern(uri, DEFAULT_TEST_EXCLUDE_PATTERNS, opts)).toBe(true);
+    });
+  });
+
+  describe("matches case-insensitive test file patterns", () => {
+    it.each([
+      "file:///project/src/foo.TEST.ts",
+      "file:///project/src/foo.Spec.js",
+      "file:///project/src/foo.SPEC.tsx",
+    ])("matches %s", (uri) => {
+      expect(matchesExcludePattern(uri, DEFAULT_TEST_EXCLUDE_PATTERNS, opts)).toBe(true);
+    });
+  });
+
+  describe("matches Java test conventions", () => {
+    it.each([
+      "file:///project/src/FooTest.java",
+      "file:///project/src/BarTests.java",
+      "file:///project/src/ServiceIT.java",
+    ])("matches %s", (uri) => {
+      expect(matchesExcludePattern(uri, DEFAULT_TEST_EXCLUDE_PATTERNS, opts)).toBe(true);
+    });
+  });
+
+  describe("matches test directory conventions", () => {
+    it.each([
+      "file:///project/__tests__/helper.ts",
+      "file:///project/test/integration.ts",
+      "file:///project/tests/unit.ts",
+      "file:///project/test_integration/setup.ts",
+      "file:///project/test_e2e/runner.js",
+      "file:///project/__TESTS__/helper.ts",
+      "file:///project/TEST/integration.ts",
+      "file:///project/Tests/unit.ts",
+    ])("matches %s", (uri) => {
+      expect(matchesExcludePattern(uri, DEFAULT_TEST_EXCLUDE_PATTERNS, opts)).toBe(true);
+    });
+  });
+
+  describe("does NOT match production files", () => {
+    it.each([
+      "file:///project/src/foo.ts",
+      "file:///project/src/bar.js",
+      "file:///project/src/service.py",
+      "file:///project/src/Main.java",
+      "file:///project/src/contest.ts",
+      "file:///project/src/latest.ts",
+      "file:///project/src/attest.ts",
+      "file:///project/src/testing.ts",
+      "file:///project/src/testUtils.ts",
+    ])("does not match %s", (uri) => {
+      expect(matchesExcludePattern(uri, DEFAULT_TEST_EXCLUDE_PATTERNS, opts)).toBe(false);
+    });
+  });
+
+  describe("does NOT match files with test-like substrings in non-test contexts", () => {
+    it.each([
+      "file:///project/src/detest.ts",
+      "file:///project/src/protester.ts",
+      "file:///project/contested/file.ts",
+      "file:///project/src/attestation/file.ts",
+    ])("does not match %s", (uri) => {
+      expect(matchesExcludePattern(uri, DEFAULT_TEST_EXCLUDE_PATTERNS, opts)).toBe(false);
+    });
+  });
+
+  describe("handles Windows-style file URIs", () => {
+    it.each([
+      "file:///C%3A/project/test/foo.ts",
+      "file:///C%3A/project/__tests__/bar.ts",
+      "file:///C%3A/project/src/foo.test.ts",
+      "file:///C%3A/project/src/bar.spec.js",
+      "file:///C%3A/project/test_utils/helper.py",
+    ])("matches %s", (uri) => {
+      expect(matchesExcludePattern(uri, DEFAULT_TEST_EXCLUDE_PATTERNS, opts)).toBe(true);
     });
   });
 });

@@ -47,11 +47,11 @@ Analyze Options:
   --root <path>           Project root directory (default: current directory)
   --output <file>         Write output to file instead of stdout
   --format <type>         Output format: json (default: json)
-  --exclude-tests         Exclude test files from analysis (default)
-  --no-exclude-tests      Include test files in analysis
   --respect-gitignore     Exclude files matched by .gitignore
   --no-respect-gitignore  Include .gitignore-matched files (default)
-  --exclude <glob>        Exclude files matching glob pattern (repeatable)
+  --exclude <glob>        Exclude files matching glob pattern (repeatable, opt-in;
+                          no patterns by default — test files ARE analyzed unless excluded).
+                          Examples: --exclude '**/*.test.*' --exclude '**/__tests__/**'
   --no-call-graph         Skip call graph computation (all R=1, faster)
   --verbose               Enable detailed logging to stderr
   --help                  Show this help message
@@ -112,7 +112,6 @@ async function runAnalyze(
   try {
     const result = await runCliAnalysis({
       rootPath,
-      excludeTests: opts.excludeTests,
       respectGitignore: opts.respectGitignore,
       excludePatterns: opts.excludePatterns,
       skipCallGraph: opts.skipCallGraph,
@@ -158,7 +157,6 @@ async function runCallers(ctx: CliContext, opts: ReturnType<typeof parseCallersA
     // Run full analysis to get symbols, edges, and metrics
     const result = await runCliAnalysis({
       rootPath,
-      excludeTests: opts.excludeTests,
       respectGitignore: opts.respectGitignore,
       excludePatterns: opts.excludePatterns,
       debugEnabled: opts.verbose,

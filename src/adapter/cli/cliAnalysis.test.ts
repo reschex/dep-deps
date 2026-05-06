@@ -26,7 +26,7 @@ describe('CLI Analysis Pipeline', () => {
       // When I run CLI analysis with skipCallGraph: true
       const result = await runCliAnalysis({
         rootPath: FIXTURE_PATH,
-        excludeTests: false,
+        excludePatterns: [],
         skipCallGraph: true,
       });
 
@@ -44,7 +44,7 @@ describe('CLI Analysis Pipeline', () => {
     // Run the pipeline once for the whole scenario — TypeScript compilation is expensive.
     let result: Awaited<ReturnType<typeof runCliAnalysis>>;
     beforeAll(async () => {
-      result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false });
+      result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludePatterns: [] });
     });
 
     it('should produce an AnalysisResult with symbols', () => {
@@ -112,7 +112,6 @@ describe('CLI Analysis Pipeline', () => {
         // When I run CLI analysis with respectGitignore enabled
         const result = await runCliAnalysis({
           rootPath: dir,
-          excludeTests: false,
           respectGitignore: true,
           skipCallGraph: true,
         });
@@ -139,7 +138,6 @@ describe('CLI Analysis Pipeline', () => {
         // When I run CLI analysis with respectGitignore enabled
         const result = await runCliAnalysis({
           rootPath: dir,
-          excludeTests: false,
           respectGitignore: true,
           skipCallGraph: true,
         });
@@ -164,7 +162,6 @@ describe('CLI Analysis Pipeline', () => {
         // When I run CLI analysis with respectGitignore disabled (default)
         const result = await runCliAnalysis({
           rootPath: dir,
-          excludeTests: false,
           respectGitignore: false,
           skipCallGraph: true,
         });
@@ -214,7 +211,6 @@ describe('CLI Analysis Pipeline', () => {
         async (dir) => {
           const result = await runCliAnalysis({
             rootPath: dir,
-            excludeTests: false,
             excludePatterns: ['**/register*.ts'],
             skipCallGraph: true,
           });
@@ -237,7 +233,6 @@ describe('CLI Analysis Pipeline', () => {
         async (dir) => {
           const result = await runCliAnalysis({
             rootPath: dir,
-            excludeTests: false,
             excludePatterns: ['**/generated/**'],
             skipCallGraph: true,
           });
@@ -259,7 +254,6 @@ describe('CLI Analysis Pipeline', () => {
         async (dir) => {
           const result = await runCliAnalysis({
             rootPath: dir,
-            excludeTests: false,
             excludePatterns: [],
             skipCallGraph: true,
           });
@@ -276,7 +270,7 @@ describe('CLI Analysis Pipeline', () => {
     // Run the pipeline once for the whole scenario — TypeScript compilation is expensive.
     let jsonResult: ReturnType<typeof formatAnalysisAsJson>;
     beforeAll(async () => {
-      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludeTests: false, skipCallGraph: true });
+      const result = await runCliAnalysis({ rootPath: FIXTURE_PATH, excludePatterns: [], skipCallGraph: true });
       jsonResult = formatAnalysisAsJson(result, FIXTURE_PATH);
     });
 

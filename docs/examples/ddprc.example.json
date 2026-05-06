@@ -1,7 +1,20 @@
 {
   "$schema": "./ddprc.schema.json",
   "maxFiles": 1000,
-  "excludeTests": true,
+  "fileFilter": {
+    "respectGitignore": false,
+    "excludePatterns": [
+      "**/*.test.*",
+      "**/*.spec.*",
+      "**/*Test.java",
+      "**/*Tests.java",
+      "**/*IT.java",
+      "**/__tests__/**",
+      "**/test/**",
+      "**/tests/**",
+      "**/test_*/**"
+    ]
+  },
   "coverage": {
     "lcovGlob": "**/coverage/lcov.info",
     "jacocoGlob": "**/target/site/jacoco/jacoco.xml"

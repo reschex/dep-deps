@@ -20,8 +20,6 @@ export type CliOptions = {
   readonly output: string | undefined;
   /** Output format. */
   readonly format: string;
-  /** Exclude test files from analysis (default: true). */
-  readonly excludeTests: boolean;
   /** Respect .gitignore patterns when discovering files (default: false). */
   readonly respectGitignore: boolean;
   /** Glob patterns to exclude from analysis (repeatable). */
@@ -48,8 +46,6 @@ export type CallersOptions = {
   readonly depth: number;
   /** Output format: json or text (default: json). */
   readonly format: string;
-  /** Exclude test files from analysis (default: true). */
-  readonly excludeTests: boolean;
   /** Respect .gitignore patterns when discovering files (default: false). */
   readonly respectGitignore: boolean;
   /** Glob patterns to exclude from analysis (repeatable). */
@@ -63,7 +59,6 @@ export type CallersOptions = {
 const commonOptions = {
   root: { type: 'string' as const },
   format: { type: 'string' as const },
-  'exclude-tests': { type: 'boolean' as const },
   'respect-gitignore': { type: 'boolean' as const },
   'call-graph': { type: 'boolean' as const },
   verbose: { type: 'boolean' as const },
@@ -105,7 +100,6 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     root: stringOrUndefined(values.root),
     output: stringOrUndefined(values.output),
     format: stringOrUndefined(values.format) ?? 'json',
-    excludeTests: lastWinsNegatable(tokens, 'exclude-tests', true),
     respectGitignore: lastWinsNegatable(tokens, 'respect-gitignore', false),
     excludePatterns: (values.exclude as string[] | undefined) ?? [],
     skipCallGraph: !lastWinsNegatable(tokens, 'call-graph', true),
@@ -153,7 +147,6 @@ export function parseCallersArgs(argv: readonly string[]): CallersOptions {
     symbol: stringOrUndefined(values.symbol),
     depth,
     format: stringOrUndefined(values.format) ?? 'json',
-    excludeTests: lastWinsNegatable(tokens, 'exclude-tests', true),
     respectGitignore: lastWinsNegatable(tokens, 'respect-gitignore', false),
     excludePatterns: (values.exclude as string[] | undefined) ?? [],
     verbose: Boolean(values.verbose),

@@ -25,7 +25,7 @@ import { eslintCcForFile } from "../../language/typescript/cc/eslintComplexity";
 import { radonCcForFile } from "../../language/python/cc/radonCc";
 import { pmdCcForFile } from "../../language/java/cc/pmdComplexity";
 
-import { SOURCE_FILE_GLOB, EXCLUDE_GLOB, isTestFileUri } from "./configuration";
+import { SOURCE_FILE_GLOB, EXCLUDE_GLOB } from "./configuration";
 
 /**
  * Build a vscode.RelativePattern scoped to a given folder URI,
@@ -41,22 +41,10 @@ function scopedPattern(glob: string, rootUri?: string): string | vscode.Relative
 // ─── DocumentProvider ────────────────────────────────────────────────────────
 
 export class VsCodeDocumentProvider implements DocumentProvider {
-  private readonly excludeTests: boolean;
-
-  constructor(excludeTests: boolean = true) {
-    this.excludeTests = excludeTests;
-  }
-
   async findSourceFiles(maxFiles: number, rootUri?: string): Promise<string[]> {
     const pattern = scopedPattern(SOURCE_FILE_GLOB, rootUri);
-    // Request extra files to compensate for test files that will be filtered out.
-    const limit = this.excludeTests ? maxFiles * 2 : maxFiles;
-    const uris = await vscode.workspace.findFiles(pattern, EXCLUDE_GLOB, limit);
-    let result = uris.filter((u) => u.scheme === "file").map((u) => u.toString());
-    if (this.excludeTests) {
-      result = result.filter((u) => !isTestFileUri(u));
-    }
-    return result.slice(0, maxFiles);
+    const uris = await vscode.workspace.findFiles(pattern, EXCLUDE_GLOB, maxFiles);
+    return uris.filter((u) => u.scheme === "file").map((u) => u.toString()).slice(0, maxFiles);
   }
 
   async openDocument(uri: string): Promise<DocumentInfo | undefined> {
@@ -82,13 +70,12 @@ export class VsCodeDocumentProvider implements DocumentProvider {
 export class VsCodeCallGraphProvider implements CallGraphProvider {
   constructor(
     private readonly token: vscode.CancellationToken,
-    private readonly excludeTests: boolean = true,
     private readonly logger?: Logger,
     private readonly uriFilter?: UriFilter,
   ) {}
 
   async collectCallEdges(maxFiles: number, rootUri?: string): Promise<CallEdge[]> {
-    return collectCallEdgesFromWorkspace({ token: this.token, maxFiles, rootUri, excludeTests: this.excludeTests, logger: this.logger, uriFilter: this.uriFilter });
+    return collectCallEdgesFromWorkspace({ token: this.token, maxFiles, rootUri, logger: this.logger, uriFilter: this.uriFilter });
   }
 }
 

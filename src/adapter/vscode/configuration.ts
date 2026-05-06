@@ -77,7 +77,6 @@ export type DdpConfiguration = {
   readonly fileFilter: FileFilterConfig;
   readonly fileRollup: "max" | "sum";
   readonly codelensEnabled: boolean;
-  readonly excludeTests: boolean;
   readonly maxFiles: number;
   /**
    * When true, emits debug-level log messages for file discovery and symbol extraction.
@@ -106,7 +105,6 @@ export const DEFAULT_CONFIGURATION: DdpConfiguration = {
   fileFilter: { respectGitignore: false, excludePatterns: [] },
   fileRollup: "max",
   codelensEnabled: true,
-  excludeTests: true,
   maxFiles: 400,
   debugEnabled: false,
 };
@@ -154,7 +152,6 @@ export function buildConfiguration(
     },
     fileRollup: get<"max" | "sum">("fileRollup", DEFAULT_CONFIGURATION.fileRollup),
     codelensEnabled: get<boolean>("codelens.enabled", DEFAULT_CONFIGURATION.codelensEnabled),
-    excludeTests: get<boolean>("excludeTests", DEFAULT_CONFIGURATION.excludeTests),
     maxFiles: get<number>("maxFiles", DEFAULT_CONFIGURATION.maxFiles),
     debugEnabled: get<boolean>("debug", DEFAULT_CONFIGURATION.debugEnabled),
   };
@@ -162,4 +159,4 @@ export function buildConfiguration(
 
 // Re-export language patterns for backward compatibility.
 // Canonical definitions live in language/patterns.ts.
-export { SOURCE_FILE_GLOB, EXCLUDE_GLOB, isTestFileUri } from "../../language/patterns";
+export { SOURCE_FILE_GLOB, EXCLUDE_GLOB } from "../../language/patterns";

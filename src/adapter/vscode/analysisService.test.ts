@@ -100,7 +100,6 @@ const defaultTestConfig: DdpConfiguration = {
   fileFilter: { respectGitignore: false, excludePatterns: [] },
   fileRollup: "max",
   codelensEnabled: true,
-  excludeTests: true,
   maxFiles: 400,
   debugEnabled: false,
 };
@@ -305,16 +304,11 @@ describe("AnalysisService", () => {
   // ─── Adapter Wiring ──────────────────────────────────────────────
 
   describe("adapter wiring", () => {
-    it("passes excludeTests to VsCodeDocumentProvider", async () => {
-      vi.mocked(buildConfiguration).mockReturnValue({
-        ...defaultTestConfig,
-        excludeTests: false,
-      });
-
+    it("constructs VsCodeDocumentProvider with no args", async () => {
       const service = new AnalysisService();
       await service.analyze(fakeToken());
 
-      expect(VsCodeDocumentProvider).toHaveBeenCalledWith(false);
+      expect(VsCodeDocumentProvider).toHaveBeenCalledWith();
     });
 
     it("constructs HybridCallGraphProvider with VsCodeCallGraphProvider and NodeCallGraphProvider", async () => {
@@ -323,7 +317,7 @@ describe("AnalysisService", () => {
       const service = new AnalysisService();
       await service.analyze(token);
 
-      expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, true, undefined, undefined);
+      expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, undefined, undefined);
       expect(NodeCallGraphProvider).toHaveBeenCalledWith("c:\\code\\proj");
       expect(HybridCallGraphProvider).toHaveBeenCalledTimes(1);
     });
@@ -338,7 +332,7 @@ describe("AnalysisService", () => {
       const service = new AnalysisService();
       await service.analyze(token);
 
-      expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, true, mockLoggerInstance, undefined);
+      expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, mockLoggerInstance, undefined);
     });
 
     it("passes coverageStore, lcovGlob, jacocoGlob, and token to VsCodeCoverageProvider", async () => {
@@ -534,8 +528,8 @@ describe("AnalysisService", () => {
         await service.analyze(token1);
         await service.analyze(token2);
 
-        expect(VsCodeCallGraphProvider).toHaveBeenNthCalledWith(1, token1, true, undefined, undefined);
-        expect(VsCodeCallGraphProvider).toHaveBeenNthCalledWith(2, token2, true, undefined, undefined);
+        expect(VsCodeCallGraphProvider).toHaveBeenNthCalledWith(1, token1, undefined, undefined);
+        expect(VsCodeCallGraphProvider).toHaveBeenNthCalledWith(2, token2, undefined, undefined);
       });
 
       it("passes different scopes on successive calls", async () => {
@@ -746,7 +740,7 @@ describe("AnalysisService", () => {
         const service = new AnalysisService();
         await service.analyze(token);
 
-        expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, true, undefined, undefined);
+        expect(VsCodeCallGraphProvider).toHaveBeenCalledWith(token, undefined, undefined);
       });
 
       it("passes already-cancelled token to VsCodeCoverageProvider", async () => {
@@ -876,9 +870,9 @@ describe("AnalysisService", () => {
       const deps = vi.mocked(AnalysisOrchestrator).mock.calls[0][0] as any;
       expect(deps.gitignoreFilter).toBe(fakeUriFilter);
 
-      // Same filter passed to call graph provider (4th arg)
+      // Same filter passed to call graph provider (3rd arg)
       const callGraphArgs = vi.mocked(VsCodeCallGraphProvider).mock.calls[0];
-      expect(callGraphArgs[3]).toBe(fakeUriFilter);
+      expect(callGraphArgs[2]).toBe(fakeUriFilter);
     });
 
     it("does not load gitignore when respectGitignore is false", async () => {
