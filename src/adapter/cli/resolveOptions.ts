@@ -14,6 +14,32 @@ import type { CliAnalysisOptions } from './cliAnalysis';
 import type { DdpFileConfig } from '../../core/config';
 
 /**
+ * Project the shared subset of `CliAnalysisOptions` that is fully derivable
+ * from a loaded `.ddprc.json` config plus a root path.
+ *
+ * Both `resolveAnalysisOptions` (CLI flag merge) and `configToAnalysisOptions`
+ * (no-flag adapters such as the MCP server) build on top of this projection,
+ * overriding only the fields that have CLI-flag semantics.
+ */
+function configBaseOptions(
+  config: DdpFileConfig,
+  rootPath: string,
+): CliAnalysisOptions {
+  return {
+    rootPath,
+    maxFiles: config.maxFiles,
+    lcovGlob: config.coverage.lcovGlob,
+    jacocoGlob: config.coverage.jacocoGlob,
+    respectGitignore: config.fileFilter.respectGitignore,
+    excludePatterns: config.fileFilter.excludePatterns,
+    debugEnabled: config.debug,
+    rank: config.rank,
+    cc: config.cc,
+    fileRollup: config.fileRollup,
+  };
+}
+
+/**
  * Subset of CLI options needed for merge resolution.
  *
  * `respectGitignoreExplicit` distinguishes "user typed the flag" from
@@ -62,16 +88,23 @@ export function resolveAnalysisOptions(
   const debugEnabled = opts.verboseExplicit ? opts.verbose : config.debug;
 
   return {
-    rootPath,
-    maxFiles: config.maxFiles,
-    lcovGlob: config.coverage.lcovGlob,
-    jacocoGlob: config.coverage.jacocoGlob,
+    ...configBaseOptions(config, rootPath),
     respectGitignore,
     excludePatterns,
     skipCallGraph: opts.skipCallGraph ?? false,
     debugEnabled,
-    rank: config.rank,
-    cc: config.cc,
-    fileRollup: config.fileRollup,
   };
+}
+
+/**
+ * Convert a loaded `.ddprc.json` config directly to CLI analysis options.
+ *
+ * Used by adapters that have no user-facing flags (e.g. MCP server) — all
+ * values come from the config file (which already includes defaults).
+ */
+export function configToAnalysisOptions(
+  config: DdpFileConfig,
+  rootPath: string,
+): CliAnalysisOptions {
+  return configBaseOptions(config, rootPath);
 }

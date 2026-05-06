@@ -112,10 +112,47 @@ Feature: Configuration file loading
     Then a warning should be logged
     And all fields should use default values
 
-  Scenario: Configuration priority order
+  Scenario: Configuration priority order (CLI)
     Given a ".ddprc.json" sets maxFiles to 100
     And the CLI is invoked with no --max-files flag
     Then the resolved maxFiles is 100
     But when the CLI flag overrides the value
     Then the CLI value wins over the config file
     And the config file wins over the built-in defaults
+
+  Scenario: VS Code extension merges .ddprc.json with workspace settings
+    Given a ".ddprc.json" configuration file with:
+      """
+      {
+        "maxFiles": 200,
+        "coverage": { "lcovGlob": "**/custom/lcov.info" },
+        "churn": { "enabled": true, "lookbackDays": 60 }
+      }
+      """
+    And the VS Code workspace does not override any DDP settings
+    When the VS Code extension merges configuration
+    Then the resolved maxFiles is 200
+    And the resolved coverage.lcovGlob is "**/custom/lcov.info"
+    And the resolved churn.enabled is true
+    And VS Code-only fields use their defaults
+
+  Scenario: VS Code workspace settings override .ddprc.json
+    Given a ".ddprc.json" sets maxFiles to 200
+    And the VS Code workspace explicitly sets maxFiles to 300
+    When the VS Code extension merges configuration
+    Then the resolved maxFiles is 300
+    And the VS Code explicit setting wins over the config file
+
+  Scenario: MCP server loads .ddprc.json for analysis
+    Given a ".ddprc.json" configuration file with:
+      """
+      {
+        "maxFiles": 250,
+        "coverage": { "lcovGlob": "**/custom/lcov.info" },
+        "fileFilter": { "respectGitignore": true }
+      }
+      """
+    When the MCP server resolves analysis options from the config
+    Then the analysis options use maxFiles of 250
+    And the analysis options use lcovGlob of "**/custom/lcov.info"
+    And the analysis options use respectGitignore of true

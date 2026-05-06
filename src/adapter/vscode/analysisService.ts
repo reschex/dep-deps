@@ -7,7 +7,8 @@
 
 import * as vscode from "vscode";
 import { AnalysisOrchestrator, type AnalysisResult } from "./analysisOrchestrator";
-import { buildConfiguration, type AnalysisScope } from "./configuration";
+import { buildConfiguration, mergeConfigWithFileConfig, type AnalysisScope, type DdpConfiguration } from "./configuration";
+import { loadDdpConfig } from "../../core/config";
 import { CcProviderRegistry } from "../../core/ccRegistry";
 import { registerCcProviders } from "../../core/registerCcProviders";
 import { CoverageStore } from "./coverageStore";
@@ -28,6 +29,21 @@ import { loadGitignoreFilter, makeUriFilter, type UriFilter } from "../../core/g
 
 export type { AnalysisResult } from "./analysisOrchestrator";
 
+/**
+ * Returns true when the user has explicitly set `key` at any scope
+ * (user, workspace, or workspace-folder). Defaults / language-defaults
+ * do not count — they leave the inspection record empty for the user-set
+ * fields.
+ */
+function isExplicitlySet(rawConfig: vscode.WorkspaceConfiguration, key: string): boolean {
+  const inspection = rawConfig.inspect(key);
+  return !!(inspection && (
+    inspection.globalValue !== undefined ||
+    inspection.workspaceValue !== undefined ||
+    inspection.workspaceFolderValue !== undefined
+  ));
+}
+
 export class AnalysisService {
   readonly coverageStore = new CoverageStore();
   private readonly logger: VsCodeLogger;
@@ -37,9 +53,29 @@ export class AnalysisService {
     this.logger = new VsCodeLogger(channel);
   }
 
+  /**
+   * Layer configuration sources: explicit VS Code settings > `.ddprc.json` > built-in defaults.
+   *
+   * Falls back to pure VS Code configuration when no workspace folder is open
+   * (no place to look for `.ddprc.json`) or when the file is absent/invalid
+   * (`loadDdpConfig` returns defaults — but we still merge so file config takes
+   * precedence over VS Code defaults).
+   */
+  private async resolveConfig(
+    rawConfig: vscode.WorkspaceConfiguration,
+    workspaceFsPath: string | undefined,
+  ): Promise<DdpConfiguration> {
+    const vsCodeConfig = buildConfiguration(<T>(key: string, def: T) => rawConfig.get<T>(key, def));
+    if (!workspaceFsPath) return vsCodeConfig;
+
+    const fileConfig = await loadDdpConfig(workspaceFsPath, (msg) => this.logger.info(msg));
+    return mergeConfigWithFileConfig(vsCodeConfig, fileConfig, (key) => isExplicitlySet(rawConfig, key));
+  }
+
   async analyze(token: vscode.CancellationToken, scope?: AnalysisScope): Promise<AnalysisResult | undefined> {
     const rawConfig = vscode.workspace.getConfiguration("ddp");
-    const config = buildConfiguration(<T>(key: string, def: T) => rawConfig.get<T>(key, def));
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    const config = await this.resolveConfig(rawConfig, workspaceFolder?.uri.fsPath);
 
     const ccRegistry = new CcProviderRegistry();
     registerCcProviders(ccRegistry, config, {
@@ -48,7 +84,6 @@ export class AnalysisService {
       pmd: () => new PmdCcProvider(config.cc.pmdPath),
     });
 
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     const workspaceRootUri = workspaceFolder?.uri.toString();
     const churnProvider = config.churn.enabled && workspaceRootUri
       ? new GitChurnAdapter(workspaceRootUri)

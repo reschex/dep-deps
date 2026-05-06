@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── vscode mock ──────────────────────────────────────────────────────
+const { TEST_WORKSPACE_FS_PATH, TEST_WORKSPACE_URI } = vi.hoisted(() => ({
+  TEST_WORKSPACE_FS_PATH: "c:\\code\\proj",
+  TEST_WORKSPACE_URI: "file:///c%3A/code/proj",
+}));
+
 vi.mock("vscode", () => ({
   window: {
     createOutputChannel: vi.fn(() => ({ appendLine: vi.fn() })),
@@ -9,7 +14,7 @@ vi.mock("vscode", () => ({
     getConfiguration: vi.fn(() => ({
       get: vi.fn((_key: string, def: unknown) => def),
     })),
-    workspaceFolders: [{ uri: { toString: () => "file:///c%3A/code/proj", fsPath: "c:\\code\\proj" } }],
+    workspaceFolders: [{ uri: { toString: () => TEST_WORKSPACE_URI, fsPath: TEST_WORKSPACE_FS_PATH } }],
   },
 }));
 
@@ -20,7 +25,18 @@ vi.mock("./analysisOrchestrator", () => ({
 
 vi.mock("./configuration", () => ({
   buildConfiguration: vi.fn(),
+  mergeConfigWithFileConfig: vi.fn(),
 }));
+
+vi.mock("../../core/config", async () => {
+  const actual = await vi.importActual<typeof import("../../core/config")>(
+    "../../core/config",
+  );
+  return {
+    ...actual,
+    loadDdpConfig: vi.fn(),
+  };
+});
 
 vi.mock("../../core/ccRegistry", () => ({
   CcProviderRegistry: vi.fn(),
@@ -61,7 +77,8 @@ vi.mock("../../core/gitignoreFilter", () => ({
 // ── Imports (after mocks) ────────────────────────────────────────────
 import * as vscode from "vscode";
 import { AnalysisOrchestrator } from "./analysisOrchestrator";
-import { buildConfiguration } from "./configuration";
+import { buildConfiguration, mergeConfigWithFileConfig } from "./configuration";
+import { loadDdpConfig, DDP_CONFIG_DEFAULTS } from "../../core/config";
 import { CcProviderRegistry } from "../../core/ccRegistry";
 import { CoverageStore } from "./coverageStore";
 import {
@@ -156,6 +173,12 @@ describe("AnalysisService", () => {
     );
 
     vi.mocked(buildConfiguration).mockReturnValue({ ...defaultTestConfig });
+
+    // loadDdpConfig returns defaults; mergeConfigWithFileConfig returns vsCodeConfig by default.
+    vi.mocked(loadDdpConfig).mockResolvedValue(DDP_CONFIG_DEFAULTS);
+    vi.mocked(mergeConfigWithFileConfig).mockImplementation(
+      (vsCodeConfig) => vsCodeConfig,
+    );
   });
 
   // ─── Constructor ─────────────────────────────────────────────────
@@ -208,6 +231,57 @@ describe("AnalysisService", () => {
 
       const passedConfig = mockOrchestratorAnalyze.mock.calls[0][0];
       expect(passedConfig).toEqual(defaultTestConfig);
+    });
+  });
+
+  // ─── .ddprc.json integration ────────────────────────────────────
+
+  describe(".ddprc.json integration", () => {
+    it("calls loadDdpConfig with workspace folder fsPath", async () => {
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      expect(loadDdpConfig).toHaveBeenCalledWith(TEST_WORKSPACE_FS_PATH, expect.any(Function));
+    });
+
+    it("calls mergeConfigWithFileConfig with vsCodeConfig and loaded file config", async () => {
+      const fakeFileConfig = { ...DDP_CONFIG_DEFAULTS, maxFiles: 200 };
+      vi.mocked(loadDdpConfig).mockResolvedValue(fakeFileConfig);
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      expect(mergeConfigWithFileConfig).toHaveBeenCalledWith(
+        defaultTestConfig,
+        fakeFileConfig,
+        expect.any(Function),
+      );
+    });
+
+    it("uses mergeConfigWithFileConfig result as final config", async () => {
+      const mergedConfig = { ...defaultTestConfig, maxFiles: 200 };
+      vi.mocked(mergeConfigWithFileConfig).mockReturnValue(mergedConfig);
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      const passedConfig = mockOrchestratorAnalyze.mock.calls[0][0];
+      expect(passedConfig.maxFiles).toBe(200);
+    });
+
+    it("falls back to vsCodeConfig when no workspace folder", async () => {
+      const original = vscode.workspace.workspaceFolders;
+      try {
+        (vscode.workspace as any).workspaceFolders = undefined;
+
+        const service = new AnalysisService();
+        await service.analyze(fakeToken());
+
+        expect(loadDdpConfig).not.toHaveBeenCalled();
+        expect(mergeConfigWithFileConfig).not.toHaveBeenCalled();
+      } finally {
+        (vscode.workspace as any).workspaceFolders = original;
+      }
     });
   });
 

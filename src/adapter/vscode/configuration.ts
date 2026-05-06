@@ -182,6 +182,72 @@ export function buildConfiguration(
   };
 }
 
+// ── File-config merge ─────────────────────────────────────────────────────
+
+/**
+ * Merge a loaded `.ddprc.json` file config underneath VS Code settings.
+ *
+ * Priority (highest to lowest):
+ *   1. VS Code workspace/user settings when `isExplicitlySet(key)` returns true
+ *   2. `.ddprc.json` values (loaded via `loadDdpConfig`)
+ *   3. Built-in defaults (baked into `vsCodeConfig` via `buildConfiguration`)
+ *
+ * VS Code-only fields (decoration, impactTree, graphView, analysis,
+ * codelensEnabled, coverage.fallbackT) always come from `vsCodeConfig`
+ * because they have no `.ddprc.json` equivalent.
+ *
+ * @param vsCodeConfig       Configuration built from VS Code settings
+ * @param fileConfig         Configuration loaded from `.ddprc.json`
+ * @param isExplicitlySet    Returns true when the user explicitly set a key
+ *                           in VS Code workspace/user/folder settings
+ */
+export function mergeConfigWithFileConfig(
+  vsCodeConfig: DdpConfiguration,
+  fileConfig: import("../../core/config").DdpFileConfig,
+  isExplicitlySet: (key: string) => boolean,
+): DdpConfiguration {
+  /** Pick VS Code value when explicitly set, otherwise file config value. */
+  function pick<T>(key: string, vsCode: T, file: T): T {
+    return isExplicitlySet(key) ? vsCode : file;
+  }
+
+  return {
+    // ── Shared fields (layered: VS Code explicit > file config > defaults) ──
+    maxFiles: pick('maxFiles', vsCodeConfig.maxFiles, fileConfig.maxFiles),
+    debugEnabled: pick('debug', vsCodeConfig.debugEnabled, fileConfig.debug),
+    fileRollup: pick('fileRollup', vsCodeConfig.fileRollup, fileConfig.fileRollup),
+    coverage: {
+      fallbackT: vsCodeConfig.coverage.fallbackT, // VS Code-only
+      lcovGlob: pick('coverage.lcovGlob', vsCodeConfig.coverage.lcovGlob, fileConfig.coverage.lcovGlob),
+      jacocoGlob: pick('coverage.jacocoGlob', vsCodeConfig.coverage.jacocoGlob, fileConfig.coverage.jacocoGlob),
+    },
+    rank: {
+      maxIterations: pick('rank.maxIterations', vsCodeConfig.rank.maxIterations, fileConfig.rank.maxIterations),
+      epsilon: pick('rank.epsilon', vsCodeConfig.rank.epsilon, fileConfig.rank.epsilon),
+    },
+    cc: {
+      useEslintForTsJs: pick('cc.useEslintForTsJs', vsCodeConfig.cc.useEslintForTsJs, fileConfig.cc.useEslintForTsJs),
+      eslintPath: pick('cc.eslintPath', vsCodeConfig.cc.eslintPath, fileConfig.cc.eslintPath),
+      pythonPath: pick('cc.pythonPath', vsCodeConfig.cc.pythonPath, fileConfig.cc.pythonPath),
+      pmdPath: pick('cc.pmdPath', vsCodeConfig.cc.pmdPath, fileConfig.cc.pmdPath),
+    },
+    churn: {
+      enabled: pick('churn.enabled', vsCodeConfig.churn.enabled, fileConfig.churn.enabled),
+      lookbackDays: pick('churn.lookbackDays', vsCodeConfig.churn.lookbackDays, fileConfig.churn.lookbackDays),
+    },
+    fileFilter: {
+      respectGitignore: pick('fileFilter.respectGitignore', vsCodeConfig.fileFilter.respectGitignore, fileConfig.fileFilter.respectGitignore),
+      excludePatterns: pick('fileFilter.excludePatterns', vsCodeConfig.fileFilter.excludePatterns, fileConfig.fileFilter.excludePatterns),
+    },
+    // ── VS Code-only fields (no .ddprc.json equivalent) ─────────────────
+    decoration: vsCodeConfig.decoration,
+    impactTree: vsCodeConfig.impactTree,
+    graphView: vsCodeConfig.graphView,
+    analysis: vsCodeConfig.analysis,
+    codelensEnabled: vsCodeConfig.codelensEnabled,
+  };
+}
+
 // Re-export language patterns for backward compatibility.
 // Canonical definitions live in language/patterns.ts.
 export { SOURCE_FILE_GLOB, EXCLUDE_GLOB } from "../../language/patterns";
