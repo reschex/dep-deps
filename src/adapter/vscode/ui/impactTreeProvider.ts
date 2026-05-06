@@ -94,14 +94,7 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
       if (callerIds.length === 0) {
         return [{ type: "empty", message: "No code depends on this symbol" }];
       }
-      const ancestors = new Set([this._rootSymbolId]);
-      return callerIds.map((callerId) => ({
-        type: "caller" as const,
-        symbolId: callerId,
-        depth: 1,
-        recursive: ancestors.has(callerId),
-        ancestors,
-      }));
+      return buildCallerNodes(callerIds, 1, new Set([this._rootSymbolId]));
     }
 
     // Expanding a caller node: get its callers (lazy load)
@@ -111,17 +104,29 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
       }
       const callerIds = directCallersOf(element.symbolId, analysis.edges);
       const newAncestors = new Set([...element.ancestors, element.symbolId]);
-      return callerIds.map((callerId) => ({
-        type: "caller" as const,
-        symbolId: callerId,
-        depth: element.depth + 1,
-        recursive: newAncestors.has(callerId),
-        ancestors: newAncestors,
-      }));
+      return buildCallerNodes(callerIds, element.depth + 1, newAncestors);
     }
 
     return [];
   }
+}
+
+/**
+ * Build caller-type ImpactTreeNodes at a given depth, marking any caller
+ * already in the ancestor set as recursive so the UI breaks the cycle.
+ */
+function buildCallerNodes(
+  callerIds: readonly string[],
+  depth: number,
+  ancestors: ReadonlySet<string>,
+): ImpactTreeNode[] {
+  return callerIds.map((callerId) => ({
+    type: "caller" as const,
+    symbolId: callerId,
+    depth,
+    recursive: ancestors.has(callerId),
+    ancestors,
+  }));
 }
 
 /**
