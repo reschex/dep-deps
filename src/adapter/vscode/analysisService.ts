@@ -9,6 +9,7 @@ import * as vscode from "vscode";
 import { AnalysisOrchestrator, type AnalysisResult } from "./analysisOrchestrator";
 import { buildConfiguration, type AnalysisScope } from "./configuration";
 import { CcProviderRegistry } from "../../core/ccRegistry";
+import { registerCcProviders } from "../../core/registerCcProviders";
 import { CoverageStore } from "./coverageStore";
 import {
   VsCodeDocumentProvider,
@@ -41,19 +42,10 @@ export class AnalysisService {
     const config = buildConfiguration(<T>(key: string, def: T) => rawConfig.get<T>(key, def));
 
     const ccRegistry = new CcProviderRegistry();
-    if (config.cc.useEslintForTsJs) {
-      ccRegistry.register({
-        supportedLanguages: ["typescript", "javascript", "typescriptreact", "javascriptreact"],
-        provider: new EslintCcProvider(config.cc.eslintPath),
-      });
-    }
-    ccRegistry.register({
-      supportedLanguages: ["python"],
-      provider: new RadonCcProvider(config.cc.pythonPath),
-    });
-    ccRegistry.register({
-      supportedLanguages: ["java"],
-      provider: new PmdCcProvider(config.cc.pmdPath),
+    registerCcProviders(ccRegistry, config, {
+      eslint: () => new EslintCcProvider(config.cc.eslintPath),
+      radon: () => new RadonCcProvider(config.cc.pythonPath),
+      pmd: () => new PmdCcProvider(config.cc.pmdPath),
     });
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -76,7 +68,7 @@ export class AnalysisService {
 
     const orchestrator = new AnalysisOrchestrator({
       documentProvider: new VsCodeDocumentProvider(),
-      symbolProvider: new NativeSymbolProvider({ pythonPath: config.cc.pythonPath, pmdPath: config.cc.pmdPath }),
+      symbolProvider: new NativeSymbolProvider({ pythonPath: config.cc.pythonPath }),
       callGraphProvider,
       coverageProvider: new VsCodeCoverageProvider(this.coverageStore, config.coverage.lcovGlob, config.coverage.jacocoGlob, token),
       ccRegistry,

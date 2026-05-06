@@ -263,6 +263,57 @@ describe('parseArgs', () => {
     });
   });
 
+  describe('Scenario: explicit-flag detection for negatable booleans', () => {
+    it('respectGitignoreExplicit is false when flag absent', () => {
+      const result = parseArgs(['node', 'ddp']);
+      expect(result.respectGitignoreExplicit).toBe(false);
+    });
+
+    it('respectGitignoreExplicit is true when --respect-gitignore set', () => {
+      const result = parseArgs(['node', 'ddp', '--respect-gitignore']);
+      expect(result.respectGitignoreExplicit).toBe(true);
+      expect(result.respectGitignore).toBe(true);
+    });
+
+    it('respectGitignoreExplicit is true when --no-respect-gitignore set', () => {
+      const result = parseArgs(['node', 'ddp', '--no-respect-gitignore']);
+      expect(result.respectGitignoreExplicit).toBe(true);
+      expect(result.respectGitignore).toBe(false);
+    });
+  });
+
+  describe('Scenario: --verbose / --no-verbose are negatable with explicit detection', () => {
+    it('verbose is false and verboseExplicit is false when flag absent', () => {
+      const result = parseArgs(['node', 'ddp']);
+      expect(result.verbose).toBe(false);
+      expect(result.verboseExplicit).toBe(false);
+    });
+
+    it('verbose is true and verboseExplicit is true when --verbose set', () => {
+      const result = parseArgs(['node', 'ddp', '--verbose']);
+      expect(result.verbose).toBe(true);
+      expect(result.verboseExplicit).toBe(true);
+    });
+
+    it('verbose is false and verboseExplicit is true when --no-verbose set', () => {
+      const result = parseArgs(['node', 'ddp', '--no-verbose']);
+      expect(result.verbose).toBe(false);
+      expect(result.verboseExplicit).toBe(true);
+    });
+
+    it('last occurrence wins: --verbose then --no-verbose → false', () => {
+      const result = parseArgs(['node', 'ddp', '--verbose', '--no-verbose']);
+      expect(result.verbose).toBe(false);
+      expect(result.verboseExplicit).toBe(true);
+    });
+
+    it('last occurrence wins: --no-verbose then --verbose → true', () => {
+      const result = parseArgs(['node', 'ddp', '--no-verbose', '--verbose']);
+      expect(result.verbose).toBe(true);
+      expect(result.verboseExplicit).toBe(true);
+    });
+  });
+
   describe('Scenario: Positional/non-flag tokens are silently ignored', () => {
     it('ignores bare words that are not subcommands', () => {
       const result = parseArgs(['node', 'ddp', 'analyze', 'extra-positional']);

@@ -21,8 +21,11 @@ export class NativeSymbolProvider implements SymbolProvider {
 
   constructor(config?: {
     pythonPath?: string;
-    pmdPath?: string;
     pythonTimeoutMs?: number;
+    /**
+     * Reserved for a future Java symbol provider that delegates to PMD.
+     * Currently unused — `JavaNativeSymbolProvider` parses sources directly.
+     */
     javaTimeoutMs?: number;
   }) {
     this.ts = new NodeSymbolProvider();

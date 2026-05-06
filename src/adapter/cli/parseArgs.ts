@@ -22,12 +22,24 @@ export type CliOptions = {
   readonly format: string;
   /** Respect .gitignore patterns when discovering files (default: false). */
   readonly respectGitignore: boolean;
+  /**
+   * True when the user explicitly typed `--respect-gitignore` or `--no-respect-gitignore`.
+   * Distinguishes "user-set" from "parser-default" so resolveAnalysisOptions can
+   * defer to .ddprc.json when the flag was not set.
+   */
+  readonly respectGitignoreExplicit: boolean;
   /** Glob patterns to exclude from analysis (repeatable). */
   readonly excludePatterns: readonly string[];
   /** Skip call graph computation (default: false). When true, all R=1. */
   readonly skipCallGraph: boolean;
   /** Enable verbose logging. */
   readonly verbose: boolean;
+  /**
+   * True when the user explicitly typed `--verbose` or `--no-verbose`.
+   * Distinguishes user-set from parser-default so resolveAnalysisOptions can
+   * defer to `.ddprc.json`'s `debug` field when the flag was not set.
+   */
+  readonly verboseExplicit: boolean;
   /** Show help and exit. */
   readonly help: boolean;
   /** Show version and exit. */
@@ -48,10 +60,14 @@ export type CallersOptions = {
   readonly format: string;
   /** Respect .gitignore patterns when discovering files (default: false). */
   readonly respectGitignore: boolean;
+  /** True when --respect-gitignore or --no-respect-gitignore was set explicitly. */
+  readonly respectGitignoreExplicit: boolean;
   /** Glob patterns to exclude from analysis (repeatable). */
   readonly excludePatterns: readonly string[];
   /** Enable verbose logging. */
   readonly verbose: boolean;
+  /** True when --verbose or --no-verbose was set explicitly. */
+  readonly verboseExplicit: boolean;
 };
 
 // ── Shared option config for node:util parseArgs ────────────────────────────
@@ -101,9 +117,11 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     output: stringOrUndefined(values.output),
     format: stringOrUndefined(values.format) ?? 'json',
     respectGitignore: lastWinsNegatable(tokens, 'respect-gitignore', false),
+    respectGitignoreExplicit: hasNegatable(tokens, 'respect-gitignore'),
     excludePatterns: (values.exclude as string[] | undefined) ?? [],
     skipCallGraph: !lastWinsNegatable(tokens, 'call-graph', true),
-    verbose: Boolean(values.verbose),
+    verbose: lastWinsNegatable(tokens, 'verbose', false),
+    verboseExplicit: hasNegatable(tokens, 'verbose'),
     help: Boolean(values.help),
     version: Boolean(values.version),
   };
@@ -148,8 +166,10 @@ export function parseCallersArgs(argv: readonly string[]): CallersOptions {
     depth,
     format: stringOrUndefined(values.format) ?? 'json',
     respectGitignore: lastWinsNegatable(tokens, 'respect-gitignore', false),
+    respectGitignoreExplicit: hasNegatable(tokens, 'respect-gitignore'),
     excludePatterns: (values.exclude as string[] | undefined) ?? [],
-    verbose: Boolean(values.verbose),
+    verbose: lastWinsNegatable(tokens, 'verbose', false),
+    verboseExplicit: hasNegatable(tokens, 'verbose'),
   };
 }
 
@@ -176,4 +196,13 @@ function lastWinsNegatable(tokens: Token[], name: string, defaultValue: boolean)
     }
   }
   return result;
+}
+
+/**
+ * True iff `--<name>` or `--no-<name>` appears anywhere in the parsed tokens.
+ * Used to distinguish "user explicitly set the flag" from "parser default".
+ */
+function hasNegatable(tokens: Token[], name: string): boolean {
+  const negName = `no-${name}`;
+  return tokens.some((t) => t.kind === 'option' && (t.name === name || t.name === negName));
 }

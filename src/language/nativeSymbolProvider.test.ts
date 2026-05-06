@@ -160,7 +160,7 @@ describe('NativeSymbolProvider', () => {
   });
 
   it('should forward pythonPath to PythonSymbolProvider constructor', () => {
-    new NativeSymbolProvider({ pythonPath: '/opt/python3', pmdPath: '/opt/pmd' });
+    new NativeSymbolProvider({ pythonPath: '/opt/python3' });
 
     expect(lastPythonCtorArgs[0]).toBe('/opt/python3');
   });
@@ -172,9 +172,11 @@ describe('NativeSymbolProvider', () => {
   });
 
   it('should construct JavaNativeSymbolProvider with no arguments', () => {
-    new NativeSymbolProvider({ pmdPath: '/opt/pmd', javaTimeoutMs: 15_000 });
+    new NativeSymbolProvider({ javaTimeoutMs: 15_000 });
 
-    // JavaNativeSymbolProvider takes no args — parses source directly, no PMD
+    // JavaNativeSymbolProvider takes no args — parses source directly, no PMD.
+    // pmdPath is intentionally not accepted by NativeSymbolProvider — Java
+    // symbol extraction is PMD-free.
     expect(lastJavaCtorArgs).toHaveLength(0);
   });
 });

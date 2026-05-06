@@ -8,9 +8,9 @@
  * so we use real code without spawning subprocesses.
  */
 
-import { describe, it, expect, afterEach, beforeAll } from 'vitest';
-import { join } from 'path';
-import { readFile, rm } from 'node:fs/promises';
+import { describe, it, expect, afterEach, beforeAll, beforeEach } from 'vitest';
+import { basename, join } from 'path';
+import { readFile, rm, writeFile, mkdtemp, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { main } from './main';
 import { findSymbol } from '../../shared/symbolSearch';
@@ -428,6 +428,95 @@ describe('CLI main()', () => {
 
       expect(exitCode).toBe(1);
       expect(stderr.output).toContain('unsupported format');
+    });
+  });
+
+  describe('Scenario: Analysis with configuration file', () => {
+    // Copy the fixture into an isolated tmpdir per test so writes to
+    // .ddprc.json never pollute the tracked fixture directory and never
+    // race with other test files using the same fixture.
+    let tmpRoot: string;
+
+    beforeEach(async () => {
+      tmpRoot = await mkdtemp(join(tmpdir(), 'ddp-cli-config-'));
+      await cp(FIXTURE_PATH, tmpRoot, { recursive: true });
+    });
+
+    afterEach(async () => {
+      await rm(tmpRoot, { recursive: true, force: true });
+    });
+
+    it('should load .ddprc.json and apply maxFiles from config', async () => {
+      // Given a .ddprc.json limiting analysis to 1 file
+      await writeFile(join(tmpRoot, '.ddprc.json'), JSON.stringify({ maxFiles: 1 }), 'utf-8');
+
+      const stdout = captureStream();
+      const stderr = captureStream();
+
+      const exitCode = await main({
+        argv: ['node', 'ddp-analyze', '--root', tmpRoot, '--no-call-graph'],
+        stdout,
+        stderr,
+        cwd: tmpRoot,
+      });
+
+      expect(exitCode).toBe(0);
+      // No warnings or errors should reach stderr on a clean config load.
+      expect(stderr.output).toBe('');
+      const parsed: JsonOutput = JSON.parse(stdout.output);
+      // maxFiles=1 should limit to at most 1 file
+      expect(parsed.files.length).toBeLessThanOrEqual(1);
+    });
+
+    it('should apply excludePatterns from config when CLI has none', async () => {
+      // Given a config that excludes helper files
+      await writeFile(join(tmpRoot, '.ddprc.json'), JSON.stringify({
+        fileFilter: { excludePatterns: ['**/helper.*'] },
+      }), 'utf-8');
+
+      const stdout = captureStream();
+      const stderr = captureStream();
+
+      const exitCode = await main({
+        argv: ['node', 'ddp-analyze', '--root', tmpRoot, '--no-call-graph'],
+        stdout,
+        stderr,
+        cwd: tmpRoot,
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stderr.output).toBe('');
+      const parsed: JsonOutput = JSON.parse(stdout.output);
+      // Compare on file basename (not full path) — `tmpdir()` may resolve
+      // through directories whose names contain the substring "helper".
+      const baseNames = parsed.files.map(f => basename(f.path));
+      expect(baseNames.every(name => !name.startsWith('helper'))).toBe(true);
+    });
+
+    it('CLI --exclude overrides config excludePatterns', async () => {
+      // Given a config that excludes nothing
+      await writeFile(join(tmpRoot, '.ddprc.json'), JSON.stringify({
+        fileFilter: { excludePatterns: [] },
+      }), 'utf-8');
+
+      const stdout = captureStream();
+      const stderr = captureStream();
+
+      // When CLI provides --exclude that removes utils.test.ts
+      const exitCode = await main({
+        argv: ['node', 'ddp-analyze', '--root', tmpRoot, '--no-call-graph',
+               '--exclude', '**/*.test.*'],
+        stdout,
+        stderr,
+        cwd: tmpRoot,
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stderr.output).toBe('');
+      const parsed: JsonOutput = JSON.parse(stdout.output);
+      // Compare on file basename — `tmpdir()` may contain ".test." segments.
+      const baseNames = parsed.files.map(f => basename(f.path));
+      expect(baseNames.every(name => !name.includes('.test.'))).toBe(true);
     });
   });
 });

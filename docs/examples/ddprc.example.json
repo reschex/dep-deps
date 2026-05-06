@@ -30,6 +30,13 @@
     "epsilon": 0.001
   },
   "fileRollup": "max",
+  "debug": false,
+  "agentIntegration": {
+    "warnThreshold": 100,
+    "blockThreshold": 500,
+    "skipTestFiles": true,
+    "skipPatterns": ["**/*.json", "**/*.md", "**/*.yml"]
+  },
   "churn": {
     "enabled": true,
     "lookbackDays": 90

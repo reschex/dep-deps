@@ -8,9 +8,11 @@
 import { writeFile } from 'node:fs/promises';
 import { parseArgs, parseCallersArgs } from './parseArgs';
 import { runCliAnalysis } from './cliAnalysis';
+import { resolveAnalysisOptions } from './resolveOptions';
 import { formatAnalysisAsJson } from './formatJson';
 import { callerTree, impactSummary } from '../../core/callerTree';
 import { classifyRisk } from '../../core/riskLevel';
+import { loadDdpConfig } from '../../core/config';
 import { formatImpactTreeText, formatImpactTreeJson, type CallersResult } from '../../core/formatImpactTree';
 import type { SymbolMetrics } from '../../core/analyze';
 import type { Logger } from '../../core/ports';
@@ -54,6 +56,7 @@ Analyze Options:
                           Examples: --exclude '**/*.test.*' --exclude '**/__tests__/**'
   --no-call-graph         Skip call graph computation (all R=1, faster)
   --verbose               Enable detailed logging to stderr
+  --no-verbose            Disable detailed logging (overrides "debug": true in .ddprc.json)
   --help                  Show this help message
   --version               Show version number
 
@@ -66,6 +69,20 @@ Callers Options:
   --respect-gitignore     Exclude files matched by .gitignore
   --exclude <glob>        Exclude files matching glob pattern (repeatable)
   --verbose               Enable detailed logging to stderr
+
+Configuration:
+  The CLI reads .ddprc.json from --root (or cwd) for analysis settings such
+  as maxFiles, coverage globs, rank, cc paths, churn, and excludePatterns.
+  Schema: docs/examples/ddprc.schema.json. Example: docs/examples/ddprc.example.json.
+
+  Priority (highest to lowest):
+    1. Explicit CLI flag (e.g. --exclude, --respect-gitignore)
+    2. .ddprc.json at the project root
+    3. Built-in defaults (DDP_CONFIG_DEFAULTS)
+
+  Verbose / debug logging follows the same priority as other flags:
+    --verbose / --no-verbose (explicit on the command line) wins over
+    "debug": true|false in .ddprc.json, which wins over the default (off).
 
 Examples:
   ddp
@@ -108,14 +125,14 @@ async function runAnalyze(
 
   const rootPath = opts.root ?? ctx.cwd;
   const logger = makeLogger(ctx, opts.verbose);
+  const warnFn = (msg: string) => logger.warn?.(msg);
 
   try {
+    const config = await loadDdpConfig(rootPath, warnFn);
+    const resolved = resolveAnalysisOptions(opts, config, ctx.cwd);
+
     const result = await runCliAnalysis({
-      rootPath,
-      respectGitignore: opts.respectGitignore,
-      excludePatterns: opts.excludePatterns,
-      skipCallGraph: opts.skipCallGraph,
-      debugEnabled: opts.verbose,
+      ...resolved,
       logger,
     });
     const json = formatAnalysisAsJson(result, rootPath);
@@ -152,14 +169,15 @@ async function runCallers(ctx: CliContext, opts: ReturnType<typeof parseCallersA
 
   const rootPath = opts.root ?? ctx.cwd;
   const logger = makeLogger(ctx, opts.verbose);
+  const warnFn = (msg: string) => logger.warn?.(msg);
 
   try {
+    const config = await loadDdpConfig(rootPath, warnFn);
+    const resolved = resolveAnalysisOptions(opts, config, ctx.cwd);
+
     // Run full analysis to get symbols, edges, and metrics
     const result = await runCliAnalysis({
-      rootPath,
-      respectGitignore: opts.respectGitignore,
-      excludePatterns: opts.excludePatterns,
-      debugEnabled: opts.verbose,
+      ...resolved,
       logger,
     });
 

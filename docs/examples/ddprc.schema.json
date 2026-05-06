@@ -7,7 +7,7 @@
     "maxFiles": {
       "type": "number",
       "description": "Maximum number of files to analyze",
-      "default": 1000,
+      "default": 400,
       "minimum": 1
     },
     "fileFilter": {
@@ -38,7 +38,7 @@
         "jacocoGlob": {
           "type": "string",
           "description": "Glob pattern for JaCoCo coverage XML files",
-          "default": "**/target/site/jacoco/jacoco.xml"
+          "default": "**/jacoco.xml"
         }
       }
     },
@@ -54,12 +54,12 @@
         "eslintPath": {
           "type": "string",
           "description": "Path to ESLint executable",
-          "default": "node_modules/.bin/eslint"
+          "default": "eslint"
         },
         "pythonPath": {
           "type": "string",
           "description": "Path to Python executable (for Radon)",
-          "default": "python3"
+          "default": "python"
         },
         "pmdPath": {
           "type": "string",
@@ -81,7 +81,7 @@
         "epsilon": {
           "type": "number",
           "description": "Convergence threshold for PageRank",
-          "default": 0.001,
+          "default": 1e-6,
           "minimum": 0,
           "exclusiveMinimum": true
         }
@@ -89,9 +89,14 @@
     },
     "fileRollup": {
       "type": "string",
-      "enum": ["max", "sum", "avg"],
+      "enum": ["max", "sum"],
       "description": "How to aggregate symbol risks to file level",
       "default": "max"
+    },
+    "debug": {
+      "type": "boolean",
+      "description": "Enable debug logging (verbose file discovery and symbol extraction)",
+      "default": false
     },
     "churn": {
       "type": "object",
@@ -110,9 +115,38 @@
         }
       }
     },
+    "agentIntegration": {
+      "type": "object",
+      "description": "AI agent integration thresholds (PreToolUse hook and MCP server)",
+      "properties": {
+        "warnThreshold": {
+          "type": "number",
+          "description": "F threshold above which agents receive a warning before editing",
+          "default": 100,
+          "minimum": 0
+        },
+        "blockThreshold": {
+          "type": "number",
+          "description": "F threshold above which agent edits are blocked until acknowledged",
+          "default": 500,
+          "minimum": 0
+        },
+        "skipTestFiles": {
+          "type": "boolean",
+          "description": "Skip risk checks for test files",
+          "default": true
+        },
+        "skipPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns for files to skip risk checks (e.g. config, docs)",
+          "default": ["**/*.json", "**/*.md", "**/*.yml"]
+        }
+      }
+    },
     "output": {
       "type": "object",
-      "description": "Output formatting options",
+      "description": "Output formatting options (reserved — not yet consumed by any formatter; setting these values has no effect today)",
       "properties": {
         "topFilesCount": {
           "type": "number",

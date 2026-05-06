@@ -1,7 +1,17 @@
 /**
- * Typed configuration object for DDP analysis.
- * Single source of truth for all settings — eliminates scattered getConfiguration() calls.
+ * Typed configuration object for DDP analysis (VS Code runtime view).
+ *
+ * Default values for fields shared with `.ddprc.json` are derived from
+ * `DDP_CONFIG_DEFAULTS` (see `src/core/config.ts`) — the canonical source
+ * of truth. Drift between the two is prevented by `configDefaults.test.ts`.
+ *
+ * Priority order (highest to lowest):
+ *   1. VS Code workspace settings (when set explicitly)
+ *   2. `.ddprc.json` at project root (consumed by extension via `loadDdpConfig`)
+ *   3. `DDP_CONFIG_DEFAULTS` defaults
  */
+
+import { DDP_CONFIG_DEFAULTS } from "../../core/config";
 
 export type CoverageConfig = {
   readonly fallbackT: number;
@@ -89,24 +99,39 @@ export type DdpConfiguration = {
 };
 
 export const DEFAULT_CONFIGURATION: DdpConfiguration = {
-  coverage: { fallbackT: 0, lcovGlob: "**/coverage/lcov.info", jacocoGlob: "**/jacoco.xml" },
-  rank: { maxIterations: 100, epsilon: 1e-6 },
-  cc: {
-    eslintPath: "eslint",
-    pythonPath: "python",
-    pmdPath: "pmd",
-    useEslintForTsJs: true,
+  // Shared fields derive from canonical DDP_CONFIG_DEFAULTS to prevent drift.
+  coverage: {
+    fallbackT: 0,
+    lcovGlob: DDP_CONFIG_DEFAULTS.coverage.lcovGlob,
+    jacocoGlob: DDP_CONFIG_DEFAULTS.coverage.jacocoGlob,
   },
+  rank: {
+    maxIterations: DDP_CONFIG_DEFAULTS.rank.maxIterations,
+    epsilon: DDP_CONFIG_DEFAULTS.rank.epsilon,
+  },
+  cc: {
+    eslintPath: DDP_CONFIG_DEFAULTS.cc.eslintPath,
+    pythonPath: DDP_CONFIG_DEFAULTS.cc.pythonPath,
+    pmdPath: DDP_CONFIG_DEFAULTS.cc.pmdPath,
+    useEslintForTsJs: DDP_CONFIG_DEFAULTS.cc.useEslintForTsJs,
+  },
+  churn: {
+    enabled: DDP_CONFIG_DEFAULTS.churn.enabled,
+    lookbackDays: DDP_CONFIG_DEFAULTS.churn.lookbackDays,
+  },
+  fileFilter: {
+    respectGitignore: DDP_CONFIG_DEFAULTS.fileFilter.respectGitignore,
+    excludePatterns: DDP_CONFIG_DEFAULTS.fileFilter.excludePatterns,
+  },
+  fileRollup: DDP_CONFIG_DEFAULTS.fileRollup,
+  maxFiles: DDP_CONFIG_DEFAULTS.maxFiles,
+  debugEnabled: DDP_CONFIG_DEFAULTS.debug,
+  // VS Code-only presentation fields (no .ddprc.json equivalent).
   decoration: { warnThreshold: 50, errorThreshold: 150 },
-  churn: { enabled: false, lookbackDays: 90 },
   impactTree: { maxDepth: 5 },
   graphView: { enabled: false },
   analysis: { defaultFolder: "" },
-  fileFilter: { respectGitignore: false, excludePatterns: [] },
-  fileRollup: "max",
   codelensEnabled: true,
-  maxFiles: 400,
-  debugEnabled: false,
 };
 
 /** Build configuration from a key-value getter (abstracts away vscode.WorkspaceConfiguration). */

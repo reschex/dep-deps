@@ -115,68 +115,86 @@ MCP server over stdio — adapter calling `runCliAnalysis()` directly (hexagonal
 
 ---
 
-## 4. Config File Wiring 🟢 THEN
+## 4. Config File Wiring 🟡 IN PROGRESS
 
-**Status**: Planned  
-**Schema**: `docs/examples/ddprc.schema.json` (defined, not yet parsed)
+**Status**: Core + CLI complete  
+**Schema**: `docs/examples/ddprc.schema.json` (updated: added `agentIntegration`, `debug`; fixed `fileRollup` enum)
 
-`.ddprc.json` at project root — read by CLI, VS Code extension, and MCP server. Overrides all other settings (CLI defaults, VS Code settings). Merge strategy: `.ddprc.json` wins over environment, which wins over VS Code settings, which wins over built-in defaults.
+`.ddprc.json` at project root — read by CLI, VS Code extension, and MCP server.
 
-### Core Parsing
+### Configuration Priority (canonical)
 
-- [ ] New `src/core/config.ts` — `loadDdpConfig(rootPath): Promise<DdpConfig>`
-  - [ ] Reads `.ddprc.json` from `rootPath`; returns merged config with defaults
-  - [ ] Unknown keys ignored (forward-compatible)
-  - [ ] Invalid JSON → log warning, return defaults (never throw)
-  - [ ] Unit tests: missing file → defaults; valid JSON → merged; invalid JSON → defaults + warning
+Priority order — highest beats lowest:
 
-### CLI Integration
+| Tool       | Priority order                                                              |
+|------------|-----------------------------------------------------------------------------|
+| **CLI**    | explicit CLI flag → `.ddprc.json` → `DDP_CONFIG_DEFAULTS`                   |
+| **VS Code**| `.ddprc.json` → VS Code workspace settings (`ddp.*`) → `DDP_CONFIG_DEFAULTS`|
+| **MCP**    | `.ddprc.json` → `DDP_CONFIG_DEFAULTS`                                       |
 
-- [ ] Wire `loadDdpConfig` into `src/adapter/cli/parseArgs.ts`
-  - [ ] Config file loaded before arg defaults applied
-  - [ ] CLI args override config file values (args win)
-  - [ ] `--root` determines config file location
-- [ ] Tests: CLI with `.ddprc.json` present uses config thresholds; CLI args override config
+`DDP_CONFIG_DEFAULTS` (in `src/core/config.ts`) is the **single source of truth** for default values across all tools. `DEFAULT_CONFIGURATION` (VS Code) derives shared fields from it; a drift-prevention test (`src/core/configDefaults.test.ts`) fails if either constant is changed in isolation.
+
+### Core Parsing ✅
+
+- [x] New `src/core/config.ts` — `loadDdpConfig(rootPath): Promise<DdpFileConfig>`
+  - [x] Reads `.ddprc.json` from `rootPath`; returns merged config with defaults
+  - [x] Unknown keys ignored (forward-compatible)
+  - [x] Invalid JSON → log warning, return defaults (never throw)
+  - [x] Type-mismatched scalars fall back to defaults silently
+  - [x] Array-at-root or primitive-at-root → warn + defaults
+  - [x] Defensive copies — caller cannot mutate `DDP_CONFIG_DEFAULTS` via the result
+  - [x] Unit tests: missing file → defaults; valid JSON → merged; invalid JSON → defaults + warning
+  - [x] 14 unit tests, `DDP_CONFIG_DEFAULTS` with all sections
+
+### CLI Integration ✅
+
+- [x] New `src/adapter/cli/resolveOptions.ts` — pure merge function (CLI args > config > defaults)
+  - [x] `parseArgs` returns `respectGitignoreExplicit` to distinguish user-set from default
+  - [x] `excludePatterns`: CLI wins when non-empty, config when empty
+  - [x] `debug`: CLI `--verbose` OR config `debug` (either enables — documented in `--help`)
+  - [x] `rank`, `cc`, `jacocoGlob`, `fileRollup` flow from `.ddprc.json` to `runCliAnalysis`
+  - [x] 17 unit tests
+- [x] Wire into `src/adapter/cli/main.ts` (`runAnalyze` + `runCallers`)
+  - [x] Config file loaded before arg defaults applied
+  - [x] CLI args override config file values (args win)
+  - [x] `--root` determines config file location
+- [x] Integration tests: CLI with `.ddprc.json` uses config; CLI args override config (3 tests, isolated tmpdir)
+
+### Default-value Drift Prevention ✅
+
+- [x] `DDP_CONFIG_DEFAULTS` is the canonical defaults constant
+- [x] `DEFAULT_CONFIGURATION` (VS Code) derives all shared fields from it
+- [x] `src/core/configDefaults.test.ts` — 15 drift tests fail loudly if either drifts
 
 ### VS Code Integration
 
 - [ ] Wire `loadDdpConfig` into `src/adapter/vscode/configuration.ts`
-  - [ ] `.ddprc.json` overrides VS Code settings
+  - [ ] `.ddprc.json` overrides VS Code settings (`.ddprc.json > workspace settings > defaults`)
   - [ ] Reload config on `workspace.onDidChangeTextDocument` for `.ddprc.json`
   - [ ] Tests: config file present → overrides VS Code `ddp.*` settings
 
 ### MCP Server Integration
 
-- [ ] MCP server reads `.ddprc.json` from `cwd` on startup
+- [ ] MCP server reads `.ddprc.json` from `cwd` on startup (no VS Code config layer)
 - [ ] `agentIntegration.warnThreshold` / `blockThreshold` used by tool responses
 - [ ] Reload on file change (or restart-on-change)
 
-### Config Schema (fields to support)
+### Config Schema
 
-```json
-{
-  "agentIntegration": {
-    "warnThreshold": 100,
-    "blockThreshold": 500,
-    "skipTestFiles": true,
-    "skipPatterns": ["**/*.json", "**/*.md", "**/*.yml"]
-  },
-  "analysis": {
-    "excludeTests": true,
-    "respectGitignore": false,
-    "maxFiles": 500
-  },
-  "churn": {
-    "enabled": false,
-    "since": "6 months ago"
-  },
-  "thresholds": {
-    "crap": 30,
-    "f": 100,
-    "cc": 10
-  }
-}
-```
+Normative schema: `docs/examples/ddprc.schema.json`. Example: `docs/examples/ddprc.example.json`.
+
+Key sections: `maxFiles`, `fileFilter`, `coverage`, `cc`, `rank`, `fileRollup`, `debug`, `churn`, `agentIntegration`, `output`.
+
+### Output config wiring (reserved — not yet consumed)
+
+The `output` section (`topFilesCount`, `topSymbolsCount`, `riskThresholds.*`)
+is accepted by `loadDdpConfig` and merged into the resolved configuration,
+but no formatter currently reads it. Setting these values has no effect
+today. Wiring tasks:
+
+- [ ] `formatAnalysisAsJson` honors `output.topFilesCount` (slice top-N risky files)
+- [ ] `formatAnalysisAsJson` honors `output.topSymbolsCount` (slice per-file top-N risky symbols)
+- [ ] `output.riskThresholds.high` / `medium` consumed by terminal/markdown summaries
 
 ---
 
