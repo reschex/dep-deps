@@ -61,11 +61,7 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
     }
     const tree = callerTree(this._rootSymbolId, analysis.edges, this._maxDepth);
     const summary = impactSummary(tree);
-    const allAffectedIds = collectAllIds(tree);
-    const combinedF = allAffectedIds.reduce((sum, id) => {
-      const metrics = this.state.symbolById.get(id);
-      return sum + (metrics?.f ?? 0);
-    }, 0);
+    const combinedF = combinedFOf(tree, this.state.symbolById);
     return { ...summary, combinedF };
   }
 
@@ -109,6 +105,21 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
 
     return [];
   }
+}
+
+/**
+ * Sum the failure-risk (F) metric across every unique symbol in the impact
+ * tree. Symbols missing from the metrics map contribute zero so the function
+ * remains total over partially analysed trees.
+ */
+function combinedFOf(
+  tree: readonly CallerNode[],
+  symbolById: ReadonlyMap<string, SymbolMetrics>,
+): number {
+  return collectAllIds(tree).reduce(
+    (sum, id) => sum + (symbolById.get(id)?.f ?? 0),
+    0,
+  );
 }
 
 /**
