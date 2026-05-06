@@ -61,19 +61,7 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
       };
       return item;
     }
-    const s = element.symbol;
-    const item = new vscode.TreeItem(s.name, vscode.TreeItemCollapsibleState.None);
-    item.description = `F=${s.f.toFixed(1)}  R=${s.r.toFixed(2)}  CC=${s.cc}  T=${(s.t * 100).toFixed(0)}%`;
-    item.tooltip = new vscode.MarkdownString(
-      `**${s.name}**\n\nR=${s.r.toFixed(3)}  CRAP=${s.crap.toFixed(2)}  F=${s.f.toFixed(2)}`
-    );
-    item.contextValue = "ddpSymbol";
-    item.command = {
-      command: "ddp.revealSymbol",
-      title: "Reveal symbol",
-      arguments: [s.id],
-    };
-    return item;
+    return buildSymbolItem(element.symbol);
   }
 
   async getChildren(element?: RiskNode): Promise<RiskNode[]> {
@@ -117,4 +105,20 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
     }
     return [];
   }
+}
+
+/** Build a leaf TreeItem representing a single ranked symbol. */
+function buildSymbolItem(symbol: SymbolMetrics): vscode.TreeItem {
+  const item = new vscode.TreeItem(symbol.name, vscode.TreeItemCollapsibleState.None);
+  item.description = `F=${symbol.f.toFixed(1)}  R=${symbol.r.toFixed(2)}  CC=${symbol.cc}  T=${(symbol.t * 100).toFixed(0)}%`;
+  item.tooltip = new vscode.MarkdownString(
+    `**${symbol.name}**\n\nR=${symbol.r.toFixed(3)}  CRAP=${symbol.crap.toFixed(2)}  F=${symbol.f.toFixed(2)}`,
+  );
+  item.contextValue = "ddpSymbol";
+  item.command = {
+    command: "ddp.revealSymbol",
+    title: "Reveal symbol",
+    arguments: [symbol.id],
+  };
+  return item;
 }
