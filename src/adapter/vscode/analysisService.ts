@@ -11,6 +11,7 @@ import { buildConfiguration, mergeConfigWithFileConfig, type AnalysisScope, type
 import { loadDdpConfig } from "../../core/config";
 import { CcProviderRegistry } from "../../core/ccRegistry";
 import { registerCcProviders } from "../../core/registerCcProviders";
+import type { CallGraphProvider } from "../../core/ports";
 import { CoverageStore } from "./coverageStore";
 import {
   VsCodeDocumentProvider,
@@ -100,6 +101,27 @@ export class AnalysisService {
     return mergeConfigWithFileConfig(vsCodeConfig, fileConfig, (key) => isExplicitlySet(rawConfig, key));
   }
 
+  /**
+   * Build the call-graph provider chain. Returns a HybridCallGraphProvider
+   * that prefers VS Code LSP and falls back to the native provider when a
+   * workspace folder is available; falls back to LSP-only otherwise.
+   */
+  private buildCallGraphProvider(
+    token: vscode.CancellationToken,
+    workspaceFolder: vscode.WorkspaceFolder | undefined,
+    gitignoreFilter: UriFilter | undefined,
+    debugEnabled: boolean,
+  ): CallGraphProvider {
+    const debugLogger = debugEnabled ? this.logger : undefined;
+    const lspCallGraph = new VsCodeCallGraphProvider(token, debugLogger, gitignoreFilter);
+    if (!workspaceFolder) return lspCallGraph;
+    return new HybridCallGraphProvider(
+      lspCallGraph,
+      new NativeCallGraphProvider(workspaceFolder.uri.fsPath),
+      debugLogger,
+    );
+  }
+
   async analyze(token: vscode.CancellationToken, scope?: AnalysisScope): Promise<AnalysisResult | undefined> {
     const rawConfig = vscode.workspace.getConfiguration("ddp");
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -114,11 +136,7 @@ export class AnalysisService {
 
     const gitignoreFilter = await resolveGitignoreFilter(workspaceFolder, config.fileFilter.respectGitignore);
 
-    const lspCallGraph = new VsCodeCallGraphProvider(token, config.debugEnabled ? this.logger : undefined, gitignoreFilter);
-    const logger = config.debugEnabled ? this.logger : undefined;
-    const callGraphProvider = workspaceFolder
-      ? new HybridCallGraphProvider(lspCallGraph, new NativeCallGraphProvider(workspaceFolder.uri.fsPath), logger)
-      : lspCallGraph;
+    const callGraphProvider = this.buildCallGraphProvider(token, workspaceFolder, gitignoreFilter, config.debugEnabled);
 
     const orchestrator = new AnalysisOrchestrator({
       documentProvider: new VsCodeDocumentProvider(),
