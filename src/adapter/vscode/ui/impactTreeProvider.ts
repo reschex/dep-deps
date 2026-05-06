@@ -84,7 +84,6 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
       return [{ type: "empty", message: "No analysis results available" }];
     }
 
-    // Top-level: get direct callers of root symbol
     if (!element) {
       const callerIds = directCallersOf(this._rootSymbolId, analysis.edges);
       if (callerIds.length === 0) {
@@ -93,7 +92,6 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeNod
       return buildCallerNodes(callerIds, 1, new Set([this._rootSymbolId]));
     }
 
-    // Expanding a caller node: get its callers (lazy load)
     if (element.type === "caller") {
       if (element.recursive || element.depth >= this._maxDepth) {
         return [];
