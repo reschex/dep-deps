@@ -143,7 +143,7 @@ async function runAnalyze(
     return 1;
   }
 
-  try {
+  return runWithErrorReporting(ctx, async () => {
     const { result, rootPath } = await executeCliAnalysis(ctx, opts);
     const json = formatAnalysisAsJson(result, rootPath);
 
@@ -153,11 +153,7 @@ async function runAnalyze(
       ctx.stdout.write(json);
     }
     return 0;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    ctx.stderr.write(`Error: ${message}\n`);
-    return 1;
-  }
+  });
 }
 
 /** Run the `callers` subcommand. */
@@ -177,11 +173,11 @@ async function runCallers(ctx: CliContext, opts: ReturnType<typeof parseCallersA
     return 1;
   }
 
-  try {
+  return runWithErrorReporting(ctx, async () => {
     const { result } = await executeCliAnalysis(ctx, opts);
 
     // Find the target symbol by name (matching against file path)
-    const targetSymbol = findSymbol(result.symbols, opts.file, opts.symbol);
+    const targetSymbol = findSymbol(result.symbols, opts.file!, opts.symbol!);
     if (!targetSymbol) {
       ctx.stderr.write(`Error: symbol '${opts.symbol}' not found in '${opts.file}'\n`);
       return 1;
@@ -194,7 +190,7 @@ async function runCallers(ctx: CliContext, opts: ReturnType<typeof parseCallersA
 
     const callersResult: CallersResult = {
       symbol: targetSymbol.name,
-      file: opts.file,
+      file: opts.file!,
       metrics: targetSymbol,
       riskLevel,
       impactSummary: summary,
@@ -214,13 +210,22 @@ async function runCallers(ctx: CliContext, opts: ReturnType<typeof parseCallersA
 
     ctx.stdout.write(output);
     return 0;
+  });
+}
+
+/** Run an async command, converting thrown errors to a stderr line and exit code 1. */
+async function runWithErrorReporting(
+  ctx: CliContext,
+  fn: () => Promise<number>,
+): Promise<number> {
+  try {
+    return await fn();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     ctx.stderr.write(`Error: ${message}\n`);
     return 1;
   }
 }
-
 
 /** Create a Logger from context and verbosity flag. */
 function makeLogger(ctx: CliContext, verbose: boolean): Logger {
