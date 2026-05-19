@@ -64,6 +64,12 @@ vi.mock("vscode", () => {
       },
       findFiles: mockFindFiles,
       fs: { readFile: mockReadFile },
+      asRelativePath(uri: any): string {
+        // Mock implementation: extract path after "file:///"
+        const str = uri.toString?.() || uri;
+        const match = str.match(/file:\/\/\/(.+)/);
+        return match ? match[1] : str;
+      },
     },
   };
 });
@@ -137,7 +143,8 @@ describe("loadJacocoIntoStore", () => {
     const store = new CoverageStore();
     await loadJacocoIntoStore(store, "**/jacoco.xml", fakeToken());
 
-    expect(mockFindFiles).toHaveBeenCalledTimes(1);
+    // Should call findFiles at least twice: once for *.java cache, once for jacoco.xml
+    expect(mockFindFiles).toHaveBeenCalledTimes(2);
   });
 
   it("parses JaCoCo XML and ingests line coverage into store", async () => {
@@ -145,15 +152,17 @@ describe("loadJacocoIntoStore", () => {
     mockWorkspaceFolders.push(folder);
 
     const jacocoFile = vscode.Uri.parse("file:///workspace/target/site/jacoco/jacoco.xml");
+    const srcFile = vscode.Uri.parse("file:///workspace/src/main/java/com/example/Foo.java");
     mockFindFiles.mockImplementation(async (pattern: any) => {
-      // First call: find jacoco.xml files
+      // First call: find **.java files for caching
+      if (typeof pattern === "object" && pattern.pattern === "**/*.java") {
+        return [srcFile];
+      }
+      // Second call: find jacoco.xml files
       if (typeof pattern === "object" && pattern.pattern === "**/jacoco.xml") {
         return [jacocoFile];
       }
-      // Subsequent calls: resolve source file paths
-      // e.g. **/com/example/Foo.java → find the actual file
-      const srcFile = vscode.Uri.parse("file:///workspace/src/main/java/com/example/Foo.java");
-      return [srcFile];
+      return [];
     });
 
     const xml = jacocoXml([
@@ -251,10 +260,13 @@ describe("loadJacocoIntoStore", () => {
     const srcFile = vscode.Uri.parse("file:///workspace/src/main/java/com/example/Shared.java");
 
     mockFindFiles.mockImplementation(async (pattern: any) => {
+      if (typeof pattern === "object" && pattern.pattern === "**/*.java") {
+        return [srcFile];
+      }
       if (typeof pattern === "object" && pattern.pattern === "**/jacoco.xml") {
         return [jacocoFile1, jacocoFile2];
       }
-      return [srcFile];
+      return [];
     });
 
     const xml1 = jacocoXml([{
@@ -295,11 +307,14 @@ describe("loadJacocoIntoStore", () => {
     const srcTest = vscode.Uri.parse("file:///workspace/src/test/java/com/example/Foo.java");
 
     mockFindFiles.mockImplementation(async (pattern: any) => {
+      if (typeof pattern === "object" && pattern.pattern === "**/*.java") {
+        // Ambiguous match: two files for same JaCoCo key
+        return [srcMain, srcTest];
+      }
       if (typeof pattern === "object" && pattern.pattern === "**/jacoco.xml") {
         return [jacocoFile];
       }
-      // Ambiguous match: two files for same JaCoCo key
-      return [srcMain, srcTest];
+      return [];
     });
 
     const xml = jacocoXml([{
@@ -358,5 +373,58 @@ describe("loadJacocoIntoStore", () => {
 
     // Only the first file should be read; the second is skipped
     expect(mockReadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("caches source file lookups to avoid repeated findFiles calls", async () => {
+    const folder = fakeFolder("file:///workspace");
+    mockWorkspaceFolders.push(folder);
+
+    const jacocoFile = vscode.Uri.parse("file:///workspace/target/jacoco.xml");
+    const srcFile1 = vscode.Uri.parse("file:///workspace/src/main/java/com/example/Service.java");
+    const srcFile2 = vscode.Uri.parse("file:///workspace/src/main/java/com/example/Repository.java");
+    const srcFile3 = vscode.Uri.parse("file:///workspace/src/main/java/com/util/Helper.java");
+
+    let findFileCallCount = 0;
+    mockFindFiles.mockImplementation(async (pattern: any) => {
+      findFileCallCount++;
+      if (typeof pattern === "object" && pattern.pattern === "**/jacoco.xml") {
+        // First call: find jacoco.xml
+        return [jacocoFile];
+      }
+      if (typeof pattern === "object" && pattern.pattern === "**/*.java") {
+        // Second call: find all .java files for caching
+        return [srcFile1, srcFile2, srcFile3];
+      }
+      // Should not reach here if caching works
+      return [];
+    });
+
+    // JaCoCo report with 3 source file entries
+    const xml = jacocoXml([
+      {
+        name: "com/example",
+        sourcefiles: [
+          { name: "Service.java", lines: [{ nr: 1, mi: 0, ci: 1 }] },
+          { name: "Repository.java", lines: [{ nr: 2, mi: 0, ci: 1 }] },
+        ],
+      },
+      {
+        name: "com/util",
+        sourcefiles: [
+          { name: "Helper.java", lines: [{ nr: 3, mi: 0, ci: 1 }] },
+        ],
+      },
+    ]);
+    mockReadFile.mockResolvedValue(encode(xml));
+
+    const store = new CoverageStore();
+    await loadJacocoIntoStore(store, "**/jacoco.xml", fakeToken());
+
+    // Should only call findFiles twice: once for jacoco.xml, once for .java caching
+    // NOT once per source file (which would be 5 calls: 1 jacoco + 3 service files + 1 for help)
+    expect(findFileCallCount).toBeLessThanOrEqual(2);
+    expect(store.get("file:///workspace/src/main/java/com/example/Service.java")).toBeDefined();
+    expect(store.get("file:///workspace/src/main/java/com/example/Repository.java")).toBeDefined();
+    expect(store.get("file:///workspace/src/main/java/com/util/Helper.java")).toBeDefined();
   });
 });
