@@ -80,7 +80,8 @@ MCP server over stdio — adapter calling `runCliAnalysis()` directly (hexagonal
 - [x] `src/adapter/mcp/tools/highRiskSymbols.ts` — `ddp_high_risk_symbols(path, fMin?)` → filtered `SymbolMetrics[]`
 - [x] `src/adapter/mcp/tools/workspaceHotspots.ts` — `ddp_workspace_hotspots(topN?)` → top N by F across workspace
 - [x] Each tool: calls `runCliAnalysis()` directly (injected `RunAnalysis` port) — no duplicate logic
-- [ ] `index.ts` reads thresholds from `.ddprc.json` (requires Config File task below; hardcoded defaults for now)
+- [x] Server reads `.ddprc.json` at startup via `runMcpServer.ts` → `loadDdpConfig` → `configToAnalysisOptions`; folded into `baseOptions` passed to every `runCliAnalysis` call
+- [ ] `agentIntegration.warnThreshold` / `blockThreshold` consumed by tool responses (loaded but not yet surfaced — tools return raw metrics)
 - [x] Add `"mcp"` script to `package.json`: `"mcp": "node out/adapter/mcp/bin.js"`
 - [x] Unit tests for each tool (26 tests, mock analysis via dependency injection):
   - [x] Returns correct schema on success
@@ -117,7 +118,7 @@ MCP server over stdio — adapter calling `runCliAnalysis()` directly (hexagonal
 
 ## 4. Config File Wiring 🟡 IN PROGRESS
 
-**Status**: Core + CLI complete  
+**Status**: Core + CLI + VS Code + MCP wired (`.ddprc.json` > VS Code settings > defaults). Open: reload-on-change watchers, MCP `agentIntegration` thresholds in tool responses, `output.*` consumers.  
 **Schema**: `docs/examples/ddprc.schema.json` (updated: added `agentIntegration`, `debug`; fixed `fileRollup` enum)
 
 `.ddprc.json` at project root — read by CLI, VS Code extension, and MCP server.
@@ -168,16 +169,16 @@ Priority order — highest beats lowest:
 
 ### VS Code Integration
 
-- [ ] Wire `loadDdpConfig` into `src/adapter/vscode/configuration.ts`
-  - [ ] `.ddprc.json` overrides VS Code settings (`.ddprc.json > workspace settings > defaults`)
-  - [ ] Reload config on `workspace.onDidChangeTextDocument` for `.ddprc.json`
-  - [ ] Tests: config file present → overrides VS Code `ddp.*` settings
+- [x] Wire `loadDdpConfig` into `src/adapter/vscode/analysisService.ts` (`resolveConfig` loads `.ddprc.json` from workspace folder, merges via `mergeConfigWithFileConfig`)
+- [x] `mergeConfigWithFileConfig` in `src/adapter/vscode/configuration.ts` — `.ddprc.json` wins over VS Code settings for shared keys (matches canonical priority on line 132)
+- [x] Tests: `mergeConfigWithFileConfig.test.ts` (15 tests, file-wins contract) + `analysisService.test.ts` ".ddprc.json integration" suite
+- [ ] Reload config on `.ddprc.json` change — currently re-read every `analyze()` call (no `FileSystemWatcher`); add watcher if eager invalidation of cached state is needed
 
 ### MCP Server Integration
 
-- [ ] MCP server reads `.ddprc.json` from `cwd` on startup (no VS Code config layer)
-- [ ] `agentIntegration.warnThreshold` / `blockThreshold` used by tool responses
-- [ ] Reload on file change (or restart-on-change)
+- [x] MCP server reads `.ddprc.json` from `rootPath` on startup (`runMcpServer.ts`); options folded into `baseOptions` reused per tool invocation
+- [ ] `agentIntegration.warnThreshold` / `blockThreshold` consumed by tool responses (loaded into config but tools currently return raw metrics)
+- [ ] Reload on file change (or restart-on-change) — config snapshot taken once at boot
 
 ### Config Schema
 

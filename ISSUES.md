@@ -1,0 +1,2 @@
+- auto ddp init for copilot
+- better ux to identify what integrations are being used for analysis (is it using tool based CC or estimated CC? what is used to determine T?, is it using native or LSP symbol detection?)

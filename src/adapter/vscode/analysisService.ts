@@ -31,21 +31,6 @@ import { loadGitignoreFilter, makeUriFilter, type UriFilter } from "../../core/g
 export type { AnalysisResult } from "./analysisOrchestrator";
 
 /**
- * Returns true when the user has explicitly set `key` at any scope
- * (user, workspace, or workspace-folder). Defaults / language-defaults
- * do not count — they leave the inspection record empty for the user-set
- * fields.
- */
-function isExplicitlySet(rawConfig: vscode.WorkspaceConfiguration, key: string): boolean {
-  const inspection = rawConfig.inspect(key);
-  return !!(inspection && (
-    inspection.globalValue !== undefined ||
-    inspection.workspaceValue !== undefined ||
-    inspection.workspaceFolderValue !== undefined
-  ));
-}
-
-/**
  * Build the URI filter that excludes .gitignore-matched files, or undefined
  * when the feature is disabled or there is no workspace folder to anchor
  * the gitignore lookup against.
@@ -83,12 +68,13 @@ export class AnalysisService {
   }
 
   /**
-   * Layer configuration sources: explicit VS Code settings > `.ddprc.json` > built-in defaults.
+   * Layer configuration sources: `.ddprc.json` > VS Code settings > built-in defaults.
    *
    * Falls back to pure VS Code configuration when no workspace folder is open
-   * (no place to look for `.ddprc.json`) or when the file is absent/invalid
-   * (`loadDdpConfig` returns defaults — but we still merge so file config takes
-   * precedence over VS Code defaults).
+   * (no place to look for `.ddprc.json`). When the file is absent or invalid,
+   * `loadDdpConfig` returns `DDP_CONFIG_DEFAULTS`, which match VS Code defaults
+   * (drift-prevention test enforces this), so the merge is a no-op for any
+   * field the user has not customised in either place.
    */
   private async resolveConfig(
     rawConfig: vscode.WorkspaceConfiguration,
@@ -98,7 +84,7 @@ export class AnalysisService {
     if (!workspaceFsPath) return vsCodeConfig;
 
     const fileConfig = await loadDdpConfig(workspaceFsPath, (msg) => this.logger.info(msg));
-    return mergeConfigWithFileConfig(vsCodeConfig, fileConfig, (key) => isExplicitlySet(rawConfig, key));
+    return mergeConfigWithFileConfig(vsCodeConfig, fileConfig);
   }
 
   /**

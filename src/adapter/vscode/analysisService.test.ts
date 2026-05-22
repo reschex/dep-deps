@@ -254,7 +254,6 @@ describe("AnalysisService", () => {
       expect(mergeConfigWithFileConfig).toHaveBeenCalledWith(
         defaultTestConfig,
         fakeFileConfig,
-        expect.any(Function),
       );
     });
 

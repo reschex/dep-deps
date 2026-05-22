@@ -1,13 +1,13 @@
 /**
- * Tests for mergeConfigWithFileConfig — layers .ddprc.json under VS Code settings.
+ * Tests for mergeConfigWithFileConfig — layers .ddprc.json over VS Code settings.
  *
  * Scenario: VS Code extension merges .ddprc.json with workspace settings
- * Scenario: VS Code workspace settings override .ddprc.json
+ * Scenario: .ddprc.json overrides VS Code workspace settings
  * From: features/config-file.feature
  *
- * Priority order:
- *   1. VS Code workspace/user settings (explicitly set by user)
- *   2. .ddprc.json values (loaded via loadDdpConfig)
+ * Priority order (highest to lowest):
+ *   1. .ddprc.json values (loaded via loadDdpConfig) — project-wide config wins
+ *   2. VS Code workspace/user settings
  *   3. Built-in defaults (DEFAULT_CONFIGURATION)
  */
 
@@ -21,38 +21,29 @@ function fileConfigWith(overrides: Partial<DdpFileConfig>): DdpFileConfig {
   return { ...DDP_CONFIG_DEFAULTS, ...overrides };
 }
 
-/** Helper: isExplicitlySet that returns false for all keys. */
-const nothingExplicit = (): boolean => false;
-
-/** Helper: isExplicitlySet that returns true for specific keys. */
-function explicitKeys(...keys: string[]): (key: string) => boolean {
-  const set = new Set(keys);
-  return (key: string) => set.has(key);
-}
-
 describe('mergeConfigWithFileConfig', () => {
   it('uses file config maxFiles when VS Code has not explicitly set it', () => {
     const fileConfig = fileConfigWith({ maxFiles: 200 });
-    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig);
     expect(result.maxFiles).toBe(200);
   });
 
-  it('uses VS Code maxFiles when explicitly set', () => {
+  it('.ddprc.json maxFiles wins over VS Code workspace setting', () => {
     const vsCodeConfig: DdpConfiguration = { ...DEFAULT_CONFIGURATION, maxFiles: 300 };
     const fileConfig = fileConfigWith({ maxFiles: 200 });
-    const result = mergeConfigWithFileConfig(vsCodeConfig, fileConfig, explicitKeys('maxFiles'));
-    expect(result.maxFiles).toBe(300);
+    const result = mergeConfigWithFileConfig(vsCodeConfig, fileConfig);
+    expect(result.maxFiles).toBe(200);
   });
 
   it('uses file config coverage.lcovGlob when VS Code has not explicitly set it', () => {
     const fileConfig = fileConfigWith({
       coverage: { ...DDP_CONFIG_DEFAULTS.coverage, lcovGlob: '**/custom/lcov.info' },
     });
-    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig);
     expect(result.coverage.lcovGlob).toBe('**/custom/lcov.info');
   });
 
-  it('uses VS Code coverage.lcovGlob when explicitly set', () => {
+  it('.ddprc.json coverage.lcovGlob wins over VS Code workspace setting', () => {
     const vsCodeConfig: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
       coverage: { ...DEFAULT_CONFIGURATION.coverage, lcovGlob: '**/vscode/lcov.info' },
@@ -60,28 +51,28 @@ describe('mergeConfigWithFileConfig', () => {
     const fileConfig = fileConfigWith({
       coverage: { ...DDP_CONFIG_DEFAULTS.coverage, lcovGlob: '**/custom/lcov.info' },
     });
-    const result = mergeConfigWithFileConfig(vsCodeConfig, fileConfig, explicitKeys('coverage.lcovGlob'));
-    expect(result.coverage.lcovGlob).toBe('**/vscode/lcov.info');
+    const result = mergeConfigWithFileConfig(vsCodeConfig, fileConfig);
+    expect(result.coverage.lcovGlob).toBe('**/custom/lcov.info');
   });
 
   it('uses file config debug when VS Code has not explicitly set it', () => {
     const fileConfig = fileConfigWith({ debug: true });
-    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig);
     expect(result.debugEnabled).toBe(true);
   });
 
-  it('uses VS Code debug when explicitly set', () => {
+  it('.ddprc.json debug wins over VS Code workspace setting', () => {
     const vsCodeConfig: DdpConfiguration = { ...DEFAULT_CONFIGURATION, debugEnabled: false };
     const fileConfig = fileConfigWith({ debug: true });
-    const result = mergeConfigWithFileConfig(vsCodeConfig, fileConfig, explicitKeys('debug'));
-    expect(result.debugEnabled).toBe(false);
+    const result = mergeConfigWithFileConfig(vsCodeConfig, fileConfig);
+    expect(result.debugEnabled).toBe(true);
   });
 
   it('uses file config churn fields when VS Code has not explicitly set them', () => {
     const fileConfig = fileConfigWith({
       churn: { enabled: true, lookbackDays: 60 },
     });
-    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig);
     expect(result.churn.enabled).toBe(true);
     expect(result.churn.lookbackDays).toBe(60);
   });
@@ -90,14 +81,14 @@ describe('mergeConfigWithFileConfig', () => {
     const fileConfig = fileConfigWith({
       fileFilter: { respectGitignore: true, excludePatterns: ['**/*.test.*'] },
     });
-    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig);
     expect(result.fileFilter.respectGitignore).toBe(true);
     expect(result.fileFilter.excludePatterns).toEqual(['**/*.test.*']);
   });
 
   it('uses file config fileRollup when VS Code has not explicitly set it', () => {
     const fileConfig = fileConfigWith({ fileRollup: 'sum' });
-    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig);
     expect(result.fileRollup).toBe('sum');
   });
 
@@ -105,7 +96,7 @@ describe('mergeConfigWithFileConfig', () => {
     const fileConfig = fileConfigWith({
       rank: { maxIterations: 200, epsilon: 1e-8 },
     });
-    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig);
     expect(result.rank.maxIterations).toBe(200);
     expect(result.rank.epsilon).toBe(1e-8);
   });
@@ -114,13 +105,13 @@ describe('mergeConfigWithFileConfig', () => {
     const fileConfig = fileConfigWith({
       cc: { ...DDP_CONFIG_DEFAULTS.cc, eslintPath: '/custom/eslint' },
     });
-    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig);
     expect(result.cc.eslintPath).toBe('/custom/eslint');
   });
 
   it('preserves VS Code-only fields (decoration, impactTree, graphView, analysis, codelensEnabled)', () => {
     const fileConfig = fileConfigWith({ maxFiles: 200 });
-    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig);
     expect(result.decoration).toEqual(DEFAULT_CONFIGURATION.decoration);
     expect(result.impactTree).toEqual(DEFAULT_CONFIGURATION.impactTree);
     expect(result.graphView).toEqual(DEFAULT_CONFIGURATION.graphView);
@@ -134,7 +125,7 @@ describe('mergeConfigWithFileConfig', () => {
       coverage: { ...DEFAULT_CONFIGURATION.coverage, fallbackT: 0.5 },
     };
     const fileConfig = fileConfigWith({});
-    const result = mergeConfigWithFileConfig(vsCodeConfig, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(vsCodeConfig, fileConfig);
     expect(result.coverage.fallbackT).toBe(0.5);
   });
 
@@ -151,7 +142,7 @@ describe('mergeConfigWithFileConfig', () => {
       agentIntegration: DDP_CONFIG_DEFAULTS.agentIntegration,
       output: DDP_CONFIG_DEFAULTS.output,
     };
-    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig, nothingExplicit);
+    const result = mergeConfigWithFileConfig(DEFAULT_CONFIGURATION, fileConfig);
 
     expect(result.maxFiles).toBe(999);
     expect(result.debugEnabled).toBe(true);
@@ -170,7 +161,7 @@ describe('mergeConfigWithFileConfig', () => {
     expect(result.churn.lookbackDays).toBe(30);
   });
 
-  it('per-field explicit override: only the explicitly set field uses VS Code value', () => {
+  it('.ddprc.json churn fields win over VS Code workspace settings (file always wins for shared keys)', () => {
     const vsCodeConfig: DdpConfiguration = {
       ...DEFAULT_CONFIGURATION,
       churn: { enabled: false, lookbackDays: 180 },
@@ -178,9 +169,8 @@ describe('mergeConfigWithFileConfig', () => {
     const fileConfig = fileConfigWith({
       churn: { enabled: true, lookbackDays: 60 },
     });
-    // Only churn.enabled is explicitly set in VS Code
-    const result = mergeConfigWithFileConfig(vsCodeConfig, fileConfig, explicitKeys('churn.enabled'));
-    expect(result.churn.enabled).toBe(false);     // VS Code wins
-    expect(result.churn.lookbackDays).toBe(60);    // file config wins
+    const result = mergeConfigWithFileConfig(vsCodeConfig, fileConfig);
+    expect(result.churn.enabled).toBe(true);
+    expect(result.churn.lookbackDays).toBe(60);
   });
 });
