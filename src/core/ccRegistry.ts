@@ -35,4 +35,9 @@ export class CcProviderRegistry {
   getForLanguage(languageId: string): CyclomaticComplexityProvider {
     return this.providers.get(languageId) ?? this.fallback;
   }
+
+  /** Returns true when a tool-based CC provider is registered for this language. */
+  hasToolProvider(languageId: string): boolean {
+    return this.providers.has(languageId);
+  }
 }

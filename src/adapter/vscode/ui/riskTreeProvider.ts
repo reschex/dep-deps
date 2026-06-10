@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type { SymbolMetrics } from "../../../core/analyze";
 import { sortSymbols, type SortField, symbolsForFile } from "../../../core/viewModel";
 import type { ExtensionState } from "../extensionState";
+import type { IntegrationEntry, IntegrationStatus } from "../../../core/integrationReport";
 
 const SORT_FIELD_LABELS: Record<SortField, string> = { f: "F", fPrime: "F′", g: "G", cc: "CC", crap: "CRAP" };
 
@@ -9,7 +10,9 @@ export type RiskNode =
   | { type: "file"; uri: string; label: string }
   | { type: "symbol"; symbol: SymbolMetrics }
   | { type: "empty"; message: string }
-  | { type: "scope"; label: string };
+  | { type: "scope"; label: string }
+  | { type: "integrations" }
+  | { type: "integration"; entry: IntegrationEntry };
 
 export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
   private readonly _onDidChange = new vscode.EventEmitter<RiskNode | undefined | null | void>();
@@ -43,6 +46,15 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
       item.contextValue = "ddpScope";
       return item;
     }
+    if (element.type === "integrations") {
+      const item = new vscode.TreeItem("Integrations", vscode.TreeItemCollapsibleState.Collapsed);
+      item.iconPath = new vscode.ThemeIcon("tools");
+      item.contextValue = "ddpIntegrations";
+      return item;
+    }
+    if (element.type === "integration") {
+      return buildIntegrationItem(element.entry);
+    }
     if (element.type === "file") {
       const field = this._sortField;
       const label = SORT_FIELD_LABELS[field];
@@ -74,10 +86,18 @@ export class RiskTreeProvider implements vscode.TreeDataProvider<RiskNode> {
       const scopeLabel = rootUri
         ? vscode.Uri.parse(rootUri).fsPath
         : "workspace";
+      const header: RiskNode[] = [{ type: "scope" as const, label: scopeLabel }];
+      if (analysis.integrations?.entries.length) {
+        header.push({ type: "integrations" as const });
+      }
       return [
-        { type: "scope" as const, label: scopeLabel },
+        ...header,
         ...buildFileNodes(analysis.symbols, this._sortField),
       ];
+    }
+    if (element.type === "integrations") {
+      const entries = analysis.integrations?.entries ?? [];
+      return entries.map((entry) => ({ type: "integration" as const, entry }));
     }
     if (element.type === "file") {
       const list = sortSymbols(symbolsForFile(element.uri, analysis.symbols), this._sortField);
@@ -112,6 +132,34 @@ function buildFileNodes(symbols: readonly SymbolMetrics[], field: SortField): Ri
     uri,
     label: vscode.Uri.parse(uri).fsPath.split(/[/\\]/).pop() ?? uri,
   }));
+}
+
+const STATUS_ICON: Record<IntegrationStatus, string> = {
+  active: "pass",
+  fallback: "warning",
+  inactive: "circle-slash",
+};
+
+/** Build a leaf TreeItem for an integration source row. */
+function buildIntegrationItem(entry: IntegrationEntry): vscode.TreeItem {
+  const item = new vscode.TreeItem(
+    `${entry.category} · ${entry.source}`,
+    vscode.TreeItemCollapsibleState.None,
+  );
+  item.description = entry.detail;
+  item.iconPath = new vscode.ThemeIcon(STATUS_ICON[entry.status]);
+  item.contextValue = "ddpIntegration";
+  if (entry.tooltip) {
+    item.tooltip = new vscode.MarkdownString(entry.tooltip);
+  }
+  if (entry.settingsKey) {
+    item.command = {
+      command: "workbench.action.openSettings",
+      title: "Open Settings",
+      arguments: [entry.settingsKey],
+    };
+  }
+  return item;
 }
 
 /** Build a leaf TreeItem representing a single ranked symbol. */

@@ -155,17 +155,17 @@ const noopWarn: WarnFn = () => {};
 export async function loadDdpConfig(
   rootPath: string,
   warn: WarnFn = noopWarn,
-): Promise<DdpFileConfig> {
+): Promise<DdpFileConfig | null> {
   const configPath = join(rootPath, '.ddprc.json');
 
   const raw = await readConfigText(configPath, warn);
   if (raw === null) {
-    return mergeConfig({});
+    return null;
   }
 
   const parsed = parseConfigJson(raw, warn);
   if (parsed === null) {
-    return mergeConfig({});
+    return null;
   }
 
   return mergeConfig(parsed);

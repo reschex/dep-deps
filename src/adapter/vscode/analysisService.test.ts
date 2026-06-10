@@ -268,6 +268,27 @@ describe("AnalysisService", () => {
       expect(passedConfig.maxFiles).toBe(200);
     });
 
+    it("skips mergeConfigWithFileConfig when loadDdpConfig returns null (no .ddprc.json)", async () => {
+      vi.mocked(loadDdpConfig).mockResolvedValue(null);
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      expect(mergeConfigWithFileConfig).not.toHaveBeenCalled();
+    });
+
+    it("uses VS Code churn.enabled when loadDdpConfig returns null", async () => {
+      vi.mocked(loadDdpConfig).mockResolvedValue(null);
+      const configWithChurn: DdpConfiguration = { ...defaultTestConfig, churn: { enabled: true, lookbackDays: 90 } };
+      vi.mocked(buildConfiguration).mockReturnValue(configWithChurn);
+
+      const service = new AnalysisService();
+      await service.analyze(fakeToken());
+
+      const passedConfig = mockOrchestratorAnalyze.mock.calls[0][0];
+      expect(passedConfig.churn.enabled).toBe(true);
+    });
+
     it("falls back to vsCodeConfig when no workspace folder", async () => {
       const original = vscode.workspace.workspaceFolders;
       try {

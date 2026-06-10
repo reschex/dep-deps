@@ -9,7 +9,7 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createMcpServer } from './index';
 import { runCliAnalysis } from '../cli/cliAnalysis';
-import { loadDdpConfig } from '../../core/config';
+import { loadDdpConfig, DDP_CONFIG_DEFAULTS } from '../../core/config';
 import { configToAnalysisOptions } from '../cli/resolveOptions';
 
 export type RunMcpServerOptions = {
@@ -28,7 +28,7 @@ export async function runMcpServer(options: RunMcpServerOptions): Promise<void> 
   const { rootPath } = options;
 
   const warnFn = (msg: string) => process.stderr.write(`[WARN] ${msg}\n`);
-  const config = await loadDdpConfig(rootPath, warnFn);
+  const config = (await loadDdpConfig(rootPath, warnFn)) ?? DDP_CONFIG_DEFAULTS;
 
   // Strip rootPath from baseOptions so request rootPath always wins after spread,
   // even when a tool one day passes a different value than the boot rootPath.

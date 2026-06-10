@@ -2414,3 +2414,353 @@ describe("bugmagnet session 2026-05-04", () => {
     });
   });
 });
+
+// ─── Integration report ──────────────────────────────────────────────────────
+
+describe("integration report", () => {
+  it("includes integration report in analysis result", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result !== undefined);
+    assert(result.integrations !== undefined, "expected integrations report");
+    const categories = result.integrations.entries.map((e) => e.category);
+    expect(categories).toContain("CC");
+    expect(categories).toContain("Coverage");
+    expect(categories).toContain("Symbols");
+    expect(categories).toContain("Call Graph");
+    expect(categories).toContain("Churn");
+  });
+
+  it("reports CC as estimated when using fallback registry", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(), // no tool providers
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const ccEntries = result.integrations.entries.filter((e) => e.category === "CC");
+    expect(ccEntries).toHaveLength(1);
+    expect(ccEntries[0].status).toBe("fallback");
+  });
+
+  it("reports CC as active when tool provider returns data", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const toolProvider: CyclomaticComplexityProvider = {
+      async computeComplexity(): Promise<CcResult> {
+        return { byLine: new Map([[1, 3]]), byName: new Map() };
+      },
+    };
+    const ccRegistry = new CcProviderRegistry();
+    ccRegistry.register({ supportedLanguages: ["typescript"], provider: toolProvider });
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry,
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const ccEntries = result.integrations.entries.filter((e) => e.category === "CC");
+    expect(ccEntries.some((e) => e.status === "active")).toBe(true);
+  });
+
+  it("reports per-language CC when multiple languages present", async () => {
+    const tsUri = "file:///a.ts";
+    const pyUri = "file:///b.py";
+    const docs = new Map([
+      [tsUri, fakeDoc(tsUri, "typescript", "return 1")],
+      [pyUri, fakeDoc(pyUri, "python", "return 1")],
+    ]);
+    const symbols = new Map([
+      [tsUri, [{ name: "tsFn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+      [pyUri, [{ name: "pyFn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const tsProvider: CyclomaticComplexityProvider = {
+      async computeComplexity(): Promise<CcResult> {
+        return { byLine: new Map([[1, 3]]), byName: new Map() };
+      },
+    };
+    const ccRegistry = new CcProviderRegistry();
+    ccRegistry.register({ supportedLanguages: ["typescript"], provider: tsProvider });
+    // Python has no tool provider → estimated
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry,
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const ccEntries = result.integrations.entries.filter((e) => e.category === "CC");
+    // Should have one active (TS) and one fallback (Python)
+    expect(ccEntries).toHaveLength(2);
+    expect(ccEntries.some((e) => e.status === "active")).toBe(true);
+    expect(ccEntries.some((e) => e.status === "fallback")).toBe(true);
+  });
+
+  it("reports coverage with file count when coverage data exists", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+    const coverage = new Map([
+      [uri, [{ executed: true, startLine: 0, endLine: 0 }]],
+    ]);
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(coverage),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const covEntry = result.integrations.entries.find((e) => e.category === "Coverage");
+    expect(covEntry).toBeDefined();
+    expect(covEntry!.status).toBe("active");
+    expect(covEntry!.detail).toContain("1");
+  });
+
+  it("reports coverage as inactive when no coverage data found", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const covEntry = result.integrations.entries.find((e) => e.category === "Coverage");
+    expect(covEntry).toBeDefined();
+    expect(covEntry!.status).toBe("inactive");
+  });
+
+  it("reports call graph with edge count", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [
+        { name: "foo", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 },
+        { name: "bar", selectionStartLine: 10, selectionStartCharacter: 0, bodyStartLine: 10, bodyEndLine: 15 },
+      ]],
+    ]);
+    const edges: CallEdge[] = [{ caller: `${uri}#0:0`, callee: `${uri}#10:0` }];
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider(edges),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const cgEntry = result.integrations.entries.find((e) => e.category === "Call Graph");
+    expect(cgEntry).toBeDefined();
+    expect(cgEntry!.status).toBe("active");
+    expect(cgEntry!.detail).toContain("1");
+  });
+
+  it("reports call graph as inactive when no edges", async () => {
+    const orchestrator = singleFnOrchestrator();
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const cgEntry = result.integrations.entries.find((e) => e.category === "Call Graph");
+    expect(cgEntry!.status).toBe("inactive");
+  });
+
+  it("reports churn as active when enabled", async () => {
+    const churnProvider: ChurnProvider = {
+      async getChurnCounts() { return new Map([[CHURN_FILE_URI, 5]]); },
+    };
+    const orchestrator = singleFnOrchestrator({ churnProvider });
+    const result = await orchestrator.analyze(CHURN_CONFIG, neverCancelledCtx());
+    assert(result?.integrations);
+    const churnEntry = result.integrations.entries.find((e) => e.category === "Churn");
+    expect(churnEntry).toBeDefined();
+    expect(churnEntry!.status).toBe("active");
+  });
+
+  it("reports churn as inactive when disabled", async () => {
+    const orchestrator = singleFnOrchestrator();
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const churnEntry = result.integrations.entries.find((e) => e.category === "Churn");
+    expect(churnEntry!.status).toBe("inactive");
+  });
+
+  it("reports symbols entry with languages found", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry: new CcProviderRegistry(),
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const symEntry = result.integrations.entries.find((e) => e.category === "Symbols");
+    expect(symEntry).toBeDefined();
+    expect(symEntry!.status).toBe("active");
+    expect(symEntry!.detail).toContain("typescript");
+  });
+
+  it("churn inactive entry has settingsKey ddp.churn", async () => {
+    const orchestrator = singleFnOrchestrator();
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const entry = result.integrations.entries.find((e) => e.category === "Churn");
+    expect(entry?.settingsKey).toBe("ddp.churn");
+  });
+
+  it("churn active entry has settingsKey ddp.churn", async () => {
+    const churnProvider: ChurnProvider = {
+      async getChurnCounts() { return new Map([[CHURN_FILE_URI, 5]]); },
+    };
+    const orchestrator = singleFnOrchestrator({ churnProvider });
+    const result = await orchestrator.analyze(CHURN_CONFIG, neverCancelledCtx());
+    assert(result?.integrations);
+    const entry = result.integrations.entries.find((e) => e.category === "Churn");
+    expect(entry?.settingsKey).toBe("ddp.churn");
+  });
+
+  it("churn inactive entry tooltip mentions disabled and ddprc override", async () => {
+    const orchestrator = singleFnOrchestrator();
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const entry = result.integrations.entries.find((e) => e.category === "Churn");
+    expect(entry?.tooltip).toMatch(/disabled/i);
+    expect(entry?.tooltip).toContain(".ddprc.json");
+  });
+
+  it("churn active entry tooltip mentions lookback days", async () => {
+    const churnProvider: ChurnProvider = {
+      async getChurnCounts() { return new Map([[CHURN_FILE_URI, 5]]); },
+    };
+    const orchestrator = singleFnOrchestrator({ churnProvider });
+    const result = await orchestrator.analyze(CHURN_CONFIG, neverCancelledCtx());
+    assert(result?.integrations);
+    const entry = result.integrations.entries.find((e) => e.category === "Churn");
+    expect(entry?.tooltip).toContain("90");
+  });
+
+  it("coverage inactive entry has settingsKey ddp.coverage", async () => {
+    const orchestrator = singleFnOrchestrator();
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const entry = result.integrations.entries.find((e) => e.category === "Coverage");
+    expect(entry?.settingsKey).toBe("ddp.coverage");
+  });
+
+  it("coverage inactive entry tooltip mentions no coverage data and settings", async () => {
+    const orchestrator = singleFnOrchestrator();
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const entry = result.integrations.entries.find((e) => e.category === "Coverage");
+    expect(entry?.tooltip).toMatch(/no coverage/i);
+    expect(entry?.tooltip).toMatch(/lcov|jacoco/i);
+  });
+
+  it("CC estimated entry has settingsKey ddp.cc", async () => {
+    const orchestrator = singleFnOrchestrator();
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const entry = result.integrations.entries.find((e) => e.category === "CC" && e.status === "fallback");
+    expect(entry?.settingsKey).toBe("ddp.cc");
+  });
+
+  it("reports CC as fallback when tool provider is registered but returns empty maps", async () => {
+    const uri = "file:///a.ts";
+    const docs = new Map([[uri, fakeDoc(uri, "typescript", "return 1")]]);
+    const symbols = new Map([
+      [uri, [{ name: "fn", selectionStartLine: 0, selectionStartCharacter: 0, bodyStartLine: 0, bodyEndLine: 5 }]],
+    ]);
+
+    // Tool IS registered but returns no data (e.g., ESLint found no functions or crashed silently)
+    const silentProvider: CyclomaticComplexityProvider = {
+      async computeComplexity(): Promise<CcResult> {
+        return { byLine: new Map(), byName: new Map() };
+      },
+    };
+    const ccRegistry = new CcProviderRegistry();
+    ccRegistry.register({ supportedLanguages: ["typescript"], provider: silentProvider });
+
+    const orchestrator = new AnalysisOrchestrator({
+      documentProvider: fakeDocProvider(docs),
+      symbolProvider: fakeSymbolProvider(symbols),
+      callGraphProvider: fakeCallGraphProvider([]),
+      coverageProvider: fakeCoverageProvider(new Map()),
+      ccRegistry,
+      logger: nullLogger,
+    });
+
+    const result = await orchestrator.analyze(DEFAULT_CONFIGURATION, neverCancelledCtx());
+    assert(result?.integrations);
+    const ccEntries = result.integrations.entries.filter((e) => e.category === "CC");
+    // Tool registered but returned no data → regex estimator used → classified as fallback
+    expect(ccEntries).toHaveLength(1);
+    expect(ccEntries[0].status).toBe("fallback");
+  });
+});

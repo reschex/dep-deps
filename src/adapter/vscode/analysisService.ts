@@ -71,10 +71,9 @@ export class AnalysisService {
    * Layer configuration sources: `.ddprc.json` > VS Code settings > built-in defaults.
    *
    * Falls back to pure VS Code configuration when no workspace folder is open
-   * (no place to look for `.ddprc.json`). When the file is absent or invalid,
-   * `loadDdpConfig` returns `DDP_CONFIG_DEFAULTS`, which match VS Code defaults
-   * (drift-prevention test enforces this), so the merge is a no-op for any
-   * field the user has not customised in either place.
+   * or when `.ddprc.json` is absent/invalid — preserving any non-default VS Code
+   * settings the user has set (e.g. churn.enabled, cc.eslintPath).
+   * Only applies `.ddprc.json` merge when the file is actually present and valid.
    */
   private async resolveConfig(
     rawConfig: vscode.WorkspaceConfiguration,
@@ -84,6 +83,7 @@ export class AnalysisService {
     if (!workspaceFsPath) return vsCodeConfig;
 
     const fileConfig = await loadDdpConfig(workspaceFsPath, (msg) => this.logger.info(msg));
+    if (!fileConfig) return vsCodeConfig;
     return mergeConfigWithFileConfig(vsCodeConfig, fileConfig);
   }
 

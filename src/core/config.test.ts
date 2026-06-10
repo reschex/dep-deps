@@ -23,12 +23,12 @@ describe('loadDdpConfig', () => {
     vi.resetAllMocks();
   });
 
-  it('returns defaults when .ddprc.json does not exist', async () => {
+  it('returns null when .ddprc.json does not exist', async () => {
     mockReadFile.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
 
     const config = await loadDdpConfig(rootPath);
 
-    expect(config).toEqual(DDP_CONFIG_DEFAULTS);
+    expect(config).toBeNull();
     expect(mockReadFile).toHaveBeenCalledWith(configPath, 'utf-8');
   });
 
@@ -53,13 +53,13 @@ describe('loadDdpConfig', () => {
     expect(config.rank).toEqual(DDP_CONFIG_DEFAULTS.rank);
   });
 
-  it('returns defaults and warns on invalid JSON', async () => {
+  it('returns null and warns on invalid JSON', async () => {
     mockReadFile.mockResolvedValue('{ broken json !!!');
     const warn = vi.fn();
 
     const config = await loadDdpConfig(rootPath, warn);
 
-    expect(config).toEqual(DDP_CONFIG_DEFAULTS);
+    expect(config).toBeNull();
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0][0]).toMatch(/\.ddprc\.json/);
   });
@@ -112,13 +112,13 @@ describe('loadDdpConfig', () => {
     expect(config.coverage.jacocoGlob).toBe(DDP_CONFIG_DEFAULTS.coverage.jacocoGlob);
   });
 
-  it('handles read permission errors gracefully', async () => {
+  it('returns null and warns on read permission errors', async () => {
     mockReadFile.mockRejectedValue(Object.assign(new Error('EACCES'), { code: 'EACCES' }));
     const warn = vi.fn();
 
     const config = await loadDdpConfig(rootPath, warn);
 
-    expect(config).toEqual(DDP_CONFIG_DEFAULTS);
+    expect(config).toBeNull();
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0][0]).toMatch(/\.ddprc\.json/);
   });
@@ -131,14 +131,15 @@ describe('loadDdpConfig', () => {
     expect(config).toEqual(DDP_CONFIG_DEFAULTS);
   });
 
-  it('returns defensive copy of fallback arrays (mutating result must not poison defaults)', async () => {
-    // No file -> use defaults. Mutating the returned array must not corrupt DDP_CONFIG_DEFAULTS.
-    mockReadFile.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+  it('returns defensive copy of arrays from parsed file (mutating result must not poison defaults)', async () => {
+    // File present but empty → all fields fall back to defaults. Mutating the
+    // returned array must not corrupt DDP_CONFIG_DEFAULTS.
+    mockReadFile.mockResolvedValue('{}');
     const before = [...DDP_CONFIG_DEFAULTS.fileFilter.excludePatterns];
 
     const config = await loadDdpConfig(rootPath);
     // Bypass `readonly` to simulate a misbehaving caller.
-    (config.fileFilter.excludePatterns as string[]).push('**/poison.*');
+    (config!.fileFilter.excludePatterns as string[]).push('**/poison.*');
 
     expect([...DDP_CONFIG_DEFAULTS.fileFilter.excludePatterns]).toEqual(before);
   });
@@ -158,24 +159,24 @@ describe('loadDdpConfig', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('warns and returns defaults when JSON root is an array', async () => {
+  it('warns and returns null when JSON root is an array', async () => {
     const warn = vi.fn();
     mockReadFile.mockResolvedValue('[1, 2, 3]');
 
     const config = await loadDdpConfig(rootPath, warn);
 
-    expect(config).toEqual(DDP_CONFIG_DEFAULTS);
+    expect(config).toBeNull();
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0][0]).toMatch(/expected an object at root/);
   });
 
-  it('warns and returns defaults when JSON root is a primitive', async () => {
+  it('warns and returns null when JSON root is a primitive', async () => {
     const warn = vi.fn();
     mockReadFile.mockResolvedValue('42');
 
     const config = await loadDdpConfig(rootPath, warn);
 
-    expect(config).toEqual(DDP_CONFIG_DEFAULTS);
+    expect(config).toBeNull();
     expect(warn).toHaveBeenCalledOnce();
   });
 

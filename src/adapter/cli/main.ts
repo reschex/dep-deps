@@ -12,7 +12,7 @@ import { resolveAnalysisOptions, type ResolvableOptions } from './resolveOptions
 import { formatAnalysisAsJson } from './formatJson';
 import { callerTree, impactSummary } from '../../core/callerTree';
 import { classifyRisk } from '../../core/riskLevel';
-import { loadDdpConfig } from '../../core/config';
+import { loadDdpConfig, DDP_CONFIG_DEFAULTS } from '../../core/config';
 import { formatImpactTreeText, formatImpactTreeJson, type CallersResult } from '../../core/formatImpactTree';
 import type { AnalysisResult } from '../vscode/analysisOrchestrator';
 import type { SymbolMetrics } from '../../core/analyze';
@@ -127,7 +127,7 @@ async function executeCliAnalysis(
   const logger = makeLogger(ctx, opts.verbose);
   const warnFn = (msg: string) => logger.warn?.(msg);
 
-  const config = await loadDdpConfig(rootPath, warnFn);
+  const config = (await loadDdpConfig(rootPath, warnFn)) ?? DDP_CONFIG_DEFAULTS;
   const resolved = resolveAnalysisOptions(opts, config, ctx.cwd);
   const result = await runCliAnalysis({ ...resolved, logger });
   return { result, resolved, rootPath, logger };

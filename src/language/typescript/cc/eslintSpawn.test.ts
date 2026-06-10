@@ -189,6 +189,51 @@ describe("runEslintComplexity", () => {
     proc.emit("close", 0);
   });
 
+  it("splits 'npx eslint' into exe=npx with eslint prepended to args", async () => {
+    const proc = fakeProc();
+    vi.mocked(cp.spawn).mockReturnValue(proc);
+
+    runEslintComplexity("npx eslint", "/src/foo.ts", "/project", 5000);
+
+    expect(vi.mocked(cp.spawn).mock.calls[0][0]).toBe("npx");
+    expect(vi.mocked(cp.spawn).mock.calls[0][1]).toEqual([
+      "eslint", "/src/foo.ts", "-f", "json", "--no-error-on-unmatched-pattern", "--no-warn-ignored",
+    ]);
+
+    proc.emit("close", 0);
+  });
+
+  it("keeps a path with embedded spaces intact (does not split on the space)", async () => {
+    const proc = fakeProc();
+    vi.mocked(cp.spawn).mockReturnValue(proc);
+
+    runEslintComplexity("C:\\Program Files\\node\\eslint", "/src/foo.ts", "/project", 5000);
+
+    expect(vi.mocked(cp.spawn).mock.calls[0][0]).toBe("C:\\Program Files\\node\\eslint");
+    expect(vi.mocked(cp.spawn).mock.calls[0][1]).toEqual([
+      "/src/foo.ts", "-f", "json", "--no-error-on-unmatched-pattern", "--no-warn-ignored",
+    ]);
+
+    proc.emit("close", 0);
+  });
+
+  it("does NOT split a separator-bearing first token from trailing flags (documented constraint)", async () => {
+    // "node_modules/.bin/eslint --cache" — first token has a separator, so the
+    // whole string is treated as the executable. Locks the documented limitation:
+    // use a bare command ("npx eslint") for the multi-word form instead.
+    const proc = fakeProc();
+    vi.mocked(cp.spawn).mockReturnValue(proc);
+
+    runEslintComplexity("node_modules/.bin/eslint --cache", "/src/foo.ts", "/project", 5000);
+
+    expect(vi.mocked(cp.spawn).mock.calls[0][0]).toBe("node_modules/.bin/eslint --cache");
+    expect(vi.mocked(cp.spawn).mock.calls[0][1]).toEqual([
+      "/src/foo.ts", "-f", "json", "--no-error-on-unmatched-pattern", "--no-warn-ignored",
+    ]);
+
+    proc.emit("close", 0);
+  });
+
   it("returns empty map when stdout is null", async () => {
     const proc = new EventEmitter() as unknown as ChildProcess;
     (proc as any).stdout = null;

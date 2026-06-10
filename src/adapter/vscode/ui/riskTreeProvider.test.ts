@@ -58,17 +58,23 @@ vi.mock("vscode", () => {
   };
 });
 
+import * as vscode from "vscode";
 import { RiskTreeProvider, type RiskNode } from "./riskTreeProvider";
 import { ExtensionState } from "../extensionState";
 import { sym } from "../../../core/testFixtures";
+import type { IntegrationReport, IntegrationEntry } from "../../../core/integrationReport";
 
-function analysis(symbols: SymbolMetrics[]): AnalysisResult {
-  return { symbols, fileRollup: new Map(), edges: [], edgesCount: 0 };
+function analysis(symbols: SymbolMetrics[], integrations?: IntegrationReport): AnalysisResult {
+  return { symbols, fileRollup: new Map(), edges: [], edgesCount: 0, integrations };
 }
 
-/** Filter root children to only file nodes (skip the single scope node). */
+/** Filter root children to only file nodes (skip scope + integrations nodes). */
 function fileRoots(nodes: RiskNode[]): RiskNode[] {
-  return nodes.filter((n) => n.type !== "scope");
+  return nodes.filter((n) => n.type !== "scope" && n.type !== "integrations");
+}
+
+function entry(overrides: Partial<IntegrationEntry> & { source: string }): IntegrationEntry {
+  return { category: "CC", detail: "", status: "active", ...overrides };
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -876,6 +882,150 @@ describe("RiskTreeProvider", () => {
         "file:///b.ts",
         "file:///a.ts",
       ]);
+    });
+  });
+
+  // ─── Integration status section ─────────────────────────────────
+
+  describe("integration status", () => {
+    const report: IntegrationReport = {
+      entries: [
+        entry({ category: "CC", source: "ESLint", detail: "TS/JS", status: "active" }),
+        entry({ category: "Coverage", source: "LCOV", detail: "42 files", status: "active" }),
+        entry({ category: "Churn", source: "Git", detail: "Disabled", status: "inactive" }),
+      ],
+    };
+
+    it("includes an integrations parent node in root children when report exists", async () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })], report));
+      const roots = await provider.getChildren();
+      const intNode = roots.find((n) => n.type === "integrations");
+      expect(intNode).toBeDefined();
+    });
+
+    it("does not include integrations node when report is undefined", async () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })]));
+      const roots = await provider.getChildren();
+      expect(roots.every((n) => n.type !== "integrations")).toBe(true);
+    });
+
+    it("integrations parent is placed between scope and files", async () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })], report));
+      const roots = await provider.getChildren();
+      expect(roots[0].type).toBe("scope");
+      expect(roots[1].type).toBe("integrations");
+      expect(roots[2].type).toBe("file");
+    });
+
+    it("integrations node children are integration entry nodes", async () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })], report));
+      const intNode = (await provider.getChildren()).find((n) => n.type === "integrations")!;
+      const children = await provider.getChildren(intNode);
+      expect(children).toHaveLength(3);
+      expect(children.every((c) => c.type === "integration")).toBe(true);
+    });
+
+    it("integration entry nodes carry the entry data", async () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })], report));
+      const intNode = (await provider.getChildren()).find((n) => n.type === "integrations")!;
+      const children = await provider.getChildren(intNode);
+      const first = children[0];
+      if (first.type === "integration") {
+        expect(first.entry.source).toBe("ESLint");
+        expect(first.entry.category).toBe("CC");
+      }
+    });
+
+    // ── getTreeItem rendering ──────────────────────────────────────
+
+    it("renders integrations parent as collapsed with wrench icon", () => {
+      const item = provider.getTreeItem({ type: "integrations" });
+      expect(item.label).toBe("Integrations");
+      expect(item.collapsibleState).toBe(vscode.TreeItemCollapsibleState.Collapsed);
+      expect((item.iconPath as FakeThemeIcon).id).toBe("tools");
+    });
+
+    it("renders active integration entry with pass icon", () => {
+      const e = entry({ category: "CC", source: "ESLint", detail: "TS/JS", status: "active" });
+      const item = provider.getTreeItem({ type: "integration", entry: e });
+      expect(item.label).toBe("CC · ESLint");
+      expect(item.description).toBe("TS/JS");
+      expect((item.iconPath as FakeThemeIcon).id).toBe("pass");
+      expect(item.collapsibleState).toBe(vscode.TreeItemCollapsibleState.None);
+    });
+
+    it("renders fallback integration entry with warning icon", () => {
+      const e = entry({ category: "CC", source: "Estimated", detail: "Python", status: "fallback" });
+      const item = provider.getTreeItem({ type: "integration", entry: e });
+      expect(item.label).toBe("CC · Estimated");
+      expect((item.iconPath as FakeThemeIcon).id).toBe("warning");
+    });
+
+    it("renders inactive integration entry with circle-slash icon", () => {
+      const e = entry({ category: "Churn", source: "Git", detail: "Disabled", status: "inactive" });
+      const item = provider.getTreeItem({ type: "integration", entry: e });
+      expect(item.label).toBe("Churn · Git");
+      expect((item.iconPath as FakeThemeIcon).id).toBe("circle-slash");
+    });
+
+    it("sets contextValue ddpIntegration on integration entry nodes", () => {
+      const e = entry({ category: "CC", source: "ESLint", detail: "TS/JS", status: "active" });
+      const item = provider.getTreeItem({ type: "integration", entry: e });
+      expect(item.contextValue).toBe("ddpIntegration");
+    });
+
+    it("integrations parent has contextValue ddpIntegrations", () => {
+      const item = provider.getTreeItem({ type: "integrations" });
+      expect(item.contextValue).toBe("ddpIntegrations");
+    });
+
+    // ── fileRoots helper still works ───────────────────────────────
+
+    it("fileRoots excludes both scope and integrations nodes", async () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })], report));
+      const roots = fileRoots(await provider.getChildren());
+      expect(roots.every((n) => n.type === "file")).toBe(true);
+    });
+
+    // ── empty integrations report ─────────────────────────────────
+
+    it("does not show integrations node when report has empty entries array", async () => {
+      state.setAnalysis(analysis([sym({ id: "a", f: 5 })], { entries: [] }));
+      const roots = await provider.getChildren();
+      expect(roots.every((n) => n.type !== "integrations")).toBe(true);
+    });
+
+    // ── tooltip ───────────────────────────────────────────────────
+
+    it("sets MarkdownString tooltip when entry.tooltip is provided", () => {
+      const e = entry({ source: "Git", category: "Churn", tooltip: "Churn is disabled." });
+      const item = provider.getTreeItem({ type: "integration", entry: e });
+      const tooltip = item.tooltip as { value: string };
+      expect(tooltip?.value).toContain("Churn is disabled.");
+    });
+
+    it("does not set tooltip when entry.tooltip is absent", () => {
+      const e = entry({ source: "ESLint", category: "CC" });
+      const item = provider.getTreeItem({ type: "integration", entry: e });
+      expect(item.tooltip).toBeUndefined();
+    });
+
+    // ── settings command ───────────────────────────────────────────
+
+    it("sets command to open settings when entry.settingsKey is provided", () => {
+      const e = entry({ source: "Git", category: "Churn", settingsKey: "ddp.churn" });
+      const item = provider.getTreeItem({ type: "integration", entry: e });
+      expect(item.command).toEqual({
+        command: "workbench.action.openSettings",
+        title: "Open Settings",
+        arguments: ["ddp.churn"],
+      });
+    });
+
+    it("does not set command when entry.settingsKey is absent", () => {
+      const e = entry({ source: "Native", category: "Symbols" });
+      const item = provider.getTreeItem({ type: "integration", entry: e });
+      expect(item.command).toBeUndefined();
     });
   });
 });
