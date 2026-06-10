@@ -275,6 +275,7 @@
     "bundle": "node esbuild.mjs",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src/",
+    "audit": "npm audit --audit-level=high",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
